@@ -26,3 +26,15 @@ are complete.
 See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for validation commands and
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module boundaries.
 
+## Pull requests
+
+1. Create a focused branch from the current repository state.
+2. Keep one pull request centered on one user workflow or maintenance concern.
+3. Add or update a dependency-light regression where practical.
+4. Run the focused regression, compilation check, and project audit.
+5. Complete the pull-request template, including any Windows GUI check that
+   remains outstanding.
+
+Repository automation intentionally runs only dependency-free source and
+release-boundary checks. Provider/model execution, GPU compatibility, and live
+Tk behavior must be verified on a suitable Windows workstation.

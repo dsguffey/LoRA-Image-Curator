@@ -1,3 +1,3 @@
 LoRA Image Curator
-Version 0.27.17
-Isolated Windows GUI Gate Candidate
+Version 0.27.18
+Professional Repository Review Candidate

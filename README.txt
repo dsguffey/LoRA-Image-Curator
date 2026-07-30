@@ -1,4 +1,4 @@
-LORA IMAGE CURATOR GUI v0.27.17
+LORA IMAGE CURATOR GUI v0.27.18
 ========================
 
 OVERVIEW
@@ -13,7 +13,8 @@ layers around that catalog. Provider output is preserved, user decisions are
 stored independently, and final training text is derived only when it is
 previewed or exported.
 
-Version 0.27.17 is the Git-ready candidate for Milestone 11A. The application
+Version 0.27.18 is the professionally reviewed repository candidate for
+Milestone 11A. The application
 has been exercised with roughly 14,000 to 17,000 local images. Current primary
 workstation observations are about five seconds for a cold first launch and
 three seconds for the first Browser load at approximately 14,000 images, with a
@@ -25,8 +26,29 @@ deterministically releases Browser Tk images and application callbacks during
 shutdown. It also includes public repository screening guidance and GitHub
 issue templates for the first pre-1.0 source snapshot. The v0.27.17 gate
 isolates the long historical Tk replay in a strict child process and reports
-the tested source folder separately from the Python environment. Broader
+the tested source folder separately from the Python environment; that complete
+live-Windows gate passed. v0.27.18 improves first-visitor documentation,
+contributor privacy safeguards, ignore rules, and dependency-free repository
+automation without changing application behavior or schema. Broader
 large-catalog measurements and deferred high-risk QA remain pre-1.0 work.
+
+
+WHAT IS NEW IN v0.27.18
+-----------------------
+
+- the public README now leads with project purpose, engineering highlights,
+  honest status, clean-checkout setup, verification scope, and limitations
+- clean installation is separated from overwrite-in-place upgrade guidance
+- the completed v0.27.17 live-Windows golden result is recorded
+- GitHub issue templates have valid metadata and pull requests receive a
+  privacy, compatibility, and verification checklist
+- dependency-free repository checks run source compilation, the bounded
+  privacy/security audit, and current repository contracts on Windows and Linux
+- common raw image/video datasets and local secret files are ignored by default
+- catalog schema remains 12 and no application behavior or data migration
+  changed
+
+No v0.27.17 release files are obsolete in this update.
 
 
 WHAT IS NEW IN v0.27.17
@@ -390,7 +412,7 @@ UPGRADING FROM v0.24.0
 
 1. Close LoRA Image Curator.
 
-2. Extract LoRA_Image_Curator_v0.27.17.zip directly into your existing
+2. Extract LoRA_Image_Curator_v0.27.18.zip directly into your existing
    DatasetTools folder and allow Windows to replace older release files.
 
 3. Keep your existing `venv`, model files, catalogs, images, settings, logs,
@@ -403,7 +425,7 @@ UPGRADING FROM v0.24.0
 
        Run LoRA Image Curator.bat
 
-Version 0.27.17 uses schema 12 and accepts both
+Version 0.27.18 uses schema 12 and accepts both
 current and historical catalog identity markers. If upgrading directly from
 v0.19.0, the existing schema-10
 migration removes only file records that match LoRA Image Curator's exact
@@ -415,7 +437,7 @@ history remain intact.
 
 The old `<output folder>\thumbnail_cache` directory is not deleted
 automatically. After closing v0.19.0, it is safe to delete that entire legacy
-folder manually to recover disk space. v0.27.17 will ignore it if you leave it in
+folder manually to recover disk space. v0.27.18 will ignore it if you leave it in
 place and writes any new previews beneath:
 
     %APPDATA%\LoRAImageCurator\thumbnail_cache
@@ -1584,7 +1606,7 @@ exit indicates a failed gate; the runner stops at the first failure.
 `docs/GOLDEN_TEST.md` records the exact coverage and honest limits of the result.
 
 
-KNOWN LIMITATIONS IN v0.27.17
+KNOWN LIMITATIONS IN v0.27.18
 ---------------------------
 
 - Florence object detection and regional OCR follow the official 1,024-token

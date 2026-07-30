@@ -242,7 +242,7 @@ def run(*, include_gui: bool) -> None:
 
         if include_gui:
             _run_gui_gate(
-                [sys.executable, "-X", "dev", "test_v02717_gui.py"],
+                [sys.executable, "-X", "dev", "test_v02718_gui.py"],
                 environment=environment,
             )
         else:

@@ -23,12 +23,13 @@ def _source(filename: str) -> str:
 
 
 def test_current_version_is_consistent() -> None:
-    """Require every current public version marker to identify v0.27.17."""
-    assert APP_VERSION == "0.27.17"
-    assert "Version 0.27.17" in _source("VERSION.txt")
-    assert 'version = "0.27.17"' in _source("pyproject.toml")
-    assert "v0.27.17" in _source("README.md")
-    assert "v0.27.17" in _source("README.txt")
+    """Keep current metadata synchronized while retaining v0.27.17 history."""
+    assert tuple(int(part) for part in APP_VERSION.split(".")) >= (0, 27, 17)
+    assert f"Version {APP_VERSION}" in _source("VERSION.txt")
+    assert f'version = "{APP_VERSION}"' in _source("pyproject.toml")
+    assert f"v{APP_VERSION}" in _source("README.md")
+    assert f"v{APP_VERSION}" in _source("README.txt")
+    assert "## v0.27.17 — Isolated Windows GUI Gate" in _source("CHANGELOG.md")
 
 
 def test_legacy_gui_history_uses_a_strict_isolated_process() -> None:
@@ -63,7 +64,7 @@ def test_current_release_chains_include_v02717() -> None:
     assert '"test_v02717_regression.py"' in build
     assert '"test_v02717_gui.py"' in build
     assert '"test_v02717_regression.py"' in regressions
-    assert '"test_v02717_gui.py"' in golden
+    assert '"test_v02718_gui.py"' in golden
     assert "from test_v02716_gui import run as run_v02716" in gui
 
 

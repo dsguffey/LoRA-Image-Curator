@@ -16,6 +16,8 @@ unclear project status.
 - Run `python tools\audit_project.py` and resolve any private-path, credential,
   forbidden-artifact, documentation, subprocess, dynamic-evaluation, or SQLite
   ownership findings.
+- Confirm the dependency-free GitHub Actions workflow passes after the first
+  push. Hosted checks do not replace provider, GPU, or live-Windows Tk testing.
 - Check that no private catalogs, SQLite backups, image datasets, thumbnail
   caches, logs, exported datasets, model weights, virtual environments, local
   archives, or dependency snapshots are staged.
@@ -76,5 +78,7 @@ limitations, real QA evidence, and a clear roadmap.
 - Confirm no ignored/generated/private material appears in the public file list.
 - Run the quick setup and at least one smoke launch from the clean copy.
 - Verify every README link resolves on GitHub.
+- Replace or add repository URLs in `pyproject.toml` only after the final public
+  GitHub URL exists; never publish a guessed placeholder.
 - Create GitHub issues only for real public follow-up work; keep private QA
   datasets and local machine notes outside public issue text.

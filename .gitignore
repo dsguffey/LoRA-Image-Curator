@@ -3,8 +3,12 @@ __pycache__/
 *.py[cod]
 *.pyd
 .pytest_cache/
+.ruff_cache/
 .coverage
 htmlcov/
+build/
+dist/
+*.egg-info/
 
 # Local environments and dependency snapshots
 venv/
@@ -23,6 +27,29 @@ dependency_backups/
 settings.json
 thumbnail_cache/
 output/
+datasets/
+image_sources/
+video_frames/
+quarantine/
+
+# Raw dataset media is private by default. Curated, permission-safe public
+# screenshots may be committed deliberately beneath docs/assets.
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.gif
+*.bmp
+*.tif
+*.tiff
+*.avif
+*.heic
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.webm
+!docs/assets/**
 
 # Models and large generated artifacts
 *.onnx
@@ -32,6 +59,11 @@ output/
 *.pth
 *.bin
 models/
+
+# Local secrets and machine-specific environment configuration
+.env
+.env.*
+!.env.example
 
 # Releases, exports, and local QA material
 *.zip

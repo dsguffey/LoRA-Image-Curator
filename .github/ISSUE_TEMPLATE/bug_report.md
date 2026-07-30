@@ -1,3 +1,11 @@
+---
+name: Bug report
+about: Report a reproducible LoRA Image Curator defect
+title: "[Bug] "
+labels: bug
+assignees: ""
+---
+
 # Bug Report
 
 Thanks for reporting a problem with LoRA Image Curator. Please use synthetic or

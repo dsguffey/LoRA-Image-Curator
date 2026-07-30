@@ -2,239 +2,259 @@
 
 LoRA Image Curator is a local-first Windows desktop application for turning
 large image collections into reviewed, documented, training-ready LoRA
-datasets.
+datasets. It combines cataloging, local AI-assisted analysis, visual curation,
+quality review, and non-destructive export in one workflow.
 
-It combines a versioned SQLite catalog, local Florence-2 captioning, optional
-InsightFace and MediaPipe body analysis, visual curation, duplicate and quality
-review, reversible quarantine, native Recycle Bin deletion, dataset readiness
-checks, video-frame extraction, and non-destructive export in one workflow.
+The application prepares image datasets; it does not train a LoRA itself.
 
-> **Project status:** v0.27.17 is the current Milestone 11A Git-ready candidate.
-> It has been exercised with roughly 14,000–17,000 local images; first launch is
-> about five seconds and the first 14,000-image Browser load about three seconds
-> on the primary test workstation. Function-organized Settings now make catalog,
-> Florence, InsightFace, MediaPipe, and FFmpeg ownership explicit. Independent
-> subfolder scopes default on, temporary green provider markers identify the
-> shared progress bar, and provider/tool diagnostics are distinguished from
-> application defects. Browser thumbnail and Tk cleanup are deterministic after
-> the first v0.27.14 live-Windows gate exposed a shutdown race. v0.27.16 added
-> repository-readiness documentation and public issue templates; v0.27.17
-> isolates the long historical Tk replay and explicitly verifies the tested
-> source path separately from its Python environment. Broader stress
-> measurements, risky active-provider shutdown/quarantine QA, and final
-> live-Windows golden verification remain.
+| Project at a glance | |
+|---|---|
+| Current release | v0.27.18 pre-1.0 repository candidate |
+| Primary platform | Windows 11, Python 3.11+ |
+| Data model | Versioned SQLite catalog with SHA-256 content identity |
+| Local analysis | Florence-2, optional InsightFace and MediaPipe |
+| Tested scale | Approximately 14,000–17,000 local images |
+| License | MIT for project source; third-party components retain their licenses |
+
+> **Status:** Active pre-1.0 stabilization. v0.27.17 passed the complete
+> live-Windows golden-build gate. v0.27.18 changes repository presentation,
+> contributor guidance, and automated repository checks; application runtime
+> behavior and catalog schema remain unchanged. Large-catalog measurements,
+> active-provider shutdown/quarantine stress testing, and the first complete
+> exported-dataset training trial remain on the roadmap.
 
 ## Why this project exists
 
 Preparing a character LoRA dataset is not just a folder-sorting problem. Useful
-curation requires durable identity, provenance, review decisions, repeatable
-analysis, transparent quality checks, and a safe way to export only the chosen
-training material. LoRA Image Curator treats the SQLite catalog as the source
-of truth while keeping original images outside destructive application control.
+curation requires durable image identity, provenance, review decisions,
+repeatable analysis, transparent quality checks, and a safe way to export only
+the chosen training material.
 
-## Highlights
+LoRA Image Curator treats the SQLite catalog as the source of truth while
+keeping provider output, user decisions, and original files separate. Source
+images remain outside destructive application control during analysis and
+export.
 
-- Catalogs images by SHA-256 content identity while preserving multiple paths.
-- Reuses compatible analysis instead of recomputing unchanged images.
-- Keeps catalog-import, Florence input, face input, and face-reference subfolder
-  scopes independent; each defaults to including subfolders.
-- Organizes Settings by function while naming the active third-party
-  provider/tool on each page.
-- Shows checked/total, successful, failed, and remaining catalog coverage for
-  Florence, InsightFace, and MediaPipe.
-- Runs all configured providers together or Florence, face, and body analysis
-  independently, with safe Pause/Resume and compatible-result reuse.
-- Shows whether Florence, InsightFace, and MediaPipe are using a detected GPU
-  or CPU path; logs record the actual device chosen for each run.
-- Uses one shared provider progress bar, a named Current work heading, and a
-  temporary green marker on only the provider that is actively running.
-- Runs Florence-2 caption, object-detection, and text-overlay analysis locally.
-- Supports optional InsightFace detection and identity suggestions.
-- Browses installed compatible InsightFace model packs with explicit validation.
-- Supports optional local MediaPipe pose/body analysis with model compatibility
-  checks and user-adjustable evidence thresholds.
-- Can omit no-body and/or no-visible-face candidates during folder import.
-- Combines independent face, body/pose, catalog-state, image-set, and readiness
-  filters in the main browser.
-- Distinguishes unrun face analysis from a completed No Face result and offers
-  a visibility-only likely-non-person preset for conservative cleanup.
-- Provides paged, cached thumbnails for responsive review of large collections.
-- Avoids catalog-wide all-pairs duplicate work during ordinary Browser loading;
-  bounded duplicate grouping is indexed and single-image evidence is on demand.
-- Lets the user choose 25, 50, 75, or 100 images per browser page.
-- Jumps directly to the first, last, previous/next, or ±10 pages.
-- Keeps automatic tags, manual tags, exclusions, and review decisions separate.
-- Supports Boolean search, named searches, image sets, and transactional undo.
-- Makes active filtering conspicuous without filling the toolbar with a long
-  textual summary.
-- Keeps display filtering separate from preview-first selection curation.
-- Selects or deselects multi-keyword matches across every filtered result page.
-- Updates a progressively pruned image set from the exact browser selection.
-- Scores readiness for Flux, SDXL, SD 1.5, and general LoRA targets.
-- Extracts video frames through a separately installed FFmpeg executable.
-- Records source-video and fixed-interval timestamps for extracted frames and
-  displays them in browser details.
-- Opens images from a bottom-right thumbnail control into a built-in enlarged
-  review window with floating zoom, pan, Previous/Next, Fit, 100%, and
-  source-scene context.
-- Keeps dense Blur, duplicate, face, and body/pose evidence in a read-only Image
-  Quality popup instead of crowding ordinary Image Details.
-- Estimates fixed-interval output from video duration before extraction and
-  confirms Overwrite, Skip Existing, or Cancel for matching numbered frames.
-- Quarantines selected images reversibly and restores them without overwriting.
-- Sends selected files to the operating-system Recycle Bin with no permanent
-  deletion fallback.
-- Can remove selected images and all dependent metadata from the catalog;
-  explicit catalog-only removal and multi-image delete cleanup create a fresh
-  backup, while one reviewed Recycle Bin deletion does not.
-- Shows modal, cancellable progress for Quarantine, Restore, Recycle Bin, and
-  complete catalog-record removal while keeping Tk responsive.
-- Exports images, sidecars, manifests, and a handoff README without moving or
-  modifying source images.
+## Core workflow
 
-## Safety and privacy
+1. Create a catalog from one or more image folders.
+2. Run local caption, face, and optional body/pose analysis.
+3. Search, filter, compare, and review images in a paged thumbnail browser.
+4. Prune a named image set with duplicate, quality, identity, and readiness
+   evidence.
+5. Quarantine questionable files reversibly or send confirmed deletions to the
+   operating-system Recycle Bin.
+6. Validate the final selection and export images, sidecars, provenance, and a
+   training handoff without moving or modifying the sources.
 
-The application is designed for local operation:
+## Engineering highlights
 
-- It does not upload images, captions, embeddings, identity names, or catalogs.
-- Application/provider telemetry permission is disabled by default. The current
-  local MediaPipe path has no application-configured telemetry collector.
-- Source images are read-only during analysis and export.
-- Catalog replacement is staged and validated before publication.
-- Catalog deletion is limited to a validated SQLite file and its exact sidecars.
-- FFmpeg is invoked with an argument list and `shell=False`.
-- Model weights, FFmpeg, catalogs, caches, logs, and private datasets are not
-  bundled in the release archive.
-- Third-party models, packages, apps, websites, terms, privacy practices, and
-  outputs remain under their respective authors' or operators' control.
+- **Content-addressed catalog:** SHA-256 identity keeps duplicate file paths
+  separate from unique image content and supports compatible analysis reuse.
+- **Transactional persistence:** schema migrations, catalog replacement,
+  edits, undo/redo, quarantine metadata, and export history have explicit
+  SQLite ownership.
+- **Provider boundaries:** Florence-2, InsightFace/ONNX Runtime, MediaPipe, and
+  FFmpeg remain attributable optional components rather than being hidden
+  behind generic “AI” behavior.
+- **Responsive desktop lifecycle:** long analysis, thumbnail, quality, export,
+  and video tasks run outside Tk's event thread; GUI objects and callbacks are
+  created and finalized on the GUI thread.
+- **Non-destructive defaults:** analysis and export read or copy source images;
+  file-moving actions require confirmation and recovery-aware handling.
+- **Large-catalog controls:** paged thumbnails, bounded caches, indexed
+  duplicate grouping, result-wide selection, and persisted image sets avoid
+  catalog-wide widget growth and ordinary all-pairs work.
+- **Reproducible releases:** a signed member manifest, static privacy/security
+  audit, historical regression chain, deterministic ZIP builds, clean
+  extraction, overwrite-preservation checks, and live GUI checkpoints define
+  the release boundary.
 
-See [SECURITY.md](SECURITY.md) for the threat boundary and
-[THIRD_PARTY_NOTICE.md](THIRD_PARTY_NOTICE.md) for the provider/model/app
-responsibility and privacy notice.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for module ownership,
+invariants, and concurrency rules.
 
-## Architecture
+## Feature summary
 
-The application uses a deliberately layered design:
+- Local Florence-2 captioning, object detection, OCR, and triage evidence.
+- Optional InsightFace detection and identity suggestions.
+- Optional MediaPipe pose/body analysis with vetted model compatibility checks.
+- Independent inclusive-by-default subfolder scopes for catalog import,
+  captioning, face scanning, and face-reference folders.
+- Boolean search, named searches, image sets, transactional undo, and combined
+  face/body/catalog/readiness filters.
+- Cached paged thumbnails, enlarged review with zoom/pan, and source-scene
+  context for extracted video frames.
+- Explicit duplicate review and preview-first “Remove Unnecessary Images”
+  curation; the user retains final control.
+- Readiness profiles for Flux, SDXL, SD 1.5, and general LoRA targets.
+- FFmpeg frame extraction with fixed-interval estimates, scene-change support,
+  provenance timestamps, and collision handling.
+- Reversible quarantine, native Recycle Bin deletion, validation, and
+  non-destructive export with manifests and handoff documentation.
 
-| Layer | Responsibility |
-|---|---|
-| Tk interface | User intent, confirmation, progress, and widget lifecycle |
-| Workflow services | Import, analysis, review, quality, export, and video handoff |
-| Provider adapters | Florence-2, InsightFace, and normalized body-analysis execution |
-| SQLite catalog | Durable content identity, metadata, history, and migrations |
-| Disposable caches | Rebuildable thumbnails and session-only UI state |
+The comprehensive user reference is [README.txt](README.txt).
 
-Detailed module ownership, invariants, and concurrency rules are documented in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+## Installation from a clean checkout
 
-## Requirements
+### Requirements
 
-- Windows 11 is the primary tested platform.
+- Windows 11 is the supported and tested platform.
 - Python 3.11 or newer with Tk support.
-- A PyTorch installation appropriate for the system's CPU/CUDA environment.
-- Packages in `requirements.txt`.
-- Optional face-analysis dependencies installed with
-  `Install Face Analysis Dependencies.bat`.
-- Optional body-analysis and native Recycle Bin dependencies installed with
-  `Install Body and File Action Dependencies.bat`.
-- Optional FFmpeg installed separately or selected from the video dialog.
+- A PyTorch build appropriate for the computer's CPU/CUDA environment.
+- FFmpeg only if video-frame extraction is needed.
 
 Florence-2, InsightFace, and MediaPipe model weights are not bundled. Review
 [MODEL_LICENSES.txt](MODEL_LICENSES.txt) before downloading or using models.
 
-## Quick start
+### Setup
 
-Close the application and extract each release directly into the existing
-`DatasetTools` folder, allowing the ZIP to overwrite older release files. Keep
-the existing virtual environment, catalogs, images, models, settings, and
-caches. If a retired top-level Python file needs removal, the smoke test names
-that exact file so it can be moved to a backup folder without disturbing user
-data. No v0.27.16 files are obsolete when installing v0.27.17.
+1. Clone the repository or extract a release into a clean folder.
+2. Open PowerShell in that folder and create a virtual environment:
 
-1. Create a virtual environment named `venv` beside `app.py`.
-2. Install the appropriate PyTorch build for the computer.
-3. Install the remaining requirements:
+   ```powershell
+   py -m venv venv
+   ```
+
+3. Install the appropriate PyTorch build for the workstation.
+4. Install the base dependencies:
 
    ```powershell
    venv\Scripts\python.exe -m pip install -r requirements.txt
    ```
 
-4. Launch:
+5. Launch the application:
 
-   ```text
-   Run LoRA Image Curator.bat
+   ```powershell
+   .\Run LoRA Image Curator.bat
    ```
 
-5. Create or open a catalog and analyze images.
-6. Optionally run **Body / Pose Analysis** from **Analyze & Update Catalog**, or
-   enable body/face evidence filtering during folder import.
-7. Use **Filters** in Catalog Browser to combine image-set, face, body/pose,
-   catalog-state, and readiness constraints; update the image set from the
-   resulting selection.
-8. Quarantine or restore files during pruning, or use Delete for the Recycle Bin.
-9. Validate the final set and export from **Finalize & Export**.
+   Or launch Python directly:
 
-The comprehensive workflow reference is [README.txt](README.txt).
+   ```powershell
+   venv\Scripts\python.exe app.py
+   ```
 
-## Testing
+An external virtual environment is also supported. The golden-build test
+reports the project-source folder and Python runtime separately and rejects
+project imports that escape the checkout under test.
 
-The source tree includes dependency-light regressions for schema migrations,
-catalog editing, search, image sets, curation, export, performance boundaries,
-theme/font compatibility, video extraction, model selection, and release
-packaging. Tk smoke tests require a live display; the final supported check is
-performed on Windows.
+### Optional components
 
-The authoritative release/handoff command uses only synthetic temporary data
-and runs all maintained automated, package, and GUI gates:
+| Capability | Setup |
+|---|---|
+| Face analysis | Run `Install Face Analysis Dependencies.bat` |
+| Body/pose analysis and Recycle Bin support | Run `Install Body and File Action Dependencies.bat` |
+| Video extraction | Install FFmpeg separately or select its executable in the video dialog |
+
+### Upgrading an existing installation
+
+Close the application and extract the release over the existing application
+folder, allowing release files to be replaced. Preserve the virtual
+environment, `output`, models, settings, catalogs, image sources, and caches.
+The release preflight reports an exact retired filename if manual removal is
+ever necessary. No v0.27.17 files are obsolete in v0.27.18.
+
+## Safety and privacy
+
+- The application does not upload images, captions, embeddings, identity names,
+  or catalogs.
+- Application/provider telemetry permission is disabled by default.
+- Model and dependency downloads are separate, explicit third-party actions.
+- Source images are read-only during analysis and export.
+- Catalog replacement is staged and validated before publication.
+- Catalog deletion is limited to a validated SQLite file and its exact
+  sidecars.
+- FFmpeg is invoked with an argument list and `shell=False`.
+- Model weights, FFmpeg, catalogs, caches, logs, private datasets, and virtual
+  environments are excluded from release archives.
+
+Third-party packages, models, executables, websites, terms, and privacy
+practices remain outside the application's trust boundary. See
+[SECURITY.md](SECURITY.md) and
+[THIRD_PARTY_NOTICE.md](THIRD_PARTY_NOTICE.md).
+
+## Verification
+
+The authoritative Windows release gate uses temporary synthetic data and never
+opens or edits a real catalog:
 
 ```powershell
 python -X dev test_golden_build.py
 ```
 
-The default run requires a live Windows desktop. `--no-gui` is useful for
-headless development checks, but does not qualify a build as golden.
-See [docs/GOLDEN_TEST.md](docs/GOLDEN_TEST.md) for the exact coverage and
-honest limits of that result.
+A passing default run establishes the maintained regressions, source
+compilation, bounded privacy/security audit, two byte-identical builds, signed
+member verification, clean extraction, overwrite preservation, and cumulative
+live Tk checkpoints.
 
-Developer setup, the historical suite, and release verification are described
-in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+For a quick dependency-free repository check:
 
-## Repository and release files
+```powershell
+python -m tools.compile_project
+python tools\audit_project.py
+python -X dev test_v02718_regression.py
+```
 
-- `app.py` — desktop composition and workflow orchestration
-- `catalog.py` — schema, migrations, and catalog persistence
-- `catalog_browser.py` — visual browser, selection, and thumbnail lifecycle
-- `browser_workflow.py` — unified filter and result-wide selection semantics
-- `face_analyzer.py` / `florence_analyzer.py` — provider implementations
-- `body_analysis.py` / `body_analysis_runner.py` — normalized local pose provider
-- `body_setup_dialog.py` — responsive provider/model compatibility feedback
-- `file_actions.py` — reversible quarantine and recoverable trash operations
-- `dataset_export.py` — non-destructive training handoff
-- `docs/` — architecture and development documentation
-- `tools/` — static audit, regression, and deterministic release helpers
-- `GIT_READY_CHECKLIST.md` — public-repository screening and publication steps
-- `BUGS.md`, `ROADMAP.md`, `WISHLIST.md`, `CHANGELOG.md` — project history
+`python -X dev test_golden_build.py --no-gui` is useful in a headless
+environment, but it does not qualify a release as golden. See
+[docs/GOLDEN_TEST.md](docs/GOLDEN_TEST.md) for exact coverage and limitations.
 
-## Development approach
+The repository also runs the dependency-free checks on supported Python
+versions through GitHub Actions. Model execution, GPU compatibility, and live
+Tk behavior intentionally remain workstation tests.
+
+## Repository map
+
+| Area | Responsibility |
+|---|---|
+| `app.py`, dialogs, `ui_*` | Desktop composition, user intent, progress, and Tk lifecycle |
+| `catalog*.py`, `image_sets.py` | Schema, migrations, durable catalog state, and saved sets |
+| `florence_analyzer.py`, `face_analyzer.py`, `body_analysis*.py` | Local provider adapters and normalized results |
+| `catalog_browser.py`, `browser_workflow.py`, `dataset_readiness.py` | Visual review, filtering, selection, and readiness evidence |
+| `file_actions.py`, `dataset_export.py`, `video_extraction*.py` | Recovery-aware file actions, export, and video handoff |
+| `test_*.py`, `tools/` | Historical regressions, audit, fixtures, and deterministic packaging |
+| `docs/` | Architecture, development, and golden-gate documentation |
+
+`BUGS.md`, `ROADMAP.md`, `WISHLIST.md`, and `CHANGELOG.md` keep confirmed
+defects, planned work, deferred ideas, and completed history distinct.
+
+## Known limitations
+
+- Windows 11 is the primary tested platform; Linux/macOS portability is not yet
+  a supported release claim.
+- Provider evidence is probabilistic and requires human review.
+- Large-catalog timing observations are workstation baselines, not performance
+  guarantees.
+- FFmpeg and model weights must be installed separately.
+- Provider cancellation is cooperative at safe item/task boundaries.
+- Readiness scoring evaluates preparation evidence; it does not predict final
+  LoRA quality.
+- The first complete exported-dataset training trial remains pre-1.0 work.
+
+See [BUGS.md](BUGS.md), [ROADMAP.md](ROADMAP.md), and
+[WISHLIST.md](WISHLIST.md) for the detailed current state.
+
+## Contributing
+
+The project is in focused stabilization, so reproducible bug reports and narrow
+fixes are preferred over broad feature expansion. Read
+[CONTRIBUTING.md](CONTRIBUTING.md) before proposing a change and do not include
+private images, catalogs, model files, credentials, or sensitive local paths in
+public reports.
+
+## Project authorship
 
 Product direction, workflow design, acceptance criteria, hands-on Windows QA,
 and release decisions are led by **David Scott Guffey**. Implementation has
-been developed iteratively with AI assistance, with explicit regression tests,
-catalog-integrity checks, security-boundary reviews, and extracted-archive
-verification used to validate each release.
+been developed iteratively with AI assistance and validated through explicit
+regressions, catalog-integrity checks, security-boundary reviews, deterministic
+packaging, and extracted-archive verification.
 
-## Author
-
-Created by **David Scott Guffey**.
-
-- [LinkedIn](https://www.linkedin.com/in/davidsguffey/)
-- For non-sensitive bugs and feature requests, use GitHub Issues once the
-  repository is published.
+- [David Scott Guffey on LinkedIn](https://www.linkedin.com/in/davidsguffey/)
 
 ## License
 
-The application source is licensed under the [MIT License](LICENSE).
-Third-party packages, models, and separately installed tools retain their own
-licenses and are inventoried in [MODEL_LICENSES.txt](MODEL_LICENSES.txt).
-LoRA Image Curator does not control or assume responsibility for those
-third-party products; see [THIRD_PARTY_NOTICE.md](THIRD_PARTY_NOTICE.md).
+Project source is licensed under the [MIT License](LICENSE). Third-party
+packages, models, and separately installed tools retain their own licenses; see
+[MODEL_LICENSES.txt](MODEL_LICENSES.txt) and
+[THIRD_PARTY_NOTICE.md](THIRD_PARTY_NOTICE.md).

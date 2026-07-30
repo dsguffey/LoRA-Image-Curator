@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 
-echo LoRA Image Curator v0.27.17 diagnostic launcher
+echo LoRA Image Curator v0.27.18 diagnostic launcher
 echo Project folder: %CD%
 echo.
 

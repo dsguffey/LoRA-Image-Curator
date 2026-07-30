@@ -1,3 +1,11 @@
+---
+name: Feature request
+about: Propose a focused workflow improvement
+title: "[Feature] "
+labels: enhancement
+assignees: ""
+---
+
 # Feature Request
 
 Thanks for suggesting an improvement. LoRA Image Curator is still pre-1.0, so

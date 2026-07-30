@@ -1,5 +1,38 @@
 # LoRA Image Curator Changelog
 
+## v0.27.18 — Professional Repository Review
+
+### Improved
+
+- rewrote the public README around a first-time visitor: concise project status,
+  core workflow, engineering highlights, clean-checkout setup, optional
+  components, verification scope, limitations, authorship, and license
+- separated clean installation from overwrite-in-place upgrade guidance
+- recorded the user-confirmed v0.27.17 live-Windows golden pass instead of
+  continuing to describe it as pending
+- added valid GitHub issue-template metadata and a privacy-aware pull-request
+  checklist
+- expanded `.gitignore` so raw image/video datasets, local environments,
+  generated build material, and local secret files are private by default;
+  permission-safe public screenshots can be added deliberately under
+  `docs/assets`
+
+### Repository automation
+
+- added a dependency-free GitHub Actions workflow that compiles the signed
+  Python inventory, runs the bounded source/privacy audit, and verifies current
+  repository contracts on Windows and Linux with Python 3.11 and 3.14
+- kept provider/model downloads, GPU checks, and live Tk execution out of hosted
+  automation; those remain explicit workstation verification
+
+### Verification and compatibility
+
+- advanced the regression, deterministic package inventory, and cumulative
+  Windows GUI chain to v0.27.18
+- catalog schema remains 12; application runtime behavior and user data are
+  unchanged
+- no v0.27.17 files are expected to be obsolete
+
 ## v0.27.17 — Isolated Windows GUI Gate
 
 ### Fixed

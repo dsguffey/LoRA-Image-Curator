@@ -1,7 +1,7 @@
 # Golden-Build Verification
 
 `test_golden_build.py` is the authoritative release and workspace-handoff
-command for LoRA Image Curator v0.27.17.
+command for LoRA Image Curator v0.27.18.
 
 ```powershell
 python -X dev test_golden_build.py
@@ -13,7 +13,7 @@ datasets.
 
 ## What a passing run establishes
 
-- every maintained non-GUI regression from Milestone 6B through v0.27.17 passes;
+- every maintained non-GUI regression from Milestone 6B through v0.27.18 passes;
 - every project-owned Python file named by the signed release manifest
   compiles, while the adjacent virtual environment and user-managed folders
   remain outside the release boundary;
@@ -31,7 +31,7 @@ datasets.
 - the flat overwrite-in-place archive builds twice with identical bytes;
 - archive CRC, member manifest, clean extraction, and a synthetic
   overwrite-in-place overlay pass without copying the installed workspace;
-- the current cumulative Windows/Tk GUI chain through v0.27.17 passes without
+- the current cumulative Windows/Tk GUI chain through v0.27.18 passes without
   unraisable Tk finalizers, orphaned delayed callbacks, or background Tcl/Tk
   diagnostics on stderr; the v0.27.10-and-earlier history runs in a strict
   isolated process so its destroyed interpreters cannot affect newer checks;
@@ -42,7 +42,7 @@ datasets.
 The final line must read:
 
 ```text
-GOLDEN BUILD PASSED — LoRA Image Curator v0.27.17
+GOLDEN BUILD PASSED — LoRA Image Curator v0.27.18
 ```
 
 `--no-gui` runs the complete headless portion. It is useful during development,
@@ -59,5 +59,6 @@ GPU-driver compatibility, third-party package behavior, or visual output
 quality. Large-catalog performance measurements and the real dataset/training
 trial remain active roadmap work.
 
-The user has separately confirmed on Windows that v0.27.5's packaged smoke test
-passed and deletion from enlarged review reached the Recycle Bin workflow.
+The user has separately confirmed the complete packaged v0.27.17 Windows
+golden-build gate. v0.27.18 retains the same application runtime and advances
+the gate for its documentation and repository-boundary changes.

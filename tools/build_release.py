@@ -29,7 +29,16 @@ except ModuleNotFoundError as error:
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 FIXED_ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
-INCLUDED_SUFFIXES = {".py", ".md", ".txt", ".bat", ".vbs", ".toml"}
+INCLUDED_SUFFIXES = {
+    ".py",
+    ".md",
+    ".txt",
+    ".bat",
+    ".vbs",
+    ".toml",
+    ".yml",
+    ".yaml",
+}
 INCLUDED_NAMES = {".gitattributes", ".gitignore", "LICENSE"}
 EXCLUDED_DIRECTORIES = {
     "__pycache__",
@@ -110,9 +119,13 @@ REQUIRED_MEMBERS = {
     "test_v02716_gui.py",
     "test_v02717_regression.py",
     "test_v02717_gui.py",
+    "test_v02718_regression.py",
+    "test_v02718_gui.py",
     "test_golden_build.py",
     ".github/ISSUE_TEMPLATE/bug_report.md",
     ".github/ISSUE_TEMPLATE/feature_request.md",
+    ".github/pull_request_template.md",
+    ".github/workflows/repository-checks.yml",
     ".gitattributes",
     "GIT_READY_CHECKLIST.md",
     "THIRD_PARTY_NOTICE.md",

@@ -27,7 +27,7 @@ def test_current_version_identifies_git_readiness_candidate() -> None:
     assert tuple(int(part) for part in APP_VERSION.split(".")) >= (0, 27, 16)
     assert f"Version {APP_VERSION}" in _source("VERSION.txt")
     assert f'version = "{APP_VERSION}"' in _source("pyproject.toml")
-    assert "v0.27.16" in _source("README.md")
+    assert "## v0.27.16 — Git Repository Readiness" in _source("CHANGELOG.md")
     assert "v0.27.16" in _source("ROADMAP.md")
 
 
@@ -67,7 +67,7 @@ def test_release_inventory_includes_repo_readiness_files() -> None:
     assert '".github/ISSUE_TEMPLATE/bug_report.md"' in build
     assert '"GIT_READY_CHECKLIST.md"' in build
     assert '"test_v02716_regression.py"' in regressions
-    assert '"test_v02717_gui.py"' in golden
+    assert '"test_v02718_gui.py"' in golden
     assert "from test_v02715_gui import run as run_v02715" in gui
 
 

@@ -51,15 +51,14 @@ Completed foundations include:
   and a dedicated missing-file filter
 - video-origin manifests and browser-visible source timestamps
 
-## Current: Milestone 11A — Git-Ready Public Candidate
+## Current: Milestone 11A — Professionally Reviewed Public Candidate
 
-v0.27.17 is the current Git-ready candidate after the first 14,000-image cleanup,
-continued functional testing through 17,000 images, the workflow-clarity update,
-deterministic Tk cleanup prompted by the first v0.27.14 live-Windows gate, and
-the repository-readiness documentation pass, and isolation of the long
-historical Windows Tk replay. It can be published as an honest pre-1.0
-active-development project after the v0.27.17 live-Windows golden gate
-and repository screening pass.
+v0.27.18 is the current public-repository candidate after cleanup and functional
+testing at roughly 14,000–17,000 images, deterministic Tk lifecycle fixes,
+repository-boundary hardening, and a first-visitor presentation review.
+v0.27.17 passed the complete live-Windows golden gate. The v0.27.18 change is
+documentation and repository automation only; its final Windows gate remains
+the last release check before publication.
 
 - keep public version, launcher, README, bugs, roadmap, test, and release
   metadata synchronized
@@ -70,7 +69,19 @@ and repository screening pass.
   or generated exports are included
 - retain a concise architecture/module map instead of combining independent
   modules only to reduce the file count
-- publish the deterministic v0.27.17 source ZIP as the pre-1.0 reference snapshot
+- publish the deterministic v0.27.18 source ZIP and Git commit as the pre-1.0
+  reference snapshot
+
+## Completed within Milestone 11: v0.27.18
+
+- restructured the README for first-time users, technical reviewers, and
+  portfolio readers
+- separated clean-checkout installation from in-place upgrade instructions
+- recorded the completed v0.27.17 Windows golden verification honestly
+- added valid issue metadata, a privacy-aware pull-request template, and
+  dependency-free Windows/Linux repository checks
+- made common raw dataset media and local secret files ignored by default while
+  reserving `docs/assets` for deliberately public visual material
 
 ## Completed within Milestone 11: v0.27.17
 

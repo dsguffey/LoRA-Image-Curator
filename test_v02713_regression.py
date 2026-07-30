@@ -63,7 +63,7 @@ def test_current_release_chains_include_v02713() -> None:
     next_gui = _source("test_v02715_gui.py")
     current_endpoint = _source("test_v02716_gui.py")
 
-    assert '"test_v02717_gui.py"' in runner
+    assert '"test_v02718_gui.py"' in runner
     assert '"test_v02713_regression.py"' in regressions
     assert '"test_v02713_regression.py"' in build
     assert '"test_v02713_gui.py"' in build
