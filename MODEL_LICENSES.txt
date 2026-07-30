@@ -1,0 +1,108 @@
+LORA IMAGE CURATOR — MODEL AND PROVIDER LICENSE NOTES
+================================================
+
+This file is informational and is not legal advice.
+
+INSIGHTFACE PYTHON CODE
+-----------------------
+
+License: MIT
+
+The InsightFace project states that its code may be used for academic and
+commercial purposes under the MIT License.
+
+Official source:
+https://github.com/deepinsight/insightface
+
+
+INSIGHTFACE PRETRAINED MODEL PACKS
+----------------------------------
+
+Examples:
+
+- buffalo_l
+- buffalo_m
+- buffalo_s
+- buffalo_sc
+- antelopev2
+
+The InsightFace project states that the pretrained models it distributes,
+including models downloaded automatically by its Python package, are available
+for non-commercial research purposes only unless separately licensed.
+
+InsightFace's repository also directs users seeking a license for open-source
+recognition models such as buffalo_l to its recognition-model licensing
+contact.
+
+Official sources:
+https://github.com/deepinsight/insightface
+https://pypi.org/project/insightface/
+
+LoRA Image Curator does not include, copy, mirror, or relicense these model weights.
+
+
+ONNX RUNTIME
+------------
+
+License: MIT
+
+Official source:
+https://github.com/microsoft/onnxruntime
+
+LoRA Image Curator's optional installer selects an ONNX Runtime line based on the CUDA
+major version bundled with the existing PyTorch installation. Microsoft notes
+that ONNX Runtime GPU 1.27 and later use CUDA 13 by default, while earlier
+current releases use CUDA 12.
+
+Compatibility documentation:
+https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html
+
+
+EXTERNAL FFMPEG EXECUTABLE
+--------------------------
+
+LoRA Image Curator v0.17.0 can invoke a separately installed FFmpeg executable for
+local video-frame extraction. LoRA Image Curator does not include, download, update,
+link against, copy, or relicense FFmpeg binaries or source code.
+
+The FFmpeg project states that FFmpeg is LGPL 2.1-or-later by default. If a build
+uses optional GPL components, GPL 2.0-or-later applies to all of that FFmpeg
+build. FFmpeg's legal page also distinguishes nonfree configurations and
+provides a distribution-compliance checklist.
+
+Official source:
+https://ffmpeg.org/legal.html
+
+Any future decision to distribute an FFmpeg build with LoRA Image Curator must review
+that exact build configuration and provide the required matching source,
+notices, and other compliance materials. No bundled build is approved by this
+document.
+
+
+OPTIONAL BODY ANALYSIS AND FILE ACTIONS
+---------------------------------------
+
+Google MediaPipe Pose Landmarker
+- Purpose: local body/pose landmark analysis.
+- Code package: Apache License 2.0.
+- Model weights: downloaded separately from Google's documented MediaPipe
+  model host; not bundled with LoRA Image Curator.
+- Privacy boundary: LoRA Image Curator configures no telemetry endpoint and
+  does not upload analyzed images or results. Explicit downloads are separate
+  user-started network actions.
+
+Send2Trash
+- Purpose: request native operating-system Trash / Recycle Bin behavior.
+- License: BSD-3-Clause.
+- Safety boundary: if the dependency or native trash action fails, LoRA Image
+  Curator does not fall back to permanent deletion.
+
+
+FUTURE USER-SUPPLIED MODELS
+---------------------------
+
+A user who supplies another model is responsible for ensuring that its license
+permits the intended use and distribution.
+
+LoRA Image Curator should eventually display, store, and export user-entered model
+license metadata rather than assuming every ONNX file has the same terms.

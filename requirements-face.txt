@@ -1,0 +1,7 @@
+# InsightFace itself is pinned to the version used for LoRA Image Curator v0.6.
+insightface==1.0.1
+
+# Do not install ONNX Runtime from this static file.
+# Run Install Face Analysis Dependencies.bat instead. The installer selects a
+# CUDA 12, CUDA 13, legacy CUDA 11, or CPU package based on the existing
+# PyTorch environment.

@@ -1,0 +1,48 @@
+# Python and test artifacts
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local environments and dependency snapshots
+venv/
+.venv/
+env/
+dependency_backups/
+
+# User data: never commit catalogs, images, provider output, or local state
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+*.log
+*.partial.csv
+settings.json
+thumbnail_cache/
+output/
+
+# Models and large generated artifacts
+*.onnx
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+models/
+
+# Releases, exports, and local QA material
+*.zip
+release_audit/
+release_output/
+exports/
+catalog_backups/
+
+# IDE and operating-system metadata
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,10 @@
+# Install the appropriate PyTorch build for the target CPU/CUDA environment
+# before this file. PyTorch is deliberately not pinned here because its correct
+# wheel depends on the workstation's accelerator and driver stack.
+
+numpy>=1.26,<3
+Pillow>=10,<13
+transformers==4.49.0
+einops>=0.7,<1
+timm>=0.9,<2
+

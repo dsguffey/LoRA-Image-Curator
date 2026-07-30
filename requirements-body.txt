@@ -1,0 +1,4 @@
+# Optional local body analysis and recoverable file deletion.
+# MediaPipe supports the vetted Pose Landmarker .task bundles.
+mediapipe>=0.10,<1
+Send2Trash>=1.8,<3
