@@ -23,11 +23,12 @@ def _source(filename: str) -> str:
 
 def test_current_version_is_consistent() -> None:
     """Require public version markers to identify the reviewed candidate."""
-    assert APP_VERSION == "0.27.18"
-    assert "Version 0.27.18" in _source("VERSION.txt")
-    assert 'version = "0.27.18"' in _source("pyproject.toml")
-    assert "v0.27.18" in _source("README.md")
-    assert "v0.27.18" in _source("README.txt")
+    assert tuple(int(part) for part in APP_VERSION.split(".")) >= (0, 27, 18)
+    assert f"Version {APP_VERSION}" in _source("VERSION.txt")
+    assert f'version = "{APP_VERSION}"' in _source("pyproject.toml")
+    assert "## v0.27.18 — Professional Repository Review" in _source(
+        "CHANGELOG.md"
+    )
 
 
 def test_readme_serves_a_first_time_repository_visitor() -> None:
@@ -77,7 +78,7 @@ def test_dependency_free_repository_workflow_is_bounded() -> None:
     assert "actions/setup-python@v7" in workflow
     assert "python -m tools.compile_project" in workflow
     assert "python tools/audit_project.py" in workflow
-    assert "python -X dev test_v02718_regression.py" in workflow
+    assert "python -X dev test_v02719_regression.py" in workflow
     assert "pip install" not in workflow
 
 
@@ -95,7 +96,7 @@ def test_current_release_chains_include_v02718() -> None:
     ):
         assert member in build
     assert '"test_v02718_regression.py"' in regressions
-    assert '"test_v02718_gui.py"' in golden
+    assert '"test_v02719_gui.py"' in golden
     assert "from test_v02717_gui import run as run_v02717" in gui
 
 

@@ -2,12 +2,12 @@
 setlocal
 cd /d "%~dp0"
 
-echo LoRA Image Curator v0.27.18 - Face Analysis Dependency Installer
+echo LoRA Image Curator v0.27.19 - Face Analysis Dependency Installer
 echo.
 
 if not exist "venv\Scripts\python.exe" (
-    echo ERROR: Could not find venv\Scripts\python.exe
-    echo Copy this update beside the existing venv folder.
+    echo ERROR: Required app setup has not been completed.
+    echo Run Setup and Launch LoRA Image Curator.bat first.
     echo.
     pause
     exit /b 1

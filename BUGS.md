@@ -362,6 +362,14 @@ Continue using CPU fallback while the main application is developed. LoRA
 Image Curator reports the actual execution provider rather than claiming GPU
 use.
 
+For new or repaired installs, v0.27.19's guided face setup reads the CUDA major
+version bundled with PyTorch, removes both ONNX Runtime variants, and installs
+only the matching package line. This specifically prevents the observed CUDA
+12 plus ONNX Runtime 1.27 mismatch from being recreated. Existing environments
+must rerun the face installer before this mitigation applies; GPU availability
+still requires a successful local Windows check and remains open here until
+confirmed.
+
 #### Future investigation
 
 - confirm whether `onnxruntime-gpu` or CPU `onnxruntime` is installed

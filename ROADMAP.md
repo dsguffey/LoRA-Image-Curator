@@ -51,14 +51,14 @@ Completed foundations include:
   and a dedicated missing-file filter
 - video-origin manifests and browser-visible source timestamps
 
-## Current: Milestone 11A — Professionally Reviewed Public Candidate
+## Current: Milestone 11A — Portable Public Source Candidate
 
-v0.27.18 is the current public-repository candidate after cleanup and functional
+v0.27.19 is the current public-source candidate after cleanup and functional
 testing at roughly 14,000–17,000 images, deterministic Tk lifecycle fixes,
-repository-boundary hardening, and a first-visitor presentation review.
-v0.27.17 passed the complete live-Windows golden gate. The v0.27.18 change is
-documentation and repository automation only; its final Windows gate remains
-the last release check before publication.
+repository-boundary hardening, a first-visitor presentation review, and a
+checklist-driven project-local setup path. v0.27.17 passed the complete
+live-Windows golden gate. v0.27.19 changes setup, launch, documentation, and
+release verification without changing catalog or application behavior.
 
 - keep public version, launcher, README, bugs, roadmap, test, and release
   metadata synchronized
@@ -69,8 +69,23 @@ the last release check before publication.
   or generated exports are included
 - retain a concise architecture/module map instead of combining independent
   modules only to reduce the file count
-- publish the deterministic v0.27.18 source ZIP and Git commit as the pre-1.0
+- publish the deterministic v0.27.19 source ZIP and Git commit as the pre-1.0
   reference snapshot
+
+## Completed within Milestone 11: v0.27.19
+
+- added one checklist-style setup and launcher entry point for first-time setup,
+  readiness inspection, optional features, FFmpeg detection, and app launch
+- made the setup path create and own `venv` automatically without requiring
+  activation or local-machine paths
+- separated launch-time requirements from optional face, body/pose, Recycle
+  Bin, and video features in both the launcher and GitHub documentation
+- made PyTorch selection official-source-driven and kept every install inside
+  the project environment
+- documented and enforced the CUDA 12/13 ONNX Runtime compatibility boundary
+  without bundling dependencies, model weights, or FFmpeg
+- corrected the first Windows QA feedback from v0.27.19 by accepting any
+  installed Python 3.11+ runtime and reducing repeated setup-menu headings
 
 ## Completed within Milestone 11: v0.27.18
 
@@ -807,6 +822,8 @@ for the source-tree cleanup.
 
 - create a proper Windows executable for ordinary use without manually invoking
   Python
+- make the ordinary installer experience hide Python and virtual-environment
+  administration entirely; retain the v0.27.19 source setup for developers
 - create an installer or installer-like distribution with clear install,
   upgrade, uninstall, and troubleshooting behavior
 - decide how optional dependencies such as FFmpeg and face-analysis packages are

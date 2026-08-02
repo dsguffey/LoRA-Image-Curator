@@ -1,4 +1,4 @@
-LORA IMAGE CURATOR GUI v0.27.18
+LORA IMAGE CURATOR GUI v0.27.19
 ========================
 
 OVERVIEW
@@ -13,8 +13,8 @@ layers around that catalog. Provider output is preserved, user decisions are
 stored independently, and final training text is derived only when it is
 previewed or exported.
 
-Version 0.27.18 is the professionally reviewed repository candidate for
-Milestone 11A. The application
+Version 0.27.19 is the portable-source setup candidate for Milestone 11A. The
+application
 has been exercised with roughly 14,000 to 17,000 local images. Current primary
 workstation observations are about five seconds for a cold first launch and
 three seconds for the first Browser load at approximately 14,000 images, with a
@@ -29,8 +29,30 @@ isolates the long historical Tk replay in a strict child process and reports
 the tested source folder separately from the Python environment; that complete
 live-Windows gate passed. v0.27.18 improves first-visitor documentation,
 contributor privacy safeguards, ignore rules, and dependency-free repository
-automation without changing application behavior or schema. Broader
+automation without changing application behavior or schema. v0.27.19 adds a
+checklist-driven setup assistant, project-local environment creation, clear
+required/optional dependency tiers, and first-time launcher recovery without
+changing application behavior or schema. Broader
 large-catalog measurements and deferred high-risk QA remain pre-1.0 work.
+
+
+WHAT IS NEW IN v0.27.19
+-----------------------
+
+- `Setup and Launch LoRA Image Curator.bat` provides one numbered first-time
+  setup, component-check, optional-feature, and launch menu
+- the assistant creates and uses the project-local `venv`; users never need to
+  activate it manually
+- the required source stack and optional Face, Body/Pose, Recycle Bin, and
+  FFmpeg features are reported separately
+- PyTorch selection stays explicit: the assistant safely redirects a command
+  copied from the official selector into the local venv or installs the
+  official CPU-only build
+- the face installer selects ONNX Runtime from the CUDA generation reported by
+  PyTorch, including the required pre-1.27 line for CUDA 12
+- ordinary launchers route a missing environment into guided setup instead of
+  assuming a pre-existing installation
+- no v0.27.18 release files are obsolete; catalog schema remains 12
 
 
 WHAT IS NEW IN v0.27.18
@@ -412,7 +434,7 @@ UPGRADING FROM v0.24.0
 
 1. Close LoRA Image Curator.
 
-2. Extract LoRA_Image_Curator_v0.27.18.zip directly into your existing
+2. Extract LoRA_Image_Curator_v0.27.19.zip directly into your existing
    DatasetTools folder and allow Windows to replace older release files.
 
 3. Keep your existing `venv`, model files, catalogs, images, settings, logs,
@@ -425,7 +447,7 @@ UPGRADING FROM v0.24.0
 
        Run LoRA Image Curator.bat
 
-Version 0.27.18 uses schema 12 and accepts both
+Version 0.27.19 uses schema 12 and accepts both
 current and historical catalog identity markers. If upgrading directly from
 v0.19.0, the existing schema-10
 migration removes only file records that match LoRA Image Curator's exact
@@ -437,7 +459,7 @@ history remain intact.
 
 The old `<output folder>\thumbnail_cache` directory is not deleted
 automatically. After closing v0.19.0, it is safe to delete that entire legacy
-folder manually to recover disk space. v0.27.18 will ignore it if you leave it in
+folder manually to recover disk space. v0.27.19 will ignore it if you leave it in
 place and writes any new previews beneath:
 
     %APPDATA%\LoRAImageCurator\thumbnail_cache
@@ -607,6 +629,19 @@ the user.
 
 STARTING THE APPLICATION
 ------------------------
+
+For a new GitHub/source download, first double-click:
+
+    Setup and Launch LoRA Image Curator.bat
+
+Choose `1. First-time setup (recommended)`. The assistant creates `venv`,
+installs the required base packages, guides the PyTorch choice, offers optional
+features separately, and can launch the app. Python 3.11 or newer is still
+needed because this is a source distribution; a future executable/installer is
+planned so ordinary users will not need to manage Python at all.
+
+The assistant owns `venv` automatically. Do not activate it manually unless
+you are intentionally using the advanced developer workflow.
 
 Use:
 
@@ -1503,6 +1538,18 @@ Then run:
 
 or click Check Setup in the GUI.
 
+The same actions are available as options 5 and 6 in the setup launcher. The
+installer removes conflicting CPU/GPU ONNX Runtime variants before selecting a
+line from the CUDA generation bundled with PyTorch:
+
+- CUDA 12: `onnxruntime-gpu>=1.21,<1.27`
+- CUDA 13: `onnxruntime-gpu>=1.27,<1.30`
+- CPU-only PyTorch: `onnxruntime>=1.21,<1.30`
+
+Do not install `onnxruntime` and `onnxruntime-gpu` together. Starting with ONNX
+Runtime 1.27, the default GPU package uses CUDA 13, so the newest package is not
+automatically compatible with a CUDA 12 PyTorch environment.
+
 The current tested system reports CPUExecutionProvider rather than
 CUDAExecutionProvider. Face analysis works through CPU fallback, but GPU
 availability remains an open issue documented in BUGS.md. This does not apply
@@ -1606,7 +1653,7 @@ exit indicates a failed gate; the runner stops at the first failure.
 `docs/GOLDEN_TEST.md` records the exact coverage and honest limits of the result.
 
 
-KNOWN LIMITATIONS IN v0.27.18
+KNOWN LIMITATIONS IN v0.27.19
 ---------------------------
 
 - Florence object detection and regional OCR follow the official 1,024-token

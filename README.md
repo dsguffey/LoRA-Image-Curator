@@ -9,7 +9,7 @@ The application prepares image datasets; it does not train a LoRA itself.
 
 | Project at a glance | |
 |---|---|
-| Current release | v0.27.18 pre-1.0 repository candidate |
+| Current release | v0.27.19 portable-source setup candidate |
 | Primary platform | Windows 11, Python 3.11+ |
 | Data model | Versioned SQLite catalog with SHA-256 content identity |
 | Local analysis | Florence-2, optional InsightFace and MediaPipe |
@@ -17,9 +17,10 @@ The application prepares image datasets; it does not train a LoRA itself.
 | License | MIT for project source; third-party components retain their licenses |
 
 > **Status:** Active pre-1.0 stabilization. v0.27.17 passed the complete
-> live-Windows golden-build gate. v0.27.18 changes repository presentation,
-> contributor guidance, and automated repository checks; application runtime
-> behavior and catalog schema remain unchanged. Large-catalog measurements,
+> live-Windows golden-build gate. v0.27.18 established the professionally
+> reviewed public repository; v0.27.19 adds a portable, checklist-driven source
+> setup and launcher. Application runtime behavior and catalog schema remain
+> unchanged. Large-catalog measurements,
 > active-provider shutdown/quarantine stress testing, and the first complete
 > exported-dataset training trial remain on the roadmap.
 
@@ -96,43 +97,52 @@ The comprehensive user reference is [README.txt](README.txt).
 
 ## Installation from a clean checkout
 
-### Requirements
+### What is actually required?
 
-- Windows 11 is the supported and tested platform.
-- Python 3.11 or newer with Tk support.
-- A PyTorch build appropriate for the computer's CPU/CUDA environment.
-- FFmpeg only if video-frame extraction is needed.
+The GitHub download is a **source release**, not yet a self-contained Windows
+executable. Windows 11, 64-bit Python 3.11 or newer with Tk support, PyTorch,
+and the base packages in `requirements.txt` are therefore required to start
+the app. The guided setup creates and manages `venv` inside the project folder;
+users do not activate or administer it manually.
+
+Face analysis, body/pose analysis, native Recycle Bin support, and FFmpeg video
+extraction are optional. A later executable/installer milestone is intended to
+hide Python and environment setup from ordinary non-source users.
 
 Florence-2, InsightFace, and MediaPipe model weights are not bundled. Review
 [MODEL_LICENSES.txt](MODEL_LICENSES.txt) before downloading or using models.
 
-### Setup
+### Recommended guided setup
 
 1. Clone the repository or extract a release into a clean folder.
-2. Open PowerShell in that folder and create a virtual environment:
-
-   ```powershell
-   py -m venv venv
-   ```
-
-3. Install the appropriate PyTorch build for the workstation.
-4. Install the base dependencies:
-
-   ```powershell
-   venv\Scripts\python.exe -m pip install -r requirements.txt
-   ```
-
-5. Launch the application:
+2. Install [64-bit Python for Windows](https://www.python.org/downloads/windows/)
+   if Python 3.11 or newer is not already installed. Keep the Python launcher
+   enabled during installation.
+3. Double-click `Setup and Launch LoRA Image Curator.bat`.
+4. Choose **1. First-time setup (recommended)**.
+5. Follow the numbered checklist. The assistant creates `venv`, installs base
+   packages, guides the PyTorch choice, and offers each optional component
+   separately.
+6. Run the app from menu option 9 or use:
 
    ```powershell
    .\Run LoRA Image Curator.bat
    ```
 
-   Or launch Python directly:
+The ordinary launcher also opens guided setup automatically when its local
+environment is missing. For an advanced manual setup, the equivalent commands
+are:
 
-   ```powershell
-   venv\Scripts\python.exe app.py
-   ```
+```powershell
+py -3 -m venv venv
+venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Install PyTorch from its
+[official installation selector](https://pytorch.org/get-started/locally/),
+then launch with `venv\Scripts\python.exe app.py`. The guided assistant can
+safely run a command copied from that official selector inside the local venv,
+or install the official CPU-only build automatically.
 
 An external virtual environment is also supported. The golden-build test
 reports the project-source folder and Python runtime separately and rejects
@@ -142,9 +152,18 @@ project imports that escape the checkout under test.
 
 | Capability | Setup |
 |---|---|
-| Face analysis | Run `Install Face Analysis Dependencies.bat` |
+| Face analysis | Menu option 5, or `Install Face Analysis Dependencies.bat` |
 | Body/pose analysis and Recycle Bin support | Run `Install Body and File Action Dependencies.bat` |
 | Video extraction | Install FFmpeg separately or select its executable in the video dialog |
+
+Face analysis uses InsightFace with ONNX Runtime. The included installer first
+reads the CUDA generation bundled with the installed PyTorch build, removes
+conflicting CPU/GPU ONNX Runtime packages, and then installs the compatible
+line. In particular, CUDA 12 uses `onnxruntime-gpu>=1.21,<1.27`, while CUDA 13
+uses `onnxruntime-gpu>=1.27,<1.30`; CPU-only PyTorch receives CPU ONNX Runtime.
+This follows the [official ONNX Runtime CUDA compatibility table](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html).
+Do not independently install both `onnxruntime` and `onnxruntime-gpu`, and do
+not assume the newest GPU package is compatible with an older CUDA generation.
 
 ### Upgrading an existing installation
 
@@ -152,7 +171,7 @@ Close the application and extract the release over the existing application
 folder, allowing release files to be replaced. Preserve the virtual
 environment, `output`, models, settings, catalogs, image sources, and caches.
 The release preflight reports an exact retired filename if manual removal is
-ever necessary. No v0.27.17 files are obsolete in v0.27.18.
+ever necessary. No v0.27.18 files are obsolete in v0.27.19.
 
 ## Safety and privacy
 
@@ -192,7 +211,7 @@ For a quick dependency-free repository check:
 ```powershell
 python -m tools.compile_project
 python tools\audit_project.py
-python -X dev test_v02718_regression.py
+python -X dev test_v02719_regression.py
 ```
 
 `python -X dev test_golden_build.py --no-gui` is useful in a headless

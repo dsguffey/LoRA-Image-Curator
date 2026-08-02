@@ -1,5 +1,49 @@
 # LoRA Image Curator Changelog
 
+## v0.27.19 — Portable and Sane Source Setup
+
+### Added
+
+- added one double-clickable **Setup and Launch LoRA Image Curator** menu for
+  first-time setup, readiness checks, required dependencies, optional features,
+  FFmpeg detection, and application launch
+- added a standard-library setup assistant that creates and owns the adjacent
+  `venv`, reports required and optional tiers separately, and runs every pip
+  action through that exact interpreter
+- added a safe PyTorch flow that can install the official CPU build or validate
+  and redirect a command copied from PyTorch's official selector into the local
+  environment without executing shell operators or unrelated packages
+- added a standalone required-dependency installer for users who prefer the
+  existing one-task-per-batch-file layout
+
+### Improved
+
+- corrected the setup wrappers so they accept any installed Python 3.11 or
+  newer instead of probing exact Python 3.11 first; this avoids Windows Python
+  Manager failures on machines that have a newer supported runtime such as
+  Python 3.14
+- made the setup assistant print its full **Setup & Launch** title once and use
+  a compact main menu afterward, reducing repeated console headings during
+  checks, failures, and return-to-menu flows
+- normal launch now opens guided setup when the local environment is missing;
+  the diagnostic, face, and body installers give the same actionable setup path
+- removed the body installer's unsafe fallback to whichever system `python`
+  happened to be on PATH
+- documented why Python and a venv remain necessary for the source release,
+  which components are optional, and how the planned executable/installer will
+  remove that burden for non-source users
+- documented the ONNX Runtime 1.27 CUDA boundary: CUDA 12 stays below 1.27,
+  CUDA 13 uses 1.27 or newer, CPU and GPU packages must not be mixed, and newest
+  is not automatically compatible
+
+### Verification and compatibility
+
+- added a focused v0.27.19 regression for launcher portability, safe PyTorch
+  command translation, dependency tiers, GitHub documentation, and release
+  inventory
+- catalog schema remains 12; application and user-data behavior are unchanged
+- no v0.27.18 release files are obsolete
+
 ## v0.27.18 — Professional Repository Review
 
 ### Improved

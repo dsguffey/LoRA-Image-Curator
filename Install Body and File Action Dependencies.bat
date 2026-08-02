@@ -1,12 +1,16 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-if exist "venv\Scripts\python.exe" (
-  set "LIC_PYTHON=venv\Scripts\python.exe"
-) else (
-  set "LIC_PYTHON=python"
+echo LoRA Image Curator v0.27.19 - Body and File Action Dependency Installer
+echo.
+if not exist "venv\Scripts\python.exe" (
+  echo ERROR: Required app setup has not been completed.
+  echo Run Setup and Launch LoRA Image Curator.bat first.
+  echo.
+  pause
+  exit /b 1
 )
-"%LIC_PYTHON%" install_body_dependencies.py
+"venv\Scripts\python.exe" install_body_dependencies.py
 set "LIC_EXIT=%ERRORLEVEL%"
 echo.
 if not "%LIC_EXIT%"=="0" (

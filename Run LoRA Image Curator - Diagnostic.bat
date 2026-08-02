@@ -2,14 +2,14 @@
 setlocal
 cd /d "%~dp0"
 
-echo LoRA Image Curator v0.27.18 diagnostic launcher
+echo LoRA Image Curator v0.27.19 diagnostic launcher
 echo Project folder: %CD%
 echo.
 
 if not exist "venv\Scripts\python.exe" (
-    echo ERROR: Could not find venv\Scripts\python.exe
+    echo First-time setup has not been completed yet.
     echo.
-    echo Keep this launcher beside the existing venv folder.
+    echo Run Setup and Launch LoRA Image Curator.bat first.
     echo.
     pause
     exit /b 1
