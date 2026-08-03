@@ -70,6 +70,7 @@ from settings_manager import (
     load_settings,
     save_settings,
 )
+from third_party_notice import show_first_launch_notice
 from settings_dialog import SettingsDialog
 from video_extraction_dialog import (
     VideoExtractionDialog,
@@ -2525,6 +2526,13 @@ class DatasetToolsApp:
         browser_settings = getattr(self.catalog_browser, "settings", self.settings)
 
         settings = AppSettings(
+            # Preserve the versioned first-launch acknowledgment. Omitting it
+            # here reconstructed AppSettings with an empty default during
+            # ordinary shutdown, causing the same notice to reappear on every
+            # launch even though the user had already selected OK.
+            third_party_notice_version=(
+                browser_settings.third_party_notice_version
+            ),
             remember_paths=remember_paths,
             appearance_theme=normalize_theme_key(self.theme_key_var.get()),
             catalog_import_include_subfolders=(
@@ -4240,12 +4248,18 @@ class DatasetToolsApp:
 def main() -> None:
     """Create and run the application."""
     root = tk.Tk()
+    root.withdraw()
 
     try:
         ttk.Style(root).theme_use("vista")
     except tk.TclError:
         pass
 
+    if not show_first_launch_notice(root):
+        root.destroy()
+        shutdown_logging()
+        return
+    root.deiconify()
     DatasetToolsApp(root)
     root.mainloop()
 

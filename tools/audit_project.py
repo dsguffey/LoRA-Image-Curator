@@ -35,6 +35,7 @@ TEXT_SUFFIXES = {
     ".toml",
     ".yml",
     ".yaml",
+    ".json",
 }
 FORBIDDEN_SUFFIXES = {
     ".db",

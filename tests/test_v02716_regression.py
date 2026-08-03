@@ -67,7 +67,7 @@ def test_release_inventory_includes_repo_readiness_files() -> None:
     assert '".github/ISSUE_TEMPLATE/bug_report.md"' in build
     assert '"GIT_READY_CHECKLIST.md"' in build
     assert '"tests/test_v02716_regression.py"' in regressions
-    assert '"tests/test_v02723_gui.py"' in golden
+    assert '"tests/test_v0280_gui.py"' in golden
     assert "from test_v02715_gui import run as run_v02715" in gui
 
 

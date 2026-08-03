@@ -1,0 +1,307 @@
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "LoRA Image Curator v0.28.0 source/provider SBOM",
+  "documentNamespace": "https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/v0.28.0/sbom",
+  "creationInfo": {
+    "created": "2026-08-03T00:00:00Z",
+    "creators": [
+      "Tool: LoRA Image Curator tools/generate_sbom.py"
+    ],
+    "comment": "Source/provider scope. The future portable build augments this inventory from its exact private runtime and locked wheels."
+  },
+  "documentDescribes": [
+    "SPDXRef-Application"
+  ],
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Application",
+      "name": "LoRA Image Curator",
+      "versionInfo": "0.28.0",
+      "downloadLocation": "https://github.com/dsguffey/LoRA-Image-Curator",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "Copyright David Scott Guffey"
+    },
+    {
+      "SPDXID": "SPDXRef-florence-model",
+      "name": "florence-community/Florence-2-large-ft",
+      "versionInfo": "Florence-2 Large FT",
+      "supplier": "Organization: Florence-2 Community; model developed by Microsoft",
+      "downloadLocation": "https://huggingface.co/florence-community/Florence-2-large-ft",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Image captioning, object detection, and OCR triage. Restriction: No additional model-specific use restriction identified; the MIT terms still apply. Integrity: Pinned repository revision plus safetensors-only native loading. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-transformers",
+      "name": "transformers",
+      "versionInfo": "4.56.2",
+      "supplier": "Organization: Hugging Face",
+      "downloadLocation": "https://pypi.org/project/transformers/4.56.2/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Native Florence-2 execution. Restriction: None identified beyond the license terms. Integrity: Exact package version; portable wheel hashes are generated during the locked Windows build. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-pytorch-nvidia",
+      "name": "torch / torchvision CUDA 13.0",
+      "versionInfo": "torch 2.13.0; torchvision 0.28.0",
+      "supplier": "Organization: PyTorch Foundation",
+      "downloadLocation": "https://download.pytorch.org/whl/cu130",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: GPU tensor runtime for Florence and compatible providers. Restriction: Requires a compatible NVIDIA GPU and Windows driver 580.88 or newer. Integrity: Exact package pair and official wheel index; wheel hash depends on Python/Windows tag. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-pytorch-cpu",
+      "name": "torch / torchvision CPU",
+      "versionInfo": "selected from the official stable CPU index",
+      "supplier": "Organization: PyTorch Foundation",
+      "downloadLocation": "https://download.pytorch.org/whl/cpu",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: CPU tensor runtime for Florence and compatible providers. Restriction: CPU inference is supported but substantially slower than a compatible GPU. Integrity: Official wheel index; exact portable CPU pack remains a v0.28.2 build decision. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-mediapipe",
+      "name": "mediapipe",
+      "versionInfo": ">=0.10,<1 (source distribution constraint)",
+      "supplier": "Organization: Google",
+      "downloadLocation": "https://pypi.org/project/mediapipe/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Optional local body and pose analysis. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-mediapipe-pose-full-v1",
+      "name": "MediaPipe Pose Landmarker Full float16",
+      "versionInfo": "1",
+      "supplier": "Organization: Google",
+      "downloadLocation": "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Optional local 33-landmark body and pose analysis. Restriction: MediaPipe Solutions Preview model; automated results are review evidence, not a guarantee. Integrity: Exact publisher-hosted model bytes. Bundled in source release: False.",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "5134a3aad27a58b93da0088d431f366da362b44e3ccfbe3462b3827a839011b1"
+        }
+      ]
+    },
+    {
+      "SPDXID": "SPDXRef-insightface-code",
+      "name": "insightface",
+      "versionInfo": "1.0.1",
+      "supplier": "Organization: InsightFace contributors",
+      "downloadLocation": "https://pypi.org/project/insightface/1.0.1/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Optional face detection and embedding runtime. Restriction: Code license does not grant rights to separately distributed pretrained weights. Integrity: Exact package version; portable wheel/source hashes remain a later build decision. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-insightface-buffalo-l",
+      "name": "buffalo_l",
+      "versionInfo": "publisher-managed pack",
+      "supplier": "Organization: InsightFace",
+      "downloadLocation": "https://github.com/deepinsight/insightface/tree/master/python-package",
+      "filesAnalyzed": false,
+      "licenseConcluded": "InsightFace pretrained-model terms",
+      "licenseDeclared": "InsightFace pretrained-model terms",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Optional face detection and embedding model pack. Restriction: Non-commercial research use only unless separately licensed. Integrity: Not mirrored or bundled; user installs from the publisher or supplies a licensed compatible pack. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-onnxruntime",
+      "name": "onnxruntime / onnxruntime-gpu",
+      "versionInfo": "CUDA-major-compatible line selected by setup",
+      "supplier": "Organization: Microsoft",
+      "downloadLocation": "https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Optional InsightFace inference runtime. Restriction: The GPU package line must match the CUDA generation used by the local runtime. Integrity: Installer selects a documented CUDA-compatible package line. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-ffmpeg-external",
+      "name": "ffmpeg executable",
+      "versionInfo": "user-installed build",
+      "supplier": "Organization: FFmpeg project or selected third-party Windows builder",
+      "downloadLocation": "https://ffmpeg.org/download.html",
+      "filesAnalyzed": false,
+      "licenseConcluded": "LGPL-2.1-or-later by default; some builds are GPL-2.0-or-later",
+      "licenseDeclared": "LGPL-2.1-or-later by default; some builds are GPL-2.0-or-later",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Optional local video-frame extraction. Restriction: The exact external build controls its license and corresponding-source obligations. Integrity: User-selected executable is validated at use time; no build is distributed by this release. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-send2trash",
+      "name": "Send2Trash",
+      "versionInfo": ">=1.8,<3 (source distribution constraint)",
+      "supplier": "Organization: Send2Trash contributors",
+      "downloadLocation": "https://pypi.org/project/Send2Trash/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Native operating-system Trash / Recycle Bin requests. Restriction: No permanent-delete fallback is provided when the native trash request fails. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-numpy",
+      "name": "numpy",
+      "versionInfo": ">=1.26,<3 (source distribution constraint)",
+      "supplier": "Organization: NumPy developers",
+      "downloadLocation": "https://pypi.org/project/numpy/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "BSD-3-Clause",
+      "licenseDeclared": "BSD-3-Clause",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Array and numeric operations. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-pillow",
+      "name": "Pillow",
+      "versionInfo": ">=10,<13 (source distribution constraint)",
+      "supplier": "Organization: Pillow contributors",
+      "downloadLocation": "https://pypi.org/project/Pillow/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "HPND",
+      "licenseDeclared": "HPND",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Local image decoding and manipulation. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-einops",
+      "name": "einops",
+      "versionInfo": ">=0.7,<1 (source distribution constraint)",
+      "supplier": "Organization: Einops contributors",
+      "downloadLocation": "https://pypi.org/project/einops/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "MIT",
+      "licenseDeclared": "MIT",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Tensor-shape operations required by Florence. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+    },
+    {
+      "SPDXID": "SPDXRef-timm",
+      "name": "timm",
+      "versionInfo": ">=0.9,<2 (source distribution constraint)",
+      "supplier": "Organization: timm contributors",
+      "downloadLocation": "https://pypi.org/project/timm/",
+      "filesAnalyzed": false,
+      "licenseConcluded": "Apache-2.0",
+      "licenseDeclared": "Apache-2.0",
+      "copyrightText": "NOASSERTION",
+      "comment": "Function: Vision model utilities required by Florence. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-florence-model",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-transformers",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-pytorch-nvidia",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-pytorch-cpu",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-mediapipe",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-mediapipe-pose-full-v1",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-insightface-code",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-insightface-buffalo-l",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-onnxruntime",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-ffmpeg-external",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-send2trash",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-numpy",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-pillow",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-einops",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    },
+    {
+      "spdxElementId": "SPDXRef-Application",
+      "relationshipType": "DEPENDS_ON",
+      "relatedSpdxElement": "SPDXRef-timm",
+      "comment": "Direct, optional, or external component boundary recorded by the release registry."
+    }
+  ]
+}

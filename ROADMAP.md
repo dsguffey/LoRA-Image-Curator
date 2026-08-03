@@ -51,9 +51,9 @@ Completed foundations include:
   and a dedicated missing-file filter
 - video-origin manifests and browser-visible source timestamps
 
-## Current: Milestone 11B — Provider Security and Recovery Stabilization
+## Current: Milestone 12 — Portable Distribution
 
-v0.27.23 is the current public-source candidate after cleanup and functional
+v0.28.0 is the current public-source candidate after cleanup and functional
 testing at roughly 14,000–17,000 images, deterministic Tk lifecycle fixes,
 repository-boundary hardening, a first-visitor presentation review, and a
 checklist-driven project-local setup path. v0.27.17 passed the complete
@@ -65,6 +65,10 @@ preflights the live task contract, and resumes exact reviewed results from an
 interrupted large catalog. v0.27.23 repairs the source setup path that could
 silently select CPU-only PyTorch on NVIDIA hardware and adds a verified CUDA 13
 recovery without changing catalog or provider-result compatibility.
+v0.28.0 establishes provider provenance, verified model-download rules,
+first-launch disclosure, smart runtime launch, a source/provider SBOM, and a
+strictly trimmed future portable-payload boundary. Provider Center and the
+clean locked Windows one-folder prototype are the next staged work.
 
 - keep public version, launcher, README, bugs, roadmap, test, and release
   metadata synchronized
@@ -75,7 +79,7 @@ recovery without changing catalog or provider-result compatibility.
 - keep public tests under `tests/` and synchronize every workflow, runner,
   package rule, and user-facing command with that layout
 - perform the documented real new-computer and remembered-settings upgrade QA
-  before beginning the portable executable/installer milestone
+  alongside the staged portable executable/installer milestone
 - distinguish provider/tool/model limitations from LoRA Image Curator defects
 - verify no private datasets, catalogs, logs, models, paths, credentials, caches,
   or generated exports are included
@@ -882,6 +886,33 @@ for the source-tree cleanup.
 - publish v1.0.0 only after the release candidate and real Windows workflow pass
 
 ## Milestone 12 — Executable and Installer
+
+### Completed foundation: v0.28.0
+
+- created one machine-readable provider registry and synchronized
+  source/provider SPDX inventory for publisher, tested identity, revision,
+  source, license, restrictions, size, integrity, redistribution, and bundle
+  status
+- replaced MediaPipe's moving model URL with the version-1 asset and enforced
+  registered-host, exact-size, SHA-256, partial-download, atomic-publish, and
+  prior-working-file preservation rules
+- added the versioned first-launch third-party/warranty acknowledgment without
+  implying that selecting OK changes any upstream license
+- made the ordinary launcher validate required dependencies and real CUDA use
+  before starting, while preserving the direct diagnostic path
+- separated full source and future portable artifact names and established a
+  tested portable inventory that excludes tests, tools, GitHub metadata,
+  developer documents, source-only setup files, existing virtual environments,
+  and every user/runtime-data location
+
+### Next staged work
+
+- v0.28.1: Provider Center with install, browse, repair, remove, notices,
+  verified publisher-direct downloads, hardware-aware runtime selection,
+  rollback, and offline provider-pack import
+- v0.28.2: clean locked Windows one-folder prototype, exact runtime/wheel SBOM,
+  source-to-portable payload trimming, Defender scan, and clean-machine tests
+- v0.28.3: installer/MSIX, upgrade/uninstall behavior, and signing decision
 
 - design one Provider Center that shows each third-party component's publisher,
   exact version/revision, license, source, size, hash, installed state, and

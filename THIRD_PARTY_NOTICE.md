@@ -1,7 +1,9 @@
 # Third-Party Products, Privacy, and Responsibility
 
 LoRA Image Curator is a local-first application distributed under the MIT
-License. It does not implement application telemetry.
+License. LoRA Image Curator does not collect telemetry data, but some
+third-party tools it's using may. The default settings for them are set to
+telemetry off.
 
 ## Third-party boundary
 
@@ -20,6 +22,11 @@ purpose.
 
 LoRA Image Curator is provided without warranty as described in `LICENSE`.
 This notice is product information and is not legal advice.
+
+The machine-readable release record is `provider_registry.json`. Its tested
+identity is also rendered as the source/provider `SBOM.spdx.json`. A release
+registry entry or compatibility result does not grant rights beyond the
+component's actual license.
 
 ## Telemetry and network behavior
 
@@ -45,9 +52,19 @@ asks before network operations, and does not enable telemetry.
 
 - Microsoft Florence-2 Large FT — MIT-licensed model; downloaded separately at
   a pinned revision and executed through native, pinned Transformers code.
-- Google MediaPipe Pose Landmarker — Apache 2.0 code; separate model bundle and
-  documentation terms apply.
+- Google MediaPipe Pose Landmarker — Apache 2.0 code and version-1 Full model;
+  the installer verifies the publisher-hosted model's exact size and SHA-256
+  before publishing it locally.
 - Send2Trash — BSD-3-Clause; used only to request native operating-system Trash
   or Recycle Bin behavior.
 - InsightFace / ONNX Runtime / Florence-2 / FFmpeg — see
   `MODEL_LICENSES.txt`, their upstream licenses, and their current terms.
+
+## Distribution boundary
+
+The public source archive and future portable Windows archive are separate
+products. The source archive includes tests, release tooling, and development
+documents. The end-user portable payload will exclude those repository-only
+files and will never collect an existing user/developer virtual environment,
+catalogs, models, caches, logs, datasets, outputs, or exports. Only components
+with an explicit redistribution decision may enter that staged payload.

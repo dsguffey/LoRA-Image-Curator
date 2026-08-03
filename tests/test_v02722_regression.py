@@ -37,9 +37,9 @@ def _load_florence_module():
 
 def test_release_identity_and_checkpoint_are_synchronized() -> None:
     """Require the corrected native checkpoint throughout the release."""
-    assert APP_VERSION == "0.27.23"
-    assert "Version 0.27.23" in _project("VERSION.txt")
-    assert 'version = "0.27.23"' in _project("pyproject.toml")
+    assert APP_VERSION == "0.28.0"
+    assert "Version 0.28.0" in _project("VERSION.txt")
+    assert 'version = "0.28.0"' in _project("pyproject.toml")
     source = _project("florence_analyzer.py")
     assert f'MODEL_NAME = "{MODEL_NAME}"' in source
     assert f'MODEL_REVISION = "{MODEL_REVISION}"' in source
@@ -116,8 +116,8 @@ def test_release_gates_include_the_recovery_endpoint() -> None:
     assert '"tests/test_v02722_regression.py"' in regressions
     assert '"tests/test_v02722_regression.py"' in builder
     assert '"tests/test_v02722_gui.py"' in builder
-    assert "tests.test_v02723_regression" in workflow
-    assert 'GUI_ENTRYPOINT = "tests/test_v02723_gui.py"' in golden
+    assert "tests.test_v0280_regression" in workflow
+    assert 'GUI_ENTRYPOINT = "tests/test_v0280_gui.py"' in golden
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 [project]
 name = "lora-image-curator"
-version = "0.27.23"
+version = "0.28.0"
 description = "Local-first desktop curation and export for LoRA image datasets"
 readme = "README.md"
 requires-python = ">=3.11"

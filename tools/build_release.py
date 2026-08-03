@@ -38,6 +38,7 @@ INCLUDED_SUFFIXES = {
     ".toml",
     ".yml",
     ".yaml",
+    ".json",
 }
 INCLUDED_NAMES = {".gitattributes", ".gitignore", "LICENSE"}
 EXCLUDED_DIRECTORIES = {
@@ -131,6 +132,8 @@ REQUIRED_MEMBERS = {
     "tests/test_v02722_gui.py",
     "tests/test_v02723_regression.py",
     "tests/test_v02723_gui.py",
+    "tests/test_v0280_regression.py",
+    "tests/test_v0280_gui.py",
     "tests/test_clean_install.py",
     "tests/__init__.py",
     "tests/paths.py",
@@ -146,6 +149,9 @@ REQUIRED_MEMBERS = {
     ".gitattributes",
     "GIT_READY_CHECKLIST.md",
     "THIRD_PARTY_NOTICE.md",
+    "provider_registry.json",
+    "portable_payload_policy.json",
+    "SBOM.spdx.json",
     "docs/GOLDEN_TEST.md",
     "docs/CLEAN_INSTALL_QA.md",
     "tools/audit_project.py",
@@ -154,6 +160,7 @@ REQUIRED_MEMBERS = {
     "tools/clean_install_check.py",
     "tools/golden_fixture.py",
     "tools/run_regressions.py",
+    "tools/generate_sbom.py",
 }
 
 
@@ -285,7 +292,7 @@ def build_archive(output_path: Path) -> tuple[int, str]:
 def main() -> int:
     """Parse the output option, build the release, and print verification data."""
     app_name, version = load_application_version()
-    default_name = f"LoRA_Image_Curator_v{version}.zip"
+    default_name = f"LoRA_Image_Curator_Source_v{version}.zip"
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--output",

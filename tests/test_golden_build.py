@@ -34,7 +34,7 @@ from tools.golden_fixture import create_golden_fixture
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TEST_ROOT = Path(__file__).resolve().parent
-GUI_ENTRYPOINT = "tests/test_v02723_gui.py"
+GUI_ENTRYPOINT = "tests/test_v0280_gui.py"
 
 
 def _verify_and_report_runtime_paths() -> None:
@@ -174,6 +174,9 @@ def run(*, include_gui: bool) -> None:
         temporary_root = Path(temporary)
         environment = os.environ.copy()
         environment["PYTHONPYCACHEPREFIX"] = str(temporary_root / "pycache")
+        # The first-launch disclosure has its own focused settings contracts.
+        # Automated GUI replay must never block on a modal user decision.
+        environment["LORA_IMAGE_CURATOR_TEST_MODE"] = "1"
         # Historical GUI modules use sibling imports. Keep both the project and
         # dedicated test directory explicit for child interpreters on Windows.
         environment["PYTHONPATH"] = os.pathsep.join(

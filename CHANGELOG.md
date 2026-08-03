@@ -1,5 +1,67 @@
 # LoRA Image Curator Changelog
 
+## v0.28.0 — Portable Provider-Provenance Foundation
+
+### Fixed
+
+- preserved the acknowledged third-party notice revision when the main window
+  saves settings during shutdown; the notice now remains dismissed on later
+  launches until its release-owned revision changes
+- removed the duplicate smart-launch environment inspection and added flushed
+  package, graphics-runtime, and application-start messages so startup shows
+  immediate progress instead of appearing stalled
+- corrected the Windows first-launch sequence so the third-party notice is
+  mapped and raised before it becomes modal; the notice is no longer transient
+  to the deliberately hidden application root, which could leave startup
+  waiting on an invisible dialog
+
+### Added
+
+- added `provider_registry.json` as the machine-readable source of third-party
+  publisher, artifact, function, tested identity, revision, official source,
+  download hosts, license, usage restriction, approximate size, integrity
+  scope, redistribution status, and bundle status
+- added a deterministic SPDX 2.3 source/provider inventory generated from the
+  registry; the future portable Windows build must augment it with the exact
+  private runtime, wheel files, transitive packages, and artifact hashes from
+  that staged payload
+- added a concise first-launch third-party/warranty acknowledgment; its single
+  OK button stores only the current notice revision in local settings and opens
+  the application, while closing the window exits without recording acceptance;
+  no timestamp, identity, telemetry event, or network request is created
+- clarified that LoRA Image Curator collects no telemetry data, some third-party
+  tools may have their own telemetry, and the defaults are telemetry-off
+- added a machine-readable portable-payload policy that separates the full
+  source archive from the future end-user archive and explicitly excludes
+  tests, release tools, GitHub metadata, developer documents, source-only setup
+  files, existing environments, models, catalogs, caches, logs, datasets, and
+  exports from that portable payload
+
+### Security and setup
+
+- replaced MediaPipe's moving `latest` model URL with Google's version-1 Pose
+  Landmarker Full asset; setup enforces HTTPS and the registered Google host,
+  downloads to a partial file, verifies the exact 9,398,198-byte length and
+  SHA-256, and atomically publishes only a verified file while preserving an
+  existing working model on failure
+- changed the ordinary launcher to run a real required-runtime check before Tk
+  starts; missing or incompatible dependencies route to guided setup, and an
+  NVIDIA computer can no longer fall through silently to CPU-only PyTorch
+- setup can display the release-owned provider record without installing
+  anything; existing v0.27.23 CUDA repair, Florence checkpoint, large-catalog
+  result reuse, and provider-data locations remain unchanged
+
+### Packaging and compatibility
+
+- source archives are now explicitly named
+  `LoRA_Image_Curator_Source_vX.Y.Z.zip`; the later portable artifact reserves
+  `LoRA_Image_Curator_Portable_Windows_x64_vX.Y.Z.zip`
+- catalog schema remains 12; catalogs, models, provider caches, outputs,
+  images, settings other than the new notice-revision field, and existing
+  virtual environments require no migration or deletion
+- added dependency-free v0.28.0 registry, verified-download, notice,
+  portable-policy, SBOM, smart-launch, release, and cumulative GUI contracts
+
 ## v0.27.23 — NVIDIA Runtime Repair
 
 ### Fixed

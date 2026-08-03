@@ -1,4 +1,4 @@
-LORA IMAGE CURATOR GUI v0.27.23
+LORA IMAGE CURATOR GUI v0.28.0
 ========================
 
 OVERVIEW
@@ -13,8 +13,7 @@ layers around that catalog. Provider output is preserved, user decisions are
 stored independently, and final training text is derived only when it is
 previewed or exported.
 
-Version 0.27.23 is the NVIDIA runtime repair candidate for
-Milestone 11B. The
+Version 0.28.0 is the portable provider-provenance foundation. The
 application
 has been exercised with roughly 14,000 to 17,000 local images. Current primary
 workstation observations are about five seconds for a cold first launch and
@@ -42,8 +41,33 @@ contract before a large run, and resumes exact successful legacy results.
 v0.27.23 prevents the source installer from silently selecting CPU-only
 PyTorch through timm's dependency chain, detects an NVIDIA/CPU-runtime mismatch,
 and provides a driver-gated CUDA 13 repair with real tensor verification.
+v0.28.0 adds one release-owned provider registry, pins and verifies the
+MediaPipe Pose Full v1 download, records a source/provider SPDX inventory,
+shows the versioned third-party and warranty disclosure once, and makes the
+ordinary launcher validate its runtime before starting. It also formally
+separates the full source archive from the later slim end-user portable ZIP;
+tests, release tools, GitHub metadata, developer documents, source-only setup
+files, and user/runtime data do not belong in that portable payload.
 Broader
 large-catalog measurements and deferred high-risk QA remain pre-1.0 work.
+
+
+WHAT IS NEW IN v0.28.0
+----------------------
+
+- provider_registry.json is the machine-readable source of tested provider,
+  model, license, host, restriction, size, hash, and redistribution facts
+- MediaPipe Pose Landmarker Full uses Google's version-1 URL and verifies the
+  exact 9,398,198-byte SHA-256 before atomically publishing the model
+- the first-launch notice records only its disclosure revision after OK;
+  it does not create telemetry or change third-party license rights
+- the ordinary launcher validates required packages and refuses silent CPU
+  fallback when NVIDIA hardware is visible
+- source and portable artifact names/inventories are separate; the portable
+  policy excludes repository-only and user/runtime files
+- SBOM.spdx.json inventories the source release's declared direct/provider
+  components; the later Windows portable build will add its exact locked wheel
+  and private-runtime inventory
 
 
 WHAT IS NEW IN v0.27.23
@@ -508,7 +532,7 @@ UPGRADING FROM v0.24.0
 
 1. Close LoRA Image Curator.
 
-2. Extract LoRA_Image_Curator_v0.27.23.zip directly into your existing
+2. Extract LoRA_Image_Curator_Source_v0.28.0.zip directly into your existing
    DatasetTools folder and allow Windows to replace older release files.
 
 3. Keep your existing `venv`, model files, catalogs, images, settings, logs,
@@ -530,7 +554,7 @@ UPGRADING FROM v0.24.0
 
        Run LoRA Image Curator.bat
 
-Version 0.27.23 uses schema 12 and accepts both
+Version 0.28.0 uses schema 12 and accepts both
 current and historical catalog identity markers. If upgrading directly from
 v0.19.0, the existing schema-10
 migration removes only file records that match LoRA Image Curator's exact
@@ -542,7 +566,7 @@ history remain intact.
 
 The old `<output folder>\thumbnail_cache` directory is not deleted
 automatically. After closing v0.19.0, it is safe to delete that entire legacy
-folder manually to recover disk space. v0.27.23 will ignore it if you leave it in
+folder manually to recover disk space. v0.28.0 will ignore it if you leave it in
 place and writes any new previews beneath:
 
     %APPDATA%\LoRAImageCurator\thumbnail_cache
@@ -1738,7 +1762,7 @@ exit indicates a failed gate; the runner stops at the first failure.
 `docs/GOLDEN_TEST.md` records the exact coverage and honest limits of the result.
 
 
-KNOWN LIMITATIONS IN v0.27.23
+KNOWN LIMITATIONS IN v0.28.0
 ---------------------------
 
 - Florence object detection and regional OCR follow the official 1,024-token

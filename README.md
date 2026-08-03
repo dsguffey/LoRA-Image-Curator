@@ -9,7 +9,7 @@ The application prepares image datasets; it does not train a LoRA itself.
 
 | Project at a glance | |
 |---|---|
-| Current release | v0.27.23 NVIDIA runtime repair |
+| Current release | v0.28.0 portable provider-provenance foundation |
 | Primary platform | Windows 11, Python 3.11+ |
 | Data model | Versioned SQLite catalog with SHA-256 content identity |
 | Local analysis | Florence-2, optional InsightFace and MediaPipe |
@@ -27,7 +27,10 @@ The application prepares image datasets; it does not train a LoRA itself.
 > 4.49.0 or v0.27.21 results instead of regenerating completed large-catalog
 > work. v0.27.23 fixes setup ordering that could silently install CPU-only
 > PyTorch through `timm`, and adds a verified CUDA 13 repair for modern NVIDIA
-> GPUs while keeping optional ONNX Runtime aligned.
+> GPUs while keeping optional ONNX Runtime aligned. v0.28.0 adds the
+> machine-readable provider registry, versioned/hash-verified MediaPipe model,
+> source-scoped SPDX SBOM, first-launch third-party notice, and smart runtime
+> launcher that form the security boundary for later end-user packaging.
 > Application runtime behavior and catalog schema remain
 > unchanged. Large-catalog measurements,
 > active-provider shutdown/quarantine stress testing, and the first complete
@@ -136,15 +139,18 @@ base setup so the app can enforce its reviewed native-code boundary.
 5. Follow the numbered checklist. The assistant creates `venv`, installs base
    packages, guides the PyTorch choice, and offers each optional component
    separately.
-6. Run the app from menu option 9 or use:
+6. Run the app from menu option 10 or use:
 
    ```powershell
    .\Run LoRA Image Curator.bat
    ```
 
-The ordinary launcher also opens guided setup automatically when its local
-environment is missing. For an advanced manual setup, the equivalent commands
-are:
+The ordinary launcher validates required packages and the real CUDA tensor
+path before starting. It opens guided setup when its local environment is
+missing or incompatible, and it refuses to silently use CPU PyTorch on a
+computer where NVIDIA hardware is visible. The diagnostic launcher remains a
+direct troubleshooting path. For an advanced manual setup, the equivalent
+commands are:
 
 ```powershell
 py -3 -m venv venv
@@ -198,7 +204,8 @@ move or delete those old root test copies and that one old batch file; do not
 remove application modules, catalogs, images, models, outputs, settings, or the
 virtual environment. Git users should use `git rm` so Git records the moves.
 
-After overlaying v0.27.23, run `Install Base Dependencies.bat` once. If an
+After overlaying v0.27.23 or later, run `Install Base Dependencies.bat` when
+the release notes request a dependency repair. If an
 NVIDIA GPU is present but the established venv contains CPU-only PyTorch, the
 installer now exposes that mismatch and offers the tested CUDA 13 repair. The
 repair records the current package list, changes only the project-local venv,
@@ -216,7 +223,8 @@ retained; only unfinished images use the corrected
 
 - The application does not upload images, captions, embeddings, identity names,
   or catalogs.
-- Application/provider telemetry permission is disabled by default.
+- LoRA Image Curator does not collect telemetry data. Some third-party tools
+  may collect their own telemetry; their defaults are set to telemetry off.
 - Model and dependency downloads are separate, explicit third-party actions.
 - Source images are read-only during analysis and export.
 - Catalog replacement is staged and validated before publication.
@@ -226,10 +234,22 @@ retained; only unfinished images use the corrected
 - Model weights, FFmpeg, catalogs, caches, logs, private datasets, and virtual
   environments are excluded from release archives.
 
+The source and future portable artifacts are intentionally different. The
+source archive is named `LoRA_Image_Curator_Source_vX.Y.Z.zip` and includes
+tests, developer documentation, and release tooling. The future end-user
+portable archive will be named
+`LoRA_Image_Curator_Portable_Windows_x64_vX.Y.Z.zip` and will exclude tests,
+release tools, GitHub metadata, contributor/developer material, source setup
+scripts, and every user/runtime-data location. Its exact boundary is recorded
+in `portable_payload_policy.json`; it will never be assembled by copying an
+existing user or developer `venv`.
+
 Third-party packages, models, executables, websites, terms, and privacy
 practices remain outside the application's trust boundary. See
 [SECURITY.md](SECURITY.md) and
-[THIRD_PARTY_NOTICE.md](THIRD_PARTY_NOTICE.md).
+[THIRD_PARTY_NOTICE.md](THIRD_PARTY_NOTICE.md). Machine-readable identities
+and the source/provider software bill of materials are in
+`provider_registry.json` and `SBOM.spdx.json`.
 
 ## Verification
 
@@ -250,7 +270,7 @@ For a quick dependency-free repository check:
 ```powershell
 python -m tools.compile_project
 python tools\audit_project.py
-python -X dev -m tests.test_v02722_regression
+python -X dev -m tests.test_v0280_regression
 ```
 
 `python -X dev -m tests.test_golden_build --no-gui` is useful in a headless

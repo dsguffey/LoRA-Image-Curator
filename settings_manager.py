@@ -29,6 +29,9 @@ SETTINGS_FILENAME = "settings.json"
 class AppSettings:
     """Represent GUI preferences saved between sessions."""
 
+    # This records only which informational notice the user continued past.
+    # It is not telemetry and does not purport to expand any upstream license.
+    third_party_notice_version: str = ""
     remember_paths: bool = True
     last_input_folder: str = ""
     last_output_folder: str = ""
@@ -197,6 +200,9 @@ def load_settings() -> AppSettings:
                     break
 
         return AppSettings(
+            third_party_notice_version=str(
+                raw_data.get("third_party_notice_version", "")
+            ),
             remember_paths=bool(
                 raw_data.get("remember_paths", True)
             ),

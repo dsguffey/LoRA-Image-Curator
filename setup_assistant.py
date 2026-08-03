@@ -33,16 +33,18 @@ from typing import Sequence
 from urllib.parse import urlparse
 
 from app_identity import APP_NAME, APP_VERSION
+from provider_registry import get_component, load_provider_registry
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 VENV_ROOT = PROJECT_ROOT / "venv"
 VENV_PYTHON = VENV_ROOT / "Scripts" / "python.exe"
 PYTORCH_SELECTOR_URL = "https://pytorch.org/get-started/locally/"
+NVIDIA_RUNTIME_COMPONENT = get_component("pytorch_nvidia")
 TESTED_NVIDIA_TORCH_VERSION = "2.13.0"
 TESTED_NVIDIA_TORCHVISION_VERSION = "0.28.0"
 TESTED_NVIDIA_CUDA_VERSION = "13.0"
-TESTED_NVIDIA_INDEX_URL = "https://download.pytorch.org/whl/cu130"
+TESTED_NVIDIA_INDEX_URL = str(NVIDIA_RUNTIME_COMPONENT["source_url"])
 # PyTorch's CUDA 13 guidance identifies this as the minimum Windows driver for
 # current Blackwell-class wheels. The comparison is intentionally local and
 # conservative: an older driver stops before pip changes the environment.
@@ -419,6 +421,27 @@ def print_setup_status() -> SetupStatus:
     return status
 
 
+def print_provider_provenance_summary() -> None:
+    """Show release-owned third-party identities without installing anything."""
+    registry = load_provider_registry()
+    print("\nTHIRD-PARTY COMPONENT RECORD")
+    print(f"  Notice revision: {registry['notice_version']}")
+    for key in (
+        "pytorch_nvidia",
+        "transformers",
+        "florence_model",
+        "mediapipe_pose_full_v1",
+        "insightface_buffalo_l",
+        "ffmpeg_external",
+    ):
+        component = get_component(key)
+        print(
+            f"  {component['artifact']}: {component['tested_version']} — "
+            f"{component['license']}"
+        )
+    print("  Full record: provider_registry.json and SBOM.spdx.json")
+
+
 def ensure_local_environment() -> None:
     """Create ``.\venv`` using the current supported bootstrap interpreter."""
     if VENV_PYTHON.is_file():
@@ -768,18 +791,61 @@ def check_ffmpeg() -> int:
     return 1
 
 
-def launch_application() -> int:
-    """Launch only after the required source-distribution setup is ready."""
-    status = inspect_setup()
-    if not status.required_ready:
-        print_setup_status()
-        print("\nChoose First-time setup before launching.")
-        return 1
+def launch_application(*, setup_verified: bool = False) -> int:
+    """Launch after setup is ready, reusing a completed smart-launch check.
+
+    ``smart_launch_application`` performs the expensive package and CUDA
+    inspection before it calls this function. Repeating that same inspection
+    made the ordinary launcher appear stalled twice, so the verified path now
+    proceeds directly to Tk while menu/direct callers retain the safety check.
+    """
+    if not setup_verified:
+        print("\nChecking required packages before launch...", flush=True)
+        status = inspect_setup()
+        if not status.required_ready:
+            print_setup_status()
+            print("\nChoose First-time setup before launching.")
+            return 1
+    print(f"Starting {APP_NAME}...", flush=True)
     completed = _run(
         _venv_command(os.fspath(PROJECT_ROOT / "app.py")),
         check=False,
     )
     return int(completed.returncode)
+
+
+def smart_launch_application() -> int:
+    """Validate the managed runtime before the ordinary launcher starts Tk.
+
+    A missing/incompatible required stack returns a dedicated code so the
+    batch wrapper can open guided setup. NVIDIA hardware paired with CPU-only
+    PyTorch is treated as repair-needed rather than silently starting a run
+    that may be orders of magnitude slower. The diagnostic launcher remains a
+    direct escape hatch for troubleshooting.
+    """
+    print("Checking required packages...", flush=True)
+    status = inspect_setup()
+    if not status.required_ready:
+        print_setup_status()
+        print("\nRequired setup is incomplete. Opening guided setup is recommended.")
+        return 2
+    print("Checking graphics runtime...", flush=True)
+    nvidia_devices = inspect_nvidia_runtime()
+    if nvidia_devices and not status.torch_runtime.get("cuda_available"):
+        names = ", ".join(name for name, _driver in nvidia_devices)
+        print(
+            "\nNVIDIA hardware was found, but PyTorch cannot use CUDA: "
+            f"{names}. The ordinary launcher will not silently fall back to "
+            "CPU. Use the tested NVIDIA repair in guided setup."
+        )
+        return 2
+    if status.torch_runtime.get("cuda_available") and not status.torch_runtime.get(
+        "smoke_ok"
+    ):
+        print("\nThe CUDA tensor check failed. Open guided setup before launching.")
+        return 2
+    print("Runtime check passed.", flush=True)
+    return launch_application(setup_verified=True)
 
 
 def first_time_setup() -> None:
@@ -818,7 +884,8 @@ def menu() -> int:
             "  6. Check optional face analysis\n"
             "  7. Install optional body/pose analysis\n"
             "  8. Check optional FFmpeg\n"
-            "  9. Run LoRA Image Curator\n"
+            "  9. View third-party component record\n"
+            "  10. Run LoRA Image Curator\n"
             "  0. Exit"
         )
         choice = input("Choose an option: ").strip().casefold()
@@ -840,11 +907,13 @@ def menu() -> int:
             elif choice == "8":
                 check_ffmpeg()
             elif choice == "9":
+                print_provider_provenance_summary()
+            elif choice == "10":
                 launch_application()
             elif choice == "0":
                 return 0
             else:
-                print("Please choose a number from 0 through 9.")
+                print("Please choose a number from 0 through 10.")
         except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as error:
             print(f"\nSETUP ACTION FAILED\n{type(error).__name__}: {error}")
             print("No virtual environment, model, catalog, or dataset was deleted.")
@@ -862,6 +931,7 @@ def main() -> int:
     actions.add_argument("--check-face", action="store_true")
     actions.add_argument("--install-body", action="store_true")
     actions.add_argument("--check-ffmpeg", action="store_true")
+    actions.add_argument("--smart-launch", action="store_true")
     actions.add_argument("--run", action="store_true")
     arguments = parser.parse_args()
 
@@ -886,6 +956,8 @@ def main() -> int:
         return 0
     if arguments.check_ffmpeg:
         return check_ffmpeg()
+    if arguments.smart_launch:
+        return smart_launch_application()
     if arguments.run:
         return launch_application()
     return menu()

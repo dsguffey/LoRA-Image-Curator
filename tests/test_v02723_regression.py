@@ -34,10 +34,10 @@ def _project(relative_name: str) -> str:
 
 def test_release_identity_and_reviewed_runtime_pair_are_synchronized() -> None:
     """Keep the narrow repair version and official wheel pair explicit."""
-    assert APP_VERSION == "0.27.23"
-    assert "Version 0.27.23" in _project("VERSION.txt")
-    assert 'version = "0.27.23"' in _project("pyproject.toml")
-    assert "v0.27.23" in _project("README.md")
+    assert APP_VERSION == "0.28.0"
+    assert "Version 0.28.0" in _project("VERSION.txt")
+    assert 'version = "0.28.0"' in _project("pyproject.toml")
+    assert "v0.28.0" in _project("README.md")
     assert TESTED_NVIDIA_TORCH_VERSION == "2.13.0"
     assert TESTED_NVIDIA_TORCHVISION_VERSION == "0.28.0"
     assert TESTED_NVIDIA_CUDA_VERSION == "13.0"
@@ -92,8 +92,8 @@ def test_release_gates_include_the_runtime_repair_endpoint() -> None:
     assert '"tests/test_v02723_regression.py"' in regressions
     assert '"tests/test_v02723_regression.py"' in builder
     assert '"tests/test_v02723_gui.py"' in builder
-    assert "tests.test_v02723_regression" in workflow
-    assert 'GUI_ENTRYPOINT = "tests/test_v02723_gui.py"' in golden
+    assert "tests.test_v0280_regression" in workflow
+    assert 'GUI_ENTRYPOINT = "tests/test_v0280_gui.py"' in golden
 
 
 if __name__ == "__main__":

@@ -20,6 +20,14 @@ and `Install Body Analysis Dependencies.bat`. The recommended MediaPipe
 model lives outside the source tree at
 `%APPDATA%\LoRAImageCurator\models\body\pose_landmarker_full.task`.
 
+Third-party identities and model-integrity facts belong in
+`provider_registry.json`; run `python tools\generate_sbom.py` after changing
+that registry and commit the matching `SBOM.spdx.json`. Do not restore moving
+model aliases such as `/latest/`. The source and future portable inventories
+are separate: `portable_payload_policy.json` excludes tests, release tools,
+developer material, source-only setup files, existing virtual environments,
+and all user/runtime data from the end-user ZIP.
+
 Do not commit or package a virtual environment, model weights, catalogs,
 thumbnail caches, logs, dependency snapshots, or real dataset material.
 
@@ -45,6 +53,7 @@ python -X dev -m tests.test_v0250_regression
 python -X dev -m tests.test_v0252_regression
 python -X dev -m tests.test_v0260_regression
 python -X dev -m tests.test_v02722_regression
+python -X dev -m tests.test_v0280_regression
 python tools\audit_project.py
 ```
 

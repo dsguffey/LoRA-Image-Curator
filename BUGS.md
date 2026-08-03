@@ -3,6 +3,51 @@
 This file contains defects and unresolved technical problems. Planned features
 and speculative enhancements belong in `ROADMAP.md` or `WISHLIST.md`.
 
+## Fixed in v0.28.0
+
+### First-launch acknowledgment was erased during ordinary shutdown
+
+The notice correctly saved its version when the user proceeded, but the main
+window later rebuilt the shared settings object without copying that field.
+Closing the application therefore restored the empty default and showed the
+same notice again on the next launch. The normal settings-save path now
+preserves the acknowledged revision.
+
+### Smart launch repeated its slow environment inspection
+
+The ordinary launcher validated required packages and CUDA, then called a
+second launch function that repeated the same required-package inspection
+before starting Tk. Startup now reuses the completed validation and prints
+flushed progress messages for the package check, graphics check, and GUI start.
+
+### First-launch notice could be hidden behind a withdrawn Windows root
+
+The application withdrew its empty main window before creating the required
+third-party notice, then marked the notice transient to that hidden root. On
+Windows the notice could remain hidden as well, leaving the launcher apparently
+stalled while `app.py` waited for an invisible notice choice. The
+notice now remains independent of the hidden root, waits until Windows has
+mapped it, and only then takes focus and the modal grab.
+
+### MediaPipe setup trusted a moving model alias without content verification
+
+The optional body installer downloaded Google's `latest` Pose Landmarker Full
+asset and accepted it after only a minimum-size check. The provider could
+therefore change the effective model without an application release. Setup now
+uses the version-1 publisher URL and release-owned SHA-256/byte length, accepts
+only the registered HTTPS host, stages the download as a partial file, and
+publishes it atomically only after verification.
+
+### Ordinary launch could bypass environment repair
+
+The normal launcher checked only whether `venv\Scripts\python.exe` existed and
+then started the GUI. A partial environment or NVIDIA hardware paired with
+CPU-only PyTorch could therefore reach the app without the setup assistant's
+readiness diagnosis. The smart launcher now validates required package pins,
+the actual PyTorch runtime, and the CUDA tensor path before launch, and routes
+an unhealthy environment into guided setup. The diagnostic launcher remains a
+direct troubleshooting path.
+
 ## Fixed in v0.27.23
 
 ### Base setup could silently install CPU-only PyTorch on an NVIDIA computer

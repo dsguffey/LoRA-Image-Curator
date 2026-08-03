@@ -18,6 +18,9 @@ optional FFmpeg executable. Its principal security goals are:
 - validate a catalog before replacement or deletion;
 - constrain model selection to InsightFace's expected root/models/name layout;
 - exclude catalogs, caches, logs, model weights, and private paths from releases.
+- keep source and end-user portable inventories separate so development files
+  and an existing user/developer virtual environment cannot enter the portable
+  payload.
 
 The application does not attempt to sandbox PyTorch, Transformers,
 InsightFace, ONNX Runtime, MediaPipe, or FFmpeg. Install third-party components
@@ -27,6 +30,14 @@ native-compatible Florence community conversion of Microsoft's model weights,
 requires safetensors, and rejects a model or processor implementation outside
 native `transformers.models.florence2` code. A prompt/token preflight completes
 before the first unfinished image is analyzed.
+
+Release-owned third-party identity lives in `provider_registry.json` and the
+source/provider SPDX inventory. The MediaPipe model installer accepts only its
+registered HTTPS host, downloads to a partial file, checks the exact byte size
+and SHA-256, and atomically replaces the destination only after verification.
+The registry does not make an unverified artifact safe; components without a
+release-owned artifact hash remain external, publisher-direct, or deferred to
+the locked portable-build process.
 
 ## Reporting a vulnerability
 

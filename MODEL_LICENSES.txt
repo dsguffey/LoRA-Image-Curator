@@ -109,8 +109,11 @@ OPTIONAL BODY ANALYSIS AND FILE ACTIONS
 Google MediaPipe Pose Landmarker
 - Purpose: local body/pose landmark analysis.
 - Code package: Apache License 2.0.
+- Model asset: Pose Landmarker Full float16 version 1.
 - Model weights: downloaded separately from Google's documented MediaPipe
   model host; not bundled with LoRA Image Curator.
+- SHA-256: 5134a3aad27a58b93da0088d431f366da362b44e3ccfbe3462b3827a839011b1
+- Size: 9,398,198 bytes.
 - Privacy boundary: LoRA Image Curator configures no telemetry endpoint and
   does not upload analyzed images or results. Explicit downloads are separate
   user-started network actions.
@@ -120,6 +123,27 @@ Send2Trash
 - License: BSD-3-Clause.
 - Safety boundary: if the dependency or native trash action fails, LoRA Image
   Curator does not fall back to permanent deletion.
+
+
+DIRECT SOURCE-RELEASE DEPENDENCIES
+----------------------------------
+
+- PyTorch and Torchvision — BSD-3-Clause.
+- Transformers — Apache-2.0.
+- NumPy — BSD-3-Clause.
+- Pillow — HPND.
+- Einops — MIT.
+- timm — Apache-2.0.
+- MediaPipe — Apache-2.0.
+- InsightFace code — MIT; pretrained weights remain separately restricted.
+- ONNX Runtime — MIT.
+- Send2Trash — BSD-3-Clause.
+
+Exact package identities, upstream sources, and distribution status are in
+provider_registry.json. SBOM.spdx.json covers declared direct/provider
+components for this source release. The future portable Windows build must add
+the exact private runtime, locked wheels, transitive packages, license files,
+and artifact hashes from its staged payload before distribution.
 
 
 FUTURE USER-SUPPLIED MODELS
