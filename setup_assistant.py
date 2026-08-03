@@ -45,6 +45,7 @@ REQUIRED_DISTRIBUTIONS = (
     ("transformers", "Transformers"),
     ("einops", "Einops"),
     ("timm", "timm"),
+    ("Send2Trash", "Recycle Bin safety"),
 )
 FACE_DISTRIBUTIONS = (
     ("insightface", "InsightFace"),
@@ -53,7 +54,6 @@ FACE_DISTRIBUTIONS = (
 )
 BODY_DISTRIBUTIONS = (
     ("mediapipe", "MediaPipe"),
-    ("Send2Trash", "Send2Trash"),
 )
 
 
@@ -284,7 +284,7 @@ def print_setup_status() -> SetupStatus:
         None, "not installed", "check failed"
     }:
         print("    WARNING            CPU and GPU ONNX Runtime are both installed")
-    print("  Body/pose analysis and Recycle Bin:")
+    print("  Body/pose analysis:")
     for line in _format_package_group(BODY_DISTRIBUTIONS, status.body_packages):
         print(line)
     print(
@@ -477,7 +477,7 @@ def check_face_dependencies() -> int:
 
 
 def install_body_dependencies() -> None:
-    """Run the consent-based body/file-action installer in the local venv."""
+    """Run the consent-based body-analysis installer in the local venv."""
     status = inspect_setup()
     if not status.required_ready:
         raise RuntimeError("Complete required app setup before optional body setup.")
@@ -529,7 +529,7 @@ def first_time_setup() -> None:
     }:
         install_face_dependencies()
     if input(
-        "\nSet up optional body/pose analysis and Recycle Bin support now? [y/N]: "
+        "\nSet up optional body/pose analysis now? [y/N]: "
     ).strip().casefold() in {"y", "yes"}:
         install_body_dependencies()
     check_ffmpeg()
@@ -549,7 +549,7 @@ def menu() -> int:
             "  4. Install/check PyTorch\n"
             "  5. Install optional face analysis (InsightFace / ONNX Runtime)\n"
             "  6. Check optional face analysis\n"
-            "  7. Install optional body/pose and Recycle Bin support\n"
+            "  7. Install optional body/pose analysis\n"
             "  8. Check optional FFmpeg\n"
             "  9. Run LoRA Image Curator\n"
             "  0. Exit"

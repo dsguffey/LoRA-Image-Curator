@@ -164,7 +164,7 @@ penetration test or legal license opinion.
 
 ## Deferred or environment-specific checks
 
-- Run `test_v0200_gui.py` on the user's Windows installation.
+- Run `tests/test_v0200_gui.py` on the user's Windows installation.
 - Confirm the repaired real catalog shows 767 images and loads comfortably.
 - Exercise cancellation during real Florence inference and verify resume/reuse.
 - Complete a real Finalize & Export pass and inspect sidecars.

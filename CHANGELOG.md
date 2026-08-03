@@ -1,5 +1,32 @@
 # LoRA Image Curator Changelog
 
+## v0.27.20 — Pre-Portable Source Stabilization
+
+### Improved
+
+- made `Send2Trash` part of the normal base dependency installation so native
+  Recycle Bin behavior is automatic rather than presented as a heavyweight
+  optional provider; the application still has no permanent-delete fallback
+- narrowed the optional body installer to MediaPipe and its user-approved pose
+  model download, with a clearly named `Install Body Analysis Dependencies.bat`
+- moved all 84 maintained smoke, golden, regression, and GUI files from the
+  repository root into `tests/` without discarding their cumulative coverage
+- updated GitHub Actions, regression/golden runners, release packaging,
+  development commands, README maps, and historical source-path assumptions for
+  the dedicated test directory
+- added a non-mutating clean-install checker and a documented three-phase real
+  new-computer, post-setup, and remembered-settings upgrade procedure
+
+### Verification and compatibility
+
+- added focused v0.27.20 dependency/layout contracts and clean-install boundary
+  tests, plus a cumulative v0.27.20 Windows GUI endpoint
+- catalog schema remains 12; catalogs, settings, models, outputs, datasets,
+  caches, and local virtual environments require no migration
+- ZIP-overlay upgrades must retire the old root-level `test_*.py` copies and
+  `Install Body and File Action Dependencies.bat`; Git users should record
+  those removals/moves with `git rm`
+
 ## v0.27.19 — Portable and Sane Source Setup
 
 ### Added
@@ -369,7 +396,7 @@
 
 ### Added
 
-- one authoritative `test_golden_build.py` command that creates its own
+- one authoritative `tests/test_golden_build.py` command that creates its own
   synthetic catalog, runs the complete maintained regression history, audits
   source and documentation, verifies deterministic flat packaging, checks a
   clean extraction and overwrite overlay, and runs the current cumulative GUI
@@ -926,7 +953,7 @@
 - added longer FFmpeg guidance under `Help > Video Extraction`
 - added a bounded least-recently-used cache for decoded Tk thumbnail images so
   current and recently visited pages can reuse already loaded previews
-- added `test_v0240_regression.py` and `test_v0240_gui.py`
+- added `tests/test_v0240_regression.py` and `tests/test_v0240_gui.py`
 
 ### Changed
 
@@ -965,7 +992,7 @@
   attached curation marker can share one visual language
 - added live theme application and persistent theme settings without changing
   the catalog schema or adding dependencies
-- added `test_v0230_gui.py` for the visual/workflow polish smoke pass
+- added `tests/test_v0230_gui.py` for the visual/workflow polish smoke pass
 
 ### Changed
 
@@ -1037,7 +1064,7 @@
   reference, face-analysis guidance, licensing, and About
 - consequence-oriented tooltips for the main workflow, browser, paging, and
   curation controls
-- `test_milestone_10_phase1c.py` and `test_v0220_gui.py`
+- `tests/test_milestone_10_phase1c.py` and `tests/test_v0220_gui.py`
 
 ### Fixed
 
@@ -1104,7 +1131,7 @@
 
 ### Testing
 
-- added `test_milestone_10_phase1b.py` and `test_v0210_gui.py`
+- added `tests/test_milestone_10_phase1b.py` and `tests/test_v0210_gui.py`
 - expanded Milestone 8F regressions for granular checks, small-face metrics,
   background-person retention, and similarly prominent faces
 - retained the complete v0.20.0 preview-cache, schema-repair, tag-search, and
@@ -1178,7 +1205,7 @@
 
 ### Testing
 
-- added `test_milestone_10_phase1.py` and `test_v0200_gui.py`
+- added `tests/test_milestone_10_phase1.py` and `tests/test_v0200_gui.py`
 - added regressions for first- and later-generation preview exclusion, schema
   repair, tag-only search, external preview storage, and pre-start provider
   cancellation
@@ -1193,8 +1220,8 @@
 - explicit overwrite confirmation when **New Empty Catalog** or
   **Create from Images** targets an existing LoRA Image Curator catalog
 - staged, validated, atomic empty-catalog replacement
-- `test_milestone_9b.py`
-- `test_v0190_gui.py`
+- `tests/test_milestone_9b.py`
+- `tests/test_v0190_gui.py`
 
 ### Changed
 
@@ -1242,8 +1269,8 @@
   empty-text validation findings
 - live empty/repeated sidecar validation in the export dialog when its profile
   changes
-- `test_milestone_9a.py`
-- `test_v0180_gui.py`
+- `tests/test_milestone_9a.py`
+- `tests/test_v0180_gui.py`
 
 ### Changed
 
@@ -1288,7 +1315,7 @@
 - scrollable completion report with exact command, source/destination,
   sampling, output/failure counts, and catalog-import summary
 - `video_extraction.py`, `video_extraction_dialog.py`,
-  `test_milestone_8h.py`, and `test_v0170_gui.py`
+  `tests/test_milestone_8h.py`, and `tests/test_v0170_gui.py`
 
 ### Changed
 
@@ -1341,7 +1368,7 @@
 - optional collision-safe `README.txt` documenting scope, profile, output
   counts, readiness notes, and the boundary between dataset preparation and
   trainer-specific settings
-- `test_milestone_8g.py` and `test_v0160_gui.py`
+- `tests/test_milestone_8g.py` and `tests/test_v0160_gui.py`
 
 ### Changed
 
@@ -1385,8 +1412,8 @@
   version without treating a transitive similarity chain as one redundant image
 - transparent counts for checks unavailable because optional quality, Florence,
   face, or similarity analysis has not been run
-- `selection_culling.py`, `cull_report_dialog.py`, `test_milestone_8f.py`, and
-  `test_v0150_gui.py`
+- `selection_culling.py`, `cull_report_dialog.py`, `tests/test_milestone_8f.py`, and
+  `tests/test_v0150_gui.py`
 
 ### Changed
 
@@ -1428,7 +1455,7 @@
 - one bordered comparison area per connected cluster, with a group heading and
   explicit instruction to compare only images inside that area
 - `duplicate_candidate_clusters()` as a GUI-independent clustering primitive
-- `test_milestone_8e.py` and `test_v0140_gui.py`
+- `tests/test_milestone_8e.py` and `tests/test_v0140_gui.py`
 
 ### Changed
 
@@ -1471,8 +1498,8 @@
 - optional named image-set creation from each imported folder, enabled by default
 - explicit Replace/Merge/Cancel decision before importing into an existing catalog
 - full import report with image counts, failures, and exact duplicate SHA-256 values
-- `catalog_import.py`, `catalog_import_dialog.py`, `test_milestone_8d.py`, and
-  `test_v0130_gui.py`
+- `catalog_import.py`, `catalog_import_dialog.py`, `tests/test_milestone_8d.py`, and
+  `tests/test_v0130_gui.py`
 
 ### Changed
 
@@ -1519,8 +1546,8 @@
 - `set:` Boolean-search field and Image set option in Advanced Search
 - Dataset Readiness scope selector for All catalog images or one named set
 - set-constrained readiness issue links back to the Catalog Browser
-- `image_sets.py`, `image_set_dialog.py`, `test_milestone_8c.py`, and
-  `test_v0120_gui.py`
+- `image_sets.py`, `image_set_dialog.py`, `tests/test_milestone_8c.py`, and
+  `tests/test_v0120_gui.py`
 
 ### Changed
 
@@ -1588,8 +1615,8 @@
   Other LoRA readiness targets
 - explicit **New Catalog…** and **Delete Catalog…** browser actions; deletion
   removes the catalog and its stored quality data but not source images
-- `quality_analysis.py`, `catalog_lifecycle.py`, `test_milestone_8b.py`, and
-  `test_v0110_gui.py`
+- `quality_analysis.py`, `catalog_lifecycle.py`, `tests/test_milestone_8b.py`, and
+  `tests/test_v0110_gui.py`
 
 ### Changed
 
@@ -1645,7 +1672,7 @@
 - hover explanations for compact readiness labels
 - `advanced_search.py`, `dataset_readiness.py`, `search_dialogs.py`, and
   `readiness_frame.py`
-- `test_milestone_8a.py` and `test_v0100_gui.py`
+- `tests/test_milestone_8a.py` and `tests/test_v0100_gui.py`
 
 ### Changed
 
@@ -1711,8 +1738,8 @@
 - local export preferences for destination, profile, outputs, collision policy,
   and Custom profile layers
 - schema version 6 export audit tables: `export_runs` and `export_run_items`
-- `dataset_export.py`, `export_dialog.py`, `test_milestone_7d.py`, and
-  `test_v090_gui.py`
+- `dataset_export.py`, `export_dialog.py`, `tests/test_milestone_7d.py`, and
+  `tests/test_v090_gui.py`
 
 ### Changed
 
@@ -1792,7 +1819,7 @@
 - durable **Undo Last Batch** history stored locally in SQLite
 - conflict detection that refuses undo when newer edits touched the same metadata
 - schema migration 2 -> 3 for batch operation snapshots
-- `test_milestone_7b.py` regression coverage for atomic writes, mixed identity
+- `tests/test_milestone_7b.py` regression coverage for atomic writes, mixed identity
   eligibility, exact undo, no-op suppression, conflict safety, and integrity
 
 ### Changed
@@ -1824,7 +1851,7 @@
   edit of each application session
 - synchronized review state between detailed identity matches and searchable
   provider-generated identity tags
-- `test_milestone_7a.py` regression coverage for backup, review state, keyword
+- `tests/test_milestone_7a.py` regression coverage for backup, review state, keyword
   replacement, identity decisions, persistence, foreign keys, and integrity
 
 ### Changed

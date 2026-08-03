@@ -8,9 +8,9 @@ appropriate PyTorch build for the workstation first, then install
 the included installer because the correct runtime depends on the installed
 CUDA generation.
 
-Optional local body analysis and native Trash/Recycle Bin support use
-`requirements-body.txt` and
-`Install Body and File Action Dependencies.bat`. The recommended MediaPipe
+Native Trash/Recycle Bin support is a standard safety dependency in
+`requirements.txt`. Optional local body analysis uses `requirements-body.txt`
+and `Install Body Analysis Dependencies.bat`. The recommended MediaPipe
 model lives outside the source tree at
 `%APPDATA%\LoRAImageCurator\models\body\pose_landmarker_full.task`.
 
@@ -35,10 +35,10 @@ not need commentary.
 
 ```powershell
 python -m tools.compile_project
-python -X dev test_v0250_regression.py
-python -X dev test_v0252_regression.py
-python -X dev test_v0260_regression.py
-python -X dev test_v0270_regression.py
+python -X dev -m tests.test_v0250_regression
+python -X dev -m tests.test_v0252_regression
+python -X dev -m tests.test_v0260_regression
+python -X dev -m tests.test_v02720_regression
 python tools\audit_project.py
 ```
 
@@ -50,7 +50,7 @@ release build, clean-extraction/overlay checks, and the current cumulative GUI
 chain:
 
 ```powershell
-python -X dev test_golden_build.py
+python -X dev -m tests.test_golden_build
 ```
 
 It never opens or edits a real catalog. The GUI phase requires a live Windows
@@ -67,6 +67,10 @@ python tools\run_regressions.py --fixture C:\path\to\fixture.db
 
 Later regressions create isolated temporary catalogs. The runner stops at the
 first failure and preserves each test's normal console output.
+
+All maintained smoke, regression, and GUI checkpoints live under `tests/`.
+Run an individual test as a module from the project root so application and
+sibling-test imports resolve consistently on Windows and hosted automation.
 
 ## Release build
 

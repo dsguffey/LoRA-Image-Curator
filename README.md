@@ -9,7 +9,7 @@ The application prepares image datasets; it does not train a LoRA itself.
 
 | Project at a glance | |
 |---|---|
-| Current release | v0.27.19 portable-source setup candidate |
+| Current release | v0.27.20 pre-portable source stabilization candidate |
 | Primary platform | Windows 11, Python 3.11+ |
 | Data model | Versioned SQLite catalog with SHA-256 content identity |
 | Local analysis | Florence-2, optional InsightFace and MediaPipe |
@@ -18,8 +18,10 @@ The application prepares image datasets; it does not train a LoRA itself.
 
 > **Status:** Active pre-1.0 stabilization. v0.27.17 passed the complete
 > live-Windows golden-build gate. v0.27.18 established the professionally
-> reviewed public repository; v0.27.19 adds a portable, checklist-driven source
-> setup and launcher. Application runtime behavior and catalog schema remain
+> reviewed public repository; v0.27.19 added a portable, checklist-driven source
+> setup and launcher. v0.27.20 makes Recycle Bin safety standard, moves public
+> QA files under `tests/`, and prepares a non-mutating new-computer check.
+> Application runtime behavior and catalog schema remain
 > unchanged. Large-catalog measurements,
 > active-provider shutdown/quarantine stress testing, and the first complete
 > exported-dataset training trial remain on the roadmap.
@@ -105,9 +107,11 @@ and the base packages in `requirements.txt` are therefore required to start
 the app. The guided setup creates and manages `venv` inside the project folder;
 users do not activate or administer it manually.
 
-Face analysis, body/pose analysis, native Recycle Bin support, and FFmpeg video
-extraction are optional. A later executable/installer milestone is intended to
-hide Python and environment setup from ordinary non-source users.
+Face analysis, body/pose analysis, and FFmpeg video extraction are optional.
+Native Recycle Bin support is installed with the base dependencies because it
+is the application's safety path for file deletion; the app still refuses any
+permanent-delete fallback. A later executable/installer milestone is intended
+to hide Python and environment setup from ordinary non-source users.
 
 Florence-2, InsightFace, and MediaPipe model weights are not bundled. Review
 [MODEL_LICENSES.txt](MODEL_LICENSES.txt) before downloading or using models.
@@ -153,7 +157,8 @@ project imports that escape the checkout under test.
 | Capability | Setup |
 |---|---|
 | Face analysis | Menu option 5, or `Install Face Analysis Dependencies.bat` |
-| Body/pose analysis and Recycle Bin support | Run `Install Body and File Action Dependencies.bat` |
+| Body/pose analysis | Menu option 7, or `Install Body Analysis Dependencies.bat` |
+| Recycle Bin safety | Installed automatically with the required base packages |
 | Video extraction | Install FFmpeg separately or select its executable in the video dialog |
 
 Face analysis uses InsightFace with ONNX Runtime. The included installer first
@@ -170,8 +175,12 @@ not assume the newest GPU package is compatible with an older CUDA generation.
 Close the application and extract the release over the existing application
 folder, allowing release files to be replaced. Preserve the virtual
 environment, `output`, models, settings, catalogs, image sources, and caches.
-The release preflight reports an exact retired filename if manual removal is
-ever necessary. No v0.27.18 files are obsolete in v0.27.19.
+The release preflight reports exact retired top-level Python filenames. v0.27.20
+moves every maintained `test_*.py` file into `tests/` and retires
+`Install Body and File Action Dependencies.bat`. When upgrading by ZIP overlay,
+move or delete those old root test copies and that one old batch file; do not
+remove application modules, catalogs, images, models, outputs, settings, or the
+virtual environment. Git users should use `git rm` so Git records the moves.
 
 ## Safety and privacy
 
@@ -198,7 +207,7 @@ The authoritative Windows release gate uses temporary synthetic data and never
 opens or edits a real catalog:
 
 ```powershell
-python -X dev test_golden_build.py
+python -X dev -m tests.test_golden_build
 ```
 
 A passing default run establishes the maintained regressions, source
@@ -211,10 +220,10 @@ For a quick dependency-free repository check:
 ```powershell
 python -m tools.compile_project
 python tools\audit_project.py
-python -X dev test_v02719_regression.py
+python -X dev -m tests.test_v02720_regression
 ```
 
-`python -X dev test_golden_build.py --no-gui` is useful in a headless
+`python -X dev -m tests.test_golden_build --no-gui` is useful in a headless
 environment, but it does not qualify a release as golden. See
 [docs/GOLDEN_TEST.md](docs/GOLDEN_TEST.md) for exact coverage and limitations.
 
@@ -231,7 +240,7 @@ Tk behavior intentionally remain workstation tests.
 | `florence_analyzer.py`, `face_analyzer.py`, `body_analysis*.py` | Local provider adapters and normalized results |
 | `catalog_browser.py`, `browser_workflow.py`, `dataset_readiness.py` | Visual review, filtering, selection, and readiness evidence |
 | `file_actions.py`, `dataset_export.py`, `video_extraction*.py` | Recovery-aware file actions, export, and video handoff |
-| `test_*.py`, `tools/` | Historical regressions, audit, fixtures, and deterministic packaging |
+| `tests/`, `tools/` | Historical regressions, clean-install QA, audit, fixtures, and deterministic packaging |
 | `docs/` | Architecture, development, and golden-gate documentation |
 
 `BUGS.md`, `ROADMAP.md`, `WISHLIST.md`, and `CHANGELOG.md` keep confirmed

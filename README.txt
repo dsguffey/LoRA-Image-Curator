@@ -1,4 +1,4 @@
-LORA IMAGE CURATOR GUI v0.27.19
+LORA IMAGE CURATOR GUI v0.27.20
 ========================
 
 OVERVIEW
@@ -13,7 +13,8 @@ layers around that catalog. Provider output is preserved, user decisions are
 stored independently, and final training text is derived only when it is
 previewed or exported.
 
-Version 0.27.19 is the portable-source setup candidate for Milestone 11A. The
+Version 0.27.20 is the pre-portable source stabilization candidate for
+Milestone 11B. The
 application
 has been exercised with roughly 14,000 to 17,000 local images. Current primary
 workstation observations are about five seconds for a cold first launch and
@@ -29,11 +30,29 @@ isolates the long historical Tk replay in a strict child process and reports
 the tested source folder separately from the Python environment; that complete
 live-Windows gate passed. v0.27.18 improves first-visitor documentation,
 contributor privacy safeguards, ignore rules, and dependency-free repository
-automation without changing application behavior or schema. v0.27.19 adds a
+automation without changing application behavior or schema. v0.27.19 added a
 checklist-driven setup assistant, project-local environment creation, clear
 required/optional dependency tiers, and first-time launcher recovery without
-changing application behavior or schema. Broader
+changing application behavior or schema. v0.27.20 makes Recycle Bin safety a
+base dependency, separates optional MediaPipe setup, moves public QA files into
+`tests`, and prepares the real new-computer validation milestone. Broader
 large-catalog measurements and deferred high-risk QA remain pre-1.0 work.
+
+
+WHAT IS NEW IN v0.27.20
+-----------------------
+
+- Send2Trash now installs with the normal base stack, making native Recycle Bin
+  behavior automatic while retaining the no-permanent-delete safety boundary
+- optional body analysis now has its own clearly named installer and contains
+  only MediaPipe plus the user-approved pose-model download
+- all maintained smoke, regression, golden, and GUI files live under `tests/`;
+  GitHub Actions, packaging, runners, and commands use the same layout
+- a read-only clean-install checker and three-phase new-computer QA guide cover
+  before-setup, after-setup, and remembered-settings upgrade behavior
+- old root-level `test_*.py` copies and
+  `Install Body and File Action Dependencies.bat` are retired in this release
+- catalog schema remains 12; user/runtime data requires no migration
 
 
 WHAT IS NEW IN v0.27.19
@@ -232,7 +251,7 @@ No v0.27.6 release files are obsolete in this update.
 WHAT IS NEW IN v0.27.6
 ---------------------
 
-- `test_golden_build.py` is the single authoritative handoff command
+- `tests/test_golden_build.py` is the single authoritative handoff command
 - the test creates temporary synthetic images and a schema-current catalog; it
   never opens or edits a real dataset
 - the command runs the complete maintained regression history, source and
@@ -400,7 +419,7 @@ Still included from v0.24.0:
   visited pages warm without changing the existing disk cache or catalog
 - repeated and final-page Alt+Left/Alt+Right events are consumed so a held Alt
   key cannot fall through to Windows/Tk menu navigation
-- `test_v0240_regression.py` and `test_v0240_gui.py` cover the complete v0.24.x
+- `tests/test_v0240_regression.py` and `tests/test_v0240_gui.py` cover the complete v0.24.x
   behavior; v0.25.x adds dedicated identity, compatibility, model-selection,
   Alt-chord, packaging, and Windows smoke coverage
 
@@ -421,12 +440,13 @@ Still included from v0.23.0:
 - Clean Gray, Soft Light, Dark Workstation, and High Contrast themes
 - 0.5-second live-search debounce
 - Python 3.14/Tk-safe cached font objects
-- `test_milestone_10_phase1c.py`, `test_v0220_gui.py`, and
-  `test_v0230_gui.py` are included
+- `tests/test_milestone_10_phase1c.py`, `tests/test_v0220_gui.py`, and
+  `tests/test_v0230_gui.py` are included
 
-MediaPipe and Send2Trash are optional dependencies. The application remains
-usable without them, but body analysis and native Recycle Bin actions stay
-unavailable until their vetted installer is run.
+MediaPipe remains optional. Send2Trash is installed with the standard base
+dependencies so native Recycle Bin actions are available automatically; the
+application still refuses any permanent-delete fallback if that safety path is
+unavailable.
 
 
 UPGRADING FROM v0.24.0
@@ -434,11 +454,14 @@ UPGRADING FROM v0.24.0
 
 1. Close LoRA Image Curator.
 
-2. Extract LoRA_Image_Curator_v0.27.19.zip directly into your existing
+2. Extract LoRA_Image_Curator_v0.27.20.zip directly into your existing
    DatasetTools folder and allow Windows to replace older release files.
 
 3. Keep your existing `venv`, model files, catalogs, images, settings, logs,
-   and caches where they are. No v0.27.16 files need manual removal.
+   and caches where they are. Move or remove only the old root-level
+   `test_*.py` copies and `Install Body and File Action Dependencies.bat`;
+   v0.27.20 owns their replacements under `tests/` and in the renamed body
+   installer.
 
 4. Keep your existing `venv` folder, model files, and `dataset_tools.db`
    catalog.
@@ -447,7 +470,7 @@ UPGRADING FROM v0.24.0
 
        Run LoRA Image Curator.bat
 
-Version 0.27.19 uses schema 12 and accepts both
+Version 0.27.20 uses schema 12 and accepts both
 current and historical catalog identity markers. If upgrading directly from
 v0.19.0, the existing schema-10
 migration removes only file records that match LoRA Image Curator's exact
@@ -459,7 +482,7 @@ history remain intact.
 
 The old `<output folder>\thumbnail_cache` directory is not deleted
 automatically. After closing v0.19.0, it is safe to delete that entire legacy
-folder manually to recover disk space. v0.27.19 will ignore it if you leave it in
+folder manually to recover disk space. v0.27.20 will ignore it if you leave it in
 place and writes any new previews beneath:
 
     %APPDATA%\LoRAImageCurator\thumbnail_cache
@@ -472,11 +495,11 @@ BODY ANALYSIS AND RECYCLE BIN SETUP
 
 Run:
 
-    Install Body and File Action Dependencies.bat
+    Install Body Analysis Dependencies.bat
 
 The helper identifies its sources and asks separately before:
 
-1. installing MediaPipe and Send2Trash from PyPI
+1. installing MediaPipe from PyPI
 2. downloading Google's documented Pose Landmarker Full model
 
 The recommended model is stored at:
@@ -1635,7 +1658,7 @@ can be checked after files are copied into the project folder.
 
 Activate the virtual environment and run the one authoritative test:
 
-    python -X dev test_golden_build.py
+    python -X dev -m tests.test_golden_build
 
 It creates a temporary synthetic fixture for historical checks, compiles and
 audits the source, runs every maintained non-GUI regression, rebuilds the
@@ -1644,7 +1667,7 @@ supported overwrite-in-place overlay, then runs the current cumulative GUI
 chain. Several temporary windows will open and close during the Windows
 GUI phase. That is expected.
 
-`python -X dev test_golden_build.py --no-gui` is available for headless
+`python -X dev -m tests.test_golden_build --no-gui` is available for headless
 development checks. A build is not recorded as golden until the default command
 passes on the supported live Windows desktop.
 
@@ -1653,7 +1676,7 @@ exit indicates a failed gate; the runner stops at the first failure.
 `docs/GOLDEN_TEST.md` records the exact coverage and honest limits of the result.
 
 
-KNOWN LIMITATIONS IN v0.27.19
+KNOWN LIMITATIONS IN v0.27.20
 ---------------------------
 
 - Florence object detection and regional OCR follow the official 1,024-token

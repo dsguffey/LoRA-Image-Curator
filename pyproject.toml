@@ -1,6 +1,6 @@
 [project]
 name = "lora-image-curator"
-version = "0.27.19"
+version = "0.27.20"
 description = "Local-first desktop curation and export for LoRA image datasets"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,12 +22,12 @@ dependencies = [
     "transformers==4.49.0",
     "einops>=0.7,<1",
     "timm>=0.9,<2",
+    "Send2Trash>=1.8,<3",
 ]
 
 [project.optional-dependencies]
 body = [
     "mediapipe>=0.10,<1",
-    "Send2Trash>=1.8,<3",
 ]
 
 [project.urls]
@@ -36,7 +36,7 @@ Author = "https://www.linkedin.com/in/davidsguffey/"
 [tool.ruff]
 target-version = "py311"
 line-length = 88
-exclude = ["test_*.py"]
+exclude = ["tests/test_*.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

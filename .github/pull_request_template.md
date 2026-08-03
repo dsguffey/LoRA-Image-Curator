@@ -35,7 +35,7 @@ Commands and results
 If the change affects Tk behavior or the release boundary, record the result of:
 
 ```powershell
-python -X dev test_golden_build.py
+python -X dev -m tests.test_golden_build
 ```
 
 If it was not run, explain why and state the remaining verification clearly.

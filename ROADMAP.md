@@ -51,26 +51,45 @@ Completed foundations include:
   and a dedicated missing-file filter
 - video-origin manifests and browser-visible source timestamps
 
-## Current: Milestone 11A — Portable Public Source Candidate
+## Current: Milestone 11B — Pre-Portable Source Stabilization
 
-v0.27.19 is the current public-source candidate after cleanup and functional
+v0.27.20 is the current public-source candidate after cleanup and functional
 testing at roughly 14,000–17,000 images, deterministic Tk lifecycle fixes,
 repository-boundary hardening, a first-visitor presentation review, and a
 checklist-driven project-local setup path. v0.27.17 passed the complete
-live-Windows golden gate. v0.27.19 changes setup, launch, documentation, and
-release verification without changing catalog or application behavior.
+live-Windows golden gate. v0.27.20 changes setup ownership, repository layout,
+documentation, and release verification without changing catalog schema or the
+application's file-action behavior.
 
 - keep public version, launcher, README, bugs, roadmap, test, and release
   metadata synchronized
 - present the current capabilities, local-first boundaries, third-party
   dependencies, and known limitations clearly
+- install lightweight Recycle Bin safety automatically with the base stack,
+  while retaining MediaPipe/model assets as optional body-analysis components
+- keep public tests under `tests/` and synchronize every workflow, runner,
+  package rule, and user-facing command with that layout
+- perform the documented real new-computer and remembered-settings upgrade QA
+  before beginning the portable executable/installer milestone
 - distinguish provider/tool/model limitations from LoRA Image Curator defects
 - verify no private datasets, catalogs, logs, models, paths, credentials, caches,
   or generated exports are included
 - retain a concise architecture/module map instead of combining independent
   modules only to reduce the file count
-- publish the deterministic v0.27.19 source ZIP and Git commit as the pre-1.0
+- publish the deterministic v0.27.20 source ZIP and Git commit as the pre-1.0
   reference snapshot
+
+## Completed within Milestone 11: v0.27.20
+
+- made `Send2Trash` part of required base setup so Recycle Bin behavior is the
+  automatic safety default; permanent deletion remains unavailable
+- separated the optional MediaPipe/model installer into
+  `Install Body Analysis Dependencies.bat`
+- moved all maintained golden, regression, and GUI checks into `tests/` and
+  updated hosted automation, local runners, deterministic packaging, and docs
+- added a read-only clean-install checker and a three-phase new-computer,
+  post-setup, and established-user upgrade guide
+- retained catalog schema 12 and all existing application/runtime data paths
 
 ## Completed within Milestone 11: v0.27.19
 
@@ -137,6 +156,10 @@ useful baselines, not final performance guarantees.
   scheduling, virtualized results, or a separate staging catalog are required
 - complete the deferred high-risk QA jobs: quarantine/restore, close while a
   provider is busy, and recovery after interruption
+- run the documented real new-computer test from a fresh checkout/folder with
+  clean user settings, then repeat as an in-place upgrade with existing
+  `%APPDATA%\LoRAImageCurator` settings to verify that first-run and
+  remembered-catalog behavior are both intentional
 - test changing filters, sorting, page, and navigation while thumbnail work is
   still arriving
 - validate Pause/Resume/Cancel with each provider rather than Florence alone
@@ -386,7 +409,8 @@ which may create many thousands of candidates before a useful catalog exists.
 ## Milestone 16 — File-Structure Cleanup
 
 - reduce the 100-plus-file source sprawl without destabilizing working features
-- treat the cleanup as a dedicated refactor with its own complete regression,
+- the public test-directory move was completed in v0.27.20; any further source
+  reorganization remains a dedicated refactor with its own complete regression,
   documentation audit, packaging audit, and Windows smoke test
 
 ## Milestone 17 — Real Dataset and Training Trial
@@ -823,7 +847,7 @@ for the source-tree cleanup.
 - create a proper Windows executable for ordinary use without manually invoking
   Python
 - make the ordinary installer experience hide Python and virtual-environment
-  administration entirely; retain the v0.27.19 source setup for developers
+  administration entirely; retain the v0.27.20 source setup for developers
 - create an installer or installer-like distribution with clear install,
   upgrade, uninstall, and troubleshooting behavior
 - decide how optional dependencies such as FFmpeg and face-analysis packages are

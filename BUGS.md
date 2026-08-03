@@ -3,6 +3,17 @@
 This file contains defects and unresolved technical problems. Planned features
 and speculative enhancements belong in `ROADMAP.md` or `WISHLIST.md`.
 
+## Fixed in v0.27.20
+
+### Recycle Bin safety was misleadingly bundled with body analysis
+
+The v0.27.19 setup menu and installer treated MediaPipe body analysis and
+`Send2Trash` as one optional feature. This made a lightweight, protective file
+dependency appear to require an unrelated provider and model download. Base
+setup now installs `Send2Trash` automatically, the body installer owns only
+MediaPipe/model setup, and deletion still stops without any permanent fallback
+if native Recycle Bin handling is unavailable.
+
 ## Fixed in v0.27.17
 
 ### Cumulative Windows GUI replay could fail nondeterministically after passing
@@ -172,7 +183,7 @@ always-backed-up because it has no operating-system Recycle Bin recovery path.
 
 The project had a strong historical regression collection but no single
 authoritative handoff command, and v0.27.5 added a viewer action without its own
-named regression/GUI generation. `test_golden_build.py` now creates a safe
+named regression/GUI generation. `tests/test_golden_build.py` now creates a safe
 synthetic fixture and owns automated, GUI, audit, deterministic-package,
 clean-extraction, and overwrite-overlay verification in one fail-fast run.
 

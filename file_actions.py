@@ -357,16 +357,18 @@ class FileActionService:
     ) -> FileActionSummary:
         """Send all present locations to native Trash/Recycle Bin.
 
-        Importing lazily keeps browsing functional when the optional dependency
-        is absent.  The caller receives an actionable exception before any file
-        is touched.
+        Importing lazily lets the application explain an incomplete or damaged
+        base installation before any file is touched. Recycle Bin support is a
+        standard safety dependency, but this boundary still refuses to fall
+        back to permanent deletion if the package is unavailable.
         """
         try:
             from send2trash import send2trash
         except ImportError as error:
             raise RuntimeError(
                 "Recycle Bin support is not installed. Run "
-                "\"Install Body and File Action Dependencies.bat\". "
+                "\"Install Base Dependencies.bat\" to repair the standard "
+                "application setup. "
                 "No files were deleted."
             ) from error
 

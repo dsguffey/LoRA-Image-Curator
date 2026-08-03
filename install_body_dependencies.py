@@ -1,4 +1,4 @@
-"""Install vetted optional dependencies and Google's recommended pose model.
+"""Install MediaPipe and Google's recommended local pose model.
 
 This helper runs only when the user launches it directly.  It prints the exact
 package/model sources and asks before each network operation.  It never enables
@@ -75,10 +75,10 @@ def download_model(destination: Path) -> None:
 
 def main() -> int:
     destination = get_default_body_model_path()
-    print("LoRA Image Curator optional body/file-action setup")
+    print("LoRA Image Curator optional body-analysis setup")
     print()
-    print("Packages: mediapipe (Google MediaPipe Authors) and Send2Trash")
-    print("Purpose: local pose/body analysis and native Recycle Bin support")
+    print("Package: mediapipe (Google MediaPipe Authors)")
+    print("Purpose: local pose/body analysis")
     print("Telemetry: this installer does not enable application or provider telemetry")
     print()
     if ask("Install the vetted Python dependencies from PyPI?"):

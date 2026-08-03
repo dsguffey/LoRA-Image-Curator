@@ -46,7 +46,7 @@ unclear project status.
 Run the full golden gate on Windows before tagging or calling a ZIP golden:
 
 ```powershell
-python -X dev test_golden_build.py
+python -X dev -m tests.test_golden_build
 ```
 
 For a quick pre-commit sanity pass when the GUI gate is not needed:

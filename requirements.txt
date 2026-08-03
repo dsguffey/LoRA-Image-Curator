@@ -8,3 +8,7 @@ transformers==4.49.0
 einops>=0.7,<1
 timm>=0.9,<2
 
+# Recycle Bin support is a small safety dependency, not an optional analysis
+# provider. File deletion never falls back to permanent removal if this package
+# is unavailable or the operating system rejects the request.
+Send2Trash>=1.8,<3

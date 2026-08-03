@@ -69,7 +69,7 @@ that every optional model/runtime combination has been exercised.
 
 ## Remaining release gates
 
-- Run `test_v0250_gui.py` on the user's Windows desktop.
+- Run `tests/test_v0250_gui.py` on the user's Windows desktop.
 - Reproduce hold Alt → Right → Right → Right → release Alt in the real browser.
 - Exercise InsightFace Browse against the installed pack on the user's system.
 - Complete one real source-to-export workflow and use that export for a first
