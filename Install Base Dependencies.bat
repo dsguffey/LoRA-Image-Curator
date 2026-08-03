@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
-echo LoRA Image Curator v0.27.21 - Required Dependency Installer
+echo LoRA Image Curator v0.27.23 - Required Dependency Installer
 echo.
 
 if exist "venv\Scripts\python.exe" (

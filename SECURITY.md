@@ -22,9 +22,11 @@ optional FFmpeg executable. Its principal security goals are:
 The application does not attempt to sandbox PyTorch, Transformers,
 InsightFace, ONNX Runtime, MediaPipe, or FFmpeg. Install third-party components
 only from sources you trust and review their licenses. The Florence path does
-not enable `trust_remote_code`: it pins a reviewed Transformers release and
-Microsoft model revision, requires safetensors weights, and rejects a model or
-processor implementation outside native `transformers.models.florence2` code.
+not enable `trust_remote_code`: it pins a reviewed Transformers release and the
+native-compatible Florence community conversion of Microsoft's model weights,
+requires safetensors, and rejects a model or processor implementation outside
+native `transformers.models.florence2` code. A prompt/token preflight completes
+before the first unfinished image is analyzed.
 
 ## Reporting a vulnerability
 

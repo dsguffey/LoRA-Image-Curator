@@ -11,7 +11,7 @@ files, settings, catalogs, models, or datasets.
 
 ## Phase 1: real new-computer / before setup
 
-1. Download or clone v0.27.21 into a new folder on a Windows 11 computer that
+1. Download or clone v0.27.23 into a new folder on a Windows 11 computer that
    has never run LoRA Image Curator.
 2. From PowerShell in that folder, run:
 
@@ -22,8 +22,9 @@ files, settings, catalogs, models, or datasets.
 3. The check must report no local `venv`, no existing per-user app data, and a
    valid signed release inventory.
 4. Double-click `Setup and Launch LoRA Image Curator.bat`, choose first-time
-   setup, select the appropriate official PyTorch path, and let base setup
-   complete.
+   setup, and select PyTorch before the remaining base packages. On a modern
+   NVIDIA workstation, exercise the tested CUDA 13 automatic option; on another
+   target, use the official selector or CPU option appropriate to that system.
 
 If this phase is intentionally rehearsed on an established computer, close the
 app and temporarily rename `%APPDATA%\LoRAImageCurator` to a clearly marked
@@ -50,6 +51,11 @@ Then check only the optional components available on that workstation:
 - Body/pose analysis: `Install Body Analysis Dependencies.bat`, model download,
   and compatibility check.
 - FFmpeg: PATH detection or a manually selected executable.
+
+For the tested NVIDIA path, setup must also report a passed CUDA tensor check,
+the expected GPU name, PyTorch 2.13.0 with CUDA 13.x, and a nonempty compiled
+architecture list. Merely seeing `CUDA available: True` is insufficient for
+this release gate.
 
 ## Phase 3: established-user / upgrade behavior
 

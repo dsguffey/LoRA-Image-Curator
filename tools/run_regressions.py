@@ -64,6 +64,8 @@ SELF_CONTAINED_TESTS = (
     "tests/test_v02719_regression.py",
     "tests/test_v02720_regression.py",
     "tests/test_v02721_regression.py",
+    "tests/test_v02722_regression.py",
+    "tests/test_v02723_regression.py",
     "tests/test_clean_install.py",
 )
 

@@ -3,6 +3,41 @@
 This file contains defects and unresolved technical problems. Planned features
 and speculative enhancements belong in `ROADMAP.md` or `WISHLIST.md`.
 
+## Fixed in v0.27.23
+
+### Base setup could silently install CPU-only PyTorch on an NVIDIA computer
+
+The base installer installed `requirements.txt` before asking the user to
+select a PyTorch build. Because `timm` depends on Torch and Torchvision, pip
+could satisfy that dependency with CPU-only PyTorch. The later setup check saw
+that PyTorch existed and preserved it, leaving Florence on the CPU even with a
+supported NVIDIA GPU.
+
+Setup now chooses PyTorch first, detects visible NVIDIA hardware paired with a
+non-CUDA PyTorch runtime, and offers a focused Windows repair using the reviewed
+PyTorch 2.13.0 / Torchvision 0.28.0 CUDA 13.0 pair. The repair checks the NVIDIA
+driver before changing packages, records the pre-repair environment, executes
+a real CUDA tensor operation afterward, and realigns optional ONNX Runtime only
+when face-analysis packages were already installed.
+
+## Fixed in v0.27.22
+
+### Native Florence checkpoint failed its image-token contract
+
+v0.27.21 combined native Transformers 4.56.2 code with Microsoft's original
+Florence checkpoint. Hugging Face's native processor expects image-token
+metadata supplied by its converted checkpoint, so a real run could stop with
+`BartTokenizerFast has no attribute image_token` even though the static
+security checks passed. Florence now uses the pinned
+`florence-community/Florence-2-large-ft` conversion, validates all three live
+task prompts plus a bounded one-token generation before processing the first
+unfinished image, and continues to forbid repository code and pickle weights.
+
+Exact successful results previously stored under the Microsoft checkpoint with
+Transformers 4.49.0 or 4.56.2 are recognized as reviewed compatible results.
+With reuse enabled, a large catalog therefore resumes its unfinished images
+without regenerating the completed captions and triage evidence.
+
 ## Fixed in v0.27.21
 
 ### Florence could execute changing repository code during model loading

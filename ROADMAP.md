@@ -51,16 +51,20 @@ Completed foundations include:
   and a dedicated missing-file filter
 - video-origin manifests and browser-visible source timestamps
 
-## Current: Milestone 11B — Provider Security Stabilization
+## Current: Milestone 11B — Provider Security and Recovery Stabilization
 
-v0.27.21 is the current public-source candidate after cleanup and functional
+v0.27.23 is the current public-source candidate after cleanup and functional
 testing at roughly 14,000–17,000 images, deterministic Tk lifecycle fixes,
 repository-boundary hardening, a first-visitor presentation review, and a
 checklist-driven project-local setup path. v0.27.17 passed the complete
 live-Windows golden gate. v0.27.20 changed setup ownership, repository layout,
 documentation, and release verification. v0.27.21 pins the Florence dependency
 and model snapshot, removes repository-code execution, and preserves catalog
-schema and file-action behavior.
+schema and file-action behavior. v0.27.22 corrects the native checkpoint,
+preflights the live task contract, and resumes exact reviewed results from an
+interrupted large catalog. v0.27.23 repairs the source setup path that could
+silently select CPU-only PyTorch on NVIDIA hardware and adds a verified CUDA 13
+recovery without changing catalog or provider-result compatibility.
 
 - keep public version, launcher, README, bugs, roadmap, test, and release
   metadata synchronized
@@ -77,8 +81,31 @@ schema and file-action behavior.
   or generated exports are included
 - retain a concise architecture/module map instead of combining independent
   modules only to reduce the file count
-- publish the deterministic v0.27.21 source ZIP and Git commit as the pre-1.0
+- publish the deterministic v0.27.23 source ZIP and Git commit as the pre-1.0
   reference snapshot
+
+## Completed within Milestone 11: v0.27.23
+
+- moved PyTorch selection ahead of the `timm` dependency chain so clean source
+  setup cannot silently acquire CPU-only PyTorch before hardware selection
+- made setup detect an NVIDIA/CPU-PyTorch mismatch and added an official,
+  version-paired PyTorch 2.13.0 / Torchvision 0.28.0 CUDA 13.0 repair with a
+  driver gate, dependency snapshot, and real CUDA tensor verification
+- realigned an existing optional ONNX Runtime installation to CUDA 13 without
+  adding optional face packages to environments that did not already use them
+- retained the v0.27.22 Florence checkpoint, preflight, exact legacy-result
+  reuse, schema 12, and every existing user/runtime data location
+
+## Completed within Milestone 11: v0.27.22
+
+- switched native Florence inference to the pinned, safetensors-only
+  `florence-community/Florence-2-large-ft` conversion identified by current
+  Transformers documentation
+- added a bounded prompt/image-token/generation preflight before any unfinished
+  catalog image reaches inference
+- reviewed and explicitly allowed reuse of successful Microsoft-checkpoint
+  results produced under Transformers 4.49.0 or 4.56.2
+- retained schema 12 and every existing user/runtime data location
 
 ## Completed within Milestone 11: v0.27.21
 

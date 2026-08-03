@@ -7,10 +7,11 @@ only user-selected components, reports required and optional readiness, and
 always invokes pip through the exact local interpreter it manages.
 
 PyTorch remains an explicit choice because the correct official wheel depends
-on the workstation's CPU/NVIDIA driver stack.  The assistant can install the
-official CPU build automatically or safely translate a command copied from
+on the workstation's CPU/NVIDIA driver stack. The assistant can install and
+verify the reviewed CUDA 13 pair on a compatible modern Windows/NVIDIA system,
+install the official CPU build, or safely translate a command copied from
 PyTorch's official selector so it installs into ``.\venv`` rather than the
-user's system Python.  It never downloads model weights or FFmpeg.
+user's system Python. It never downloads model weights or FFmpeg.
 """
 
 from __future__ import annotations
@@ -26,6 +27,7 @@ import sys
 import webbrowser
 
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Sequence
 from urllib.parse import urlparse
@@ -37,6 +39,14 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 VENV_ROOT = PROJECT_ROOT / "venv"
 VENV_PYTHON = VENV_ROOT / "Scripts" / "python.exe"
 PYTORCH_SELECTOR_URL = "https://pytorch.org/get-started/locally/"
+TESTED_NVIDIA_TORCH_VERSION = "2.13.0"
+TESTED_NVIDIA_TORCHVISION_VERSION = "0.28.0"
+TESTED_NVIDIA_CUDA_VERSION = "13.0"
+TESTED_NVIDIA_INDEX_URL = "https://download.pytorch.org/whl/cu130"
+# PyTorch's CUDA 13 guidance identifies this as the minimum Windows driver for
+# current Blackwell-class wheels. The comparison is intentionally local and
+# conservative: an older driver stops before pip changes the environment.
+MINIMUM_CUDA_13_WINDOWS_DRIVER = (580, 88)
 
 REQUIRED_DISTRIBUTIONS = (
     ("torch", "PyTorch"),
@@ -157,18 +167,35 @@ print(json.dumps(values, sort_keys=True))
 
 
 def _inspect_torch_runtime(python_path: Path) -> dict[str, object]:
-    """Import PyTorch in a child process and report its actual device path."""
+    """Import PyTorch in a child process and report its actual device path.
+
+    When CUDA is visible, the probe also performs one tiny tensor operation and
+    synchronizes it. ``torch.cuda.is_available()`` alone can be true even when
+    a later DLL, architecture, or driver failure prevents real inference.
+    """
     script = """
 import json
 
 try:
     import torch
     available = bool(torch.cuda.is_available())
+    smoke_ok = False
+    smoke_error = ""
+    if available:
+        try:
+            value = torch.tensor([6.0], device="cuda") * 7.0
+            torch.cuda.synchronize()
+            smoke_ok = float(value.item()) == 42.0
+        except Exception as smoke_exception:
+            smoke_error = f"{type(smoke_exception).__name__}: {smoke_exception}"
     result = {
         "version": str(torch.__version__),
         "cuda": str(torch.version.cuda or "CPU-only"),
         "cuda_available": available,
         "device": str(torch.cuda.get_device_name(0)) if available else "CPU",
+        "architectures": list(torch.cuda.get_arch_list()) if available else [],
+        "smoke_ok": smoke_ok,
+        "smoke_error": smoke_error,
         "error": "",
     }
 except Exception as error:
@@ -177,6 +204,9 @@ except Exception as error:
         "cuda": "unknown",
         "cuda_available": False,
         "device": "unknown",
+        "architectures": [],
+        "smoke_ok": False,
+        "smoke_error": "",
         "error": f"{type(error).__name__}: {error}",
     }
 print(json.dumps(result, sort_keys=True))
@@ -195,6 +225,65 @@ print(json.dumps(result, sort_keys=True))
         return dict(json.loads(completed.stdout.strip().splitlines()[-1]))
     except (IndexError, json.JSONDecodeError) as error:
         return {"error": f"PyTorch check failed: {error}"}
+
+
+def _driver_version_key(version: str) -> tuple[int, ...]:
+    """Convert an NVIDIA dotted driver version into a comparable integer key."""
+    pieces = re.findall(r"\d+", version)
+    return tuple(int(piece) for piece in pieces)
+
+
+def inspect_nvidia_runtime() -> tuple[tuple[str, str], ...]:
+    """Return NVIDIA GPU names and driver versions reported by ``nvidia-smi``.
+
+    The helper is read-only and deliberately avoids registry probing or CUDA
+    toolkit assumptions. PyTorch wheels carry their own CUDA runtime; the
+    installed display/compute driver is the relevant machine-wide boundary.
+    """
+    executable = shutil.which("nvidia-smi")
+    if not executable:
+        return ()
+    try:
+        completed = subprocess.run(
+            [
+                executable,
+                "--query-gpu=name,driver_version",
+                "--format=csv,noheader",
+            ],
+            cwd=PROJECT_ROOT,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ()
+    if completed.returncode:
+        return ()
+
+    devices: list[tuple[str, str]] = []
+    for raw_line in completed.stdout.splitlines():
+        name, separator, driver = raw_line.partition(",")
+        if separator and name.strip() and driver.strip():
+            devices.append((name.strip(), driver.strip()))
+    return tuple(devices)
+
+
+def save_dependency_snapshot(label: str) -> Path:
+    """Record the managed environment before a focused runtime change."""
+    ensure_local_environment()
+    backup_directory = PROJECT_ROOT / "dependency_backups"
+    backup_directory.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    snapshot_path = backup_directory / f"before_{label}_{timestamp}.txt"
+    with snapshot_path.open("w", encoding="utf-8") as snapshot_file:
+        subprocess.run(
+            _venv_command("-m", "pip", "freeze"),
+            cwd=PROJECT_ROOT,
+            check=True,
+            stdout=snapshot_file,
+            text=True,
+        )
+    return snapshot_path
 
 
 def _inspect_onnx_providers(python_path: Path) -> tuple[str, ...]:
@@ -293,6 +382,14 @@ def print_setup_status() -> SetupStatus:
             f"{status.torch_runtime.get('device')} "
             f"(CUDA {status.torch_runtime.get('cuda')})"
         )
+        if status.torch_runtime.get("cuda_available"):
+            result = "passed" if status.torch_runtime.get("smoke_ok") else "FAILED"
+            print(f"    CUDA tensor check  {result}")
+            if status.torch_runtime.get("smoke_error"):
+                print(
+                    "    CUDA error         "
+                    f"{status.torch_runtime.get('smoke_error')}"
+                )
 
     print("\nOPTIONAL FEATURES")
     print("  Face analysis:")
@@ -357,20 +454,54 @@ def _pip_install(*arguments: str) -> None:
 
 
 def install_required_packages(*, offer_pytorch: bool = True) -> None:
-    """Create/update the local environment and install base requirements."""
+    """Create/update the local environment and install base requirements.
+
+    PyTorch must be selected *before* installing ``requirements.txt``. ``timm``
+    depends on Torch/Torchvision, so the old order allowed pip to choose a CPU
+    wheel transitively and then made the assistant preserve that accidental
+    choice as though the user had selected it.
+    """
     ensure_local_environment()
     _pip_install("install", "--upgrade", "pip", "setuptools", "wheel")
-    _pip_install("install", "--requirement", os.fspath(PROJECT_ROOT / "requirements.txt"))
 
     versions = _read_package_versions(VENV_PYTHON, (("torch", "PyTorch"),))
     if versions["torch"] == "not installed" and offer_pytorch:
         print(
-            "\nPyTorch is the remaining required component. Its correct wheel "
-            "depends on this computer's CPU/NVIDIA setup."
+            "\nChoose PyTorch before the remaining packages are installed. "
+            "This prevents a dependency from silently selecting CPU-only "
+            "PyTorch on an NVIDIA computer."
         )
         pytorch_install_menu()
+        versions = _read_package_versions(VENV_PYTHON, (("torch", "PyTorch"),))
+        if versions["torch"] == "not installed":
+            print(
+                "\nBase installation paused before requirements.txt. Choose a "
+                "PyTorch build, then run this installer again."
+            )
+            return
     elif versions["torch"] != "not installed":
-        print(f"\nKeeping installed PyTorch {versions['torch']}.")
+        runtime = _inspect_torch_runtime(VENV_PYTHON)
+        nvidia_devices = inspect_nvidia_runtime()
+        if (
+            offer_pytorch
+            and nvidia_devices
+            and not runtime.get("cuda_available")
+        ):
+            names = ", ".join(name for name, _driver in nvidia_devices)
+            print(
+                f"\nWARNING: NVIDIA hardware was found ({names}), but installed "
+                f"PyTorch {versions['torch']} cannot use CUDA. Choose the "
+                "tested NVIDIA repair or another official PyTorch build."
+            )
+            pytorch_install_menu()
+        else:
+            print(f"\nKeeping installed PyTorch {versions['torch']}.")
+
+    _pip_install(
+        "install",
+        "--requirement",
+        os.fspath(PROJECT_ROOT / "requirements.txt"),
+    )
     print_setup_status()
 
 
@@ -458,27 +589,141 @@ def install_cpu_pytorch() -> None:
     print_setup_status()
 
 
+def install_tested_nvidia_pytorch() -> None:
+    """Install and verify the reviewed CUDA 13 runtime for modern NVIDIA GPUs.
+
+    This is a focused environment repair, not a machine-wide CUDA installation.
+    The official wheel carries its CUDA runtime inside ``.\venv``. Existing
+    catalogs, provider models, settings, images, outputs, and ComfyUI's separate
+    environment are outside this operation.
+    """
+    if os.name != "nt":
+        raise RuntimeError(
+            "The automatic NVIDIA repair is currently qualified for Windows. "
+            "Use the official PyTorch selector on another operating system."
+        )
+    ensure_local_environment()
+    devices = inspect_nvidia_runtime()
+    if not devices:
+        raise RuntimeError(
+            "nvidia-smi did not report an NVIDIA GPU. No packages were changed."
+        )
+    for name, driver in devices:
+        if _driver_version_key(driver) < MINIMUM_CUDA_13_WINDOWS_DRIVER:
+            minimum = ".".join(str(part) for part in MINIMUM_CUDA_13_WINDOWS_DRIVER)
+            raise RuntimeError(
+                f"{name} reports driver {driver}; CUDA 13 PyTorch requires "
+                f"Windows NVIDIA driver {minimum} or newer. Update the NVIDIA "
+                "driver, restart Windows, then run this repair again. No "
+                "packages were changed."
+            )
+
+    torch_versions = _read_package_versions(
+        VENV_PYTHON,
+        (("torch", "PyTorch"), ("torchvision", "Torchvision")),
+    )
+    replacing_existing_pair = torch_versions["torch"] != "not installed"
+    face_versions = _read_package_versions(VENV_PYTHON, FACE_DISTRIBUTIONS)
+    face_stack_present = any(
+        version not in {"not installed", "check failed"}
+        for version in face_versions.values()
+    )
+    snapshot_path = save_dependency_snapshot("nvidia_pytorch_repair")
+    print(f"Environment backup: {snapshot_path}")
+    for name, driver in devices:
+        print(f"NVIDIA GPU: {name} (driver {driver})")
+    print(
+        f"Installing tested PyTorch {TESTED_NVIDIA_TORCH_VERSION} / "
+        f"Torchvision {TESTED_NVIDIA_TORCHVISION_VERSION} with CUDA "
+        f"{TESTED_NVIDIA_CUDA_VERSION}."
+    )
+    install_arguments = ["install", "--upgrade"]
+    if replacing_existing_pair:
+        # A CPU local-version build satisfies ``torch==2.13.0`` under Python
+        # package-version rules, so force replacement. The established base
+        # environment already owns the dependencies; ``--no-deps`` prevents a
+        # focused CPU-to-CUDA swap from churning unrelated packages.
+        install_arguments.extend(("--force-reinstall", "--no-deps"))
+    install_arguments.extend(
+        (
+            f"torch=={TESTED_NVIDIA_TORCH_VERSION}",
+            f"torchvision=={TESTED_NVIDIA_TORCHVISION_VERSION}",
+            "--index-url",
+            TESTED_NVIDIA_INDEX_URL,
+        )
+    )
+    _pip_install(*install_arguments)
+
+    runtime = _inspect_torch_runtime(VENV_PYTHON)
+    if runtime.get("error"):
+        raise RuntimeError(
+            "The CUDA PyTorch wheel installed, but import verification failed: "
+            f"{runtime['error']}. The pre-repair package list is {snapshot_path}."
+        )
+    if not runtime.get("cuda_available") or not runtime.get("smoke_ok"):
+        detail = runtime.get("smoke_error") or "CUDA remained unavailable"
+        raise RuntimeError(
+            "The CUDA PyTorch wheel installed, but the real tensor check failed: "
+            f"{detail}. The pre-repair package list is {snapshot_path}."
+        )
+    if not str(runtime.get("version", "")).startswith(
+        TESTED_NVIDIA_TORCH_VERSION
+    ) or not str(runtime.get("cuda", "")).startswith("13"):
+        raise RuntimeError(
+            "PyTorch ran on the GPU, but the installed version did not match "
+            "the reviewed runtime pair. Expected PyTorch 2.13.0 with CUDA 13.x; "
+            f"found {runtime.get('version')} with CUDA {runtime.get('cuda')}."
+        )
+
+    print(
+        "\nCUDA verification passed: "
+        f"{runtime.get('device')} using PyTorch {runtime.get('version')} "
+        f"(CUDA {runtime.get('cuda')})."
+    )
+    print(f"Architectures: {', '.join(runtime.get('architectures', []))}")
+
+    if face_stack_present:
+        print(
+            "\nExisting face-analysis packages were detected. Realigning ONNX "
+            "Runtime to the CUDA 13 line now."
+        )
+        _run(
+            _venv_command(
+                os.fspath(PROJECT_ROOT / "install_face_dependencies.py")
+            )
+        )
+    else:
+        print(
+            "\nOptional face-analysis packages are not installed; no ONNX "
+            "Runtime packages were added."
+        )
+    print_setup_status()
+
+
 def pytorch_install_menu() -> None:
     """Offer safe PyTorch choices without guessing the user's CUDA wheel."""
     while True:
         print(
             "\nPYTORCH SETUP\n"
-            "  1. NVIDIA or advanced setup — use official PyTorch selector\n"
-            "  2. CPU-only setup — install automatically\n"
-            "  3. Check current PyTorch setup\n"
+            "  1. Modern NVIDIA GPU — tested CUDA 13.0 automatic repair\n"
+            "  2. NVIDIA/advanced — use official PyTorch selector\n"
+            "  3. CPU-only setup — install automatically\n"
+            "  4. Check current PyTorch setup\n"
             "  0. Return to main menu"
         )
         choice = input("Choose an option: ").strip().casefold()
         if choice == "1":
-            install_pytorch_from_selector()
+            install_tested_nvidia_pytorch()
         elif choice == "2":
-            install_cpu_pytorch()
+            install_pytorch_from_selector()
         elif choice == "3":
+            install_cpu_pytorch()
+        elif choice == "4":
             print_setup_status()
         elif choice == "0":
             return
         else:
-            print("Please choose 0, 1, 2, or 3.")
+            print("Please choose 0, 1, 2, 3, or 4.")
 
 
 def install_face_dependencies() -> None:
@@ -612,6 +857,7 @@ def main() -> int:
     actions.add_argument("--check", action="store_true")
     actions.add_argument("--check-required", action="store_true")
     actions.add_argument("--install-base", action="store_true")
+    actions.add_argument("--install-nvidia", action="store_true")
     actions.add_argument("--install-face", action="store_true")
     actions.add_argument("--check-face", action="store_true")
     actions.add_argument("--install-body", action="store_true")
@@ -626,6 +872,9 @@ def main() -> int:
         return 0 if inspect_setup().required_ready else 1
     if arguments.install_base:
         install_required_packages(offer_pytorch=True)
+        return 0
+    if arguments.install_nvidia:
+        install_tested_nvidia_pytorch()
         return 0
     if arguments.install_face:
         install_face_dependencies()

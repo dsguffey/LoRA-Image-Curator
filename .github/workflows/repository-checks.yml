@@ -39,4 +39,4 @@ jobs:
         run: python tools/audit_project.py
 
       - name: Verify current repository contracts
-        run: python -X dev -m tests.test_v02721_regression
+        run: python -X dev -m tests.test_v02723_regression

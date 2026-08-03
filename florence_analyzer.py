@@ -33,7 +33,7 @@ from typing import Any, Callable, Mapping
 import torch
 
 from PIL import Image, UnidentifiedImageError
-from transformers import AutoModelForCausalLM, AutoProcessor
+from transformers import AutoModelForImageTextToText, AutoProcessor
 
 from analysis_control import (
     AnalysisCancelled,
@@ -58,16 +58,28 @@ from video_origin import VideoOriginManifestCache
 # Model and analysis configuration
 # =============================================================================
 
-MODEL_NAME = "microsoft/Florence-2-large-ft"
-# The model snapshot is pinned to Microsoft's verified revision that added
-# safetensors weights. Native Transformers code owns execution; repository
-# Python files are never trusted or imported at runtime.
-MODEL_REVISION = "4a12a2b54b7016a48a22037fbd62da90cd566f2a"
+MODEL_NAME = "florence-community/Florence-2-large-ft"
+# Hugging Face maintains this conversion of Microsoft's MIT-licensed Florence
+# weights specifically for native Transformers. The immutable snapshot includes
+# the processor metadata that the original Microsoft checkpoint lacked. That
+# metadata is required by the native Florence processor's image-token contract.
+MODEL_REVISION = "26b734a54fdfbf9c398351eedfabb7f27fc470b7"
 KNOWN_WORKING_TRANSFORMERS_VERSION = "4.56.2"
 
 # Increment this only when LoRA Image Curator changes the meaning or structure of
 # generated analysis data. It is separate from the SQLite schema version.
 ANALYSIS_VERSION = 1
+
+# These exact historical identities produced valid Florence-2 Large FT results
+# before the native-compatible checkpoint correction. Reusing only successful
+# rows from these reviewed identities lets an interrupted large catalog resume
+# without discarding thousands of completed captions/triage results. New rows
+# are always stored under MODEL_NAME; this tuple is intentionally not a general
+# "any Florence version" compatibility escape hatch.
+LEGACY_REUSABLE_ANALYSIS_IDENTITIES = (
+    ("microsoft/Florence-2-large-ft", "4.56.2", ANALYSIS_VERSION),
+    ("microsoft/Florence-2-large-ft", "4.49.0", ANALYSIS_VERSION),
+)
 
 CAPTION_TASK = "<MORE_DETAILED_CAPTION>"
 OBJECT_DETECTION_TASK = "<OD>"
@@ -353,14 +365,15 @@ def load_florence(
     model_name: str,
     device: str,
     dtype: torch.dtype,
-) -> tuple[AutoProcessor, AutoModelForCausalLM]:
+) -> tuple[AutoProcessor, AutoModelForImageTextToText]:
     """Load the pinned Florence-2 snapshot through native Transformers code.
 
     The exact Transformers version is a security and compatibility boundary,
     not merely a performance recommendation. Version 4.56.2 contains native
-    Florence-2 model and processor implementations, so the model repository's
-    custom Python files must never execute. Requiring safetensors also prevents
-    fallback to the repository's older pickle-based PyTorch weight file.
+    Florence-2 model and processor implementations. The pinned community
+    conversion supplies matching native processor metadata, so repository
+    Python files must never execute. Requiring safetensors also prevents
+    pickle-weight fallback.
     """
     installed_version = get_transformers_version()
     if installed_version != KNOWN_WORKING_TRANSFORMERS_VERSION:
@@ -377,7 +390,7 @@ def load_florence(
         trust_remote_code=False,
     )
 
-    model = AutoModelForCausalLM.from_pretrained(
+    model = AutoModelForImageTextToText.from_pretrained(
         model_name,
         revision=MODEL_REVISION,
         dtype=dtype,
@@ -392,6 +405,38 @@ def load_florence(
                 "Florence-2 security check rejected a non-native "
                 f"{label} implementation: {implementation_module}"
             )
+
+    tokenizer = getattr(processor, "tokenizer", None)
+    required_image_token_attributes = (
+        ("processor.image_token", processor, "image_token"),
+        ("processor.image_token_id", processor, "image_token_id"),
+        ("processor.tokenizer.image_token", tokenizer, "image_token"),
+        ("processor.tokenizer.image_token_id", tokenizer, "image_token_id"),
+        (
+            "model.config.image_token_id",
+            getattr(model, "config", None),
+            "image_token_id",
+        ),
+    )
+    missing_attributes = [
+        label
+        for label, owner, attribute in required_image_token_attributes
+        if owner is None or not hasattr(owner, attribute)
+    ]
+    if missing_attributes:
+        raise RuntimeError(
+            "Florence-2 compatibility preflight rejected provider files that "
+            "do not expose the native image-token contract: "
+            + ", ".join(missing_attributes)
+            + ". The batch has not started; retry the provider download or "
+            "review the Florence setup before processing a large catalog."
+        )
+
+    if processor.image_token_id != model.config.image_token_id:
+        raise RuntimeError(
+            "Florence-2 compatibility preflight found different processor and "
+            "model image-token IDs. The batch has not started."
+        )
 
     model = model.to(device)
     model.eval()
@@ -436,7 +481,7 @@ def prepare_inputs_for_task(
 
 
 def run_florence_task(
-    model: AutoModelForCausalLM,
+    model: AutoModelForImageTextToText,
     processor: AutoProcessor,
     image: Image.Image,
     task_prompt: str,
@@ -478,6 +523,93 @@ def run_florence_task(
         )
 
     return parsed_result[task_prompt]
+
+
+def preflight_florence_tasks(
+    model: AutoModelForImageTextToText,
+    processor: AutoProcessor,
+    device: str,
+    dtype: torch.dtype,
+) -> None:
+    """Exercise Florence's complete prompt/input contract before a real batch.
+
+    v0.27.21 could pass static loader checks while using a checkpoint whose
+    tokenizer metadata was incompatible with native Florence. The resulting
+    ``BartTokenizerFast.image_token`` failure appeared only when a real task
+    path was reached. This bounded preflight prepares every task used by the
+    application and performs one single-token object-detection generation. It
+    adds negligible work beside loading the 0.77B model but prevents a large
+    catalog from starting under an internally inconsistent provider install.
+    """
+    probe_image = Image.new("RGB", (32, 32), color=(127, 127, 127))
+    prepared_inputs: dict[str, dict[str, torch.Tensor]] = {}
+
+    try:
+        for task_prompt in TASK_MAX_NEW_TOKENS:
+            inputs = prepare_inputs_for_task(
+                processor=processor,
+                image=probe_image,
+                task_prompt=task_prompt,
+                device=device,
+                dtype=dtype,
+            )
+            image_token_count = int(
+                (inputs["input_ids"] == model.config.image_token_id)
+                .sum()
+                .item()
+            )
+            if image_token_count < 1:
+                raise RuntimeError(
+                    f"{task_prompt} produced no Florence image tokens."
+                )
+            prepared_inputs[task_prompt] = inputs
+
+        with torch.inference_mode():
+            generated_ids = model.generate(
+                **prepared_inputs[OBJECT_DETECTION_TASK],
+                max_new_tokens=1,
+                num_beams=1,
+                do_sample=False,
+            )
+        if generated_ids is None or generated_ids.numel() < 1:
+            raise RuntimeError(
+                "Florence object-detection preflight returned no tokens."
+            )
+    except Exception as error:
+        raise RuntimeError(
+            "Florence-2 compatibility preflight failed before the first "
+            "unfinished catalog image was processed. Existing stored results "
+            "remain intact."
+        ) from error
+
+
+def get_reusable_florence_analysis(
+    catalog: Catalog,
+    *,
+    image_id: int,
+    requested_triage: bool,
+) -> Mapping[str, Any] | None:
+    """Return the newest compatible current or reviewed historical result.
+
+    The catalog's low-level query remains exact. Compatibility across the
+    original and native-converted checkpoints is owned here at the provider
+    boundary, where the model family and reviewed version list are explicit.
+    """
+    identities = (
+        (MODEL_NAME, KNOWN_WORKING_TRANSFORMERS_VERSION, ANALYSIS_VERSION),
+        *LEGACY_REUSABLE_ANALYSIS_IDENTITIES,
+    )
+    for model_name, transformers_version, analysis_version in identities:
+        stored_result = catalog.get_reusable_analysis(
+            image_id=image_id,
+            model_name=model_name,
+            transformers_version=transformers_version,
+            analysis_version=analysis_version,
+            requested_triage=requested_triage,
+        )
+        if stored_result is not None:
+            return stored_result
+    return None
 
 
 # =============================================================================
@@ -677,7 +809,7 @@ def analyze_one_image(
     input_folder: Path,
     registration: FileRegistration,
     processor: AutoProcessor,
-    model: AutoModelForCausalLM,
+    model: AutoModelForImageTextToText,
     device: str,
     dtype: torch.dtype,
     include_triage: bool,
@@ -1050,11 +1182,9 @@ def analyze_folder(
                 stored_result = None
 
                 if reuse_stored_analysis:
-                    stored_result = catalog.get_reusable_analysis(
+                    stored_result = get_reusable_florence_analysis(
+                        catalog,
                         image_id=registration.image_id,
-                        model_name=MODEL_NAME,
-                        transformers_version=transformers_version,
-                        analysis_version=ANALYSIS_VERSION,
                         requested_triage=include_triage,
                     )
 
@@ -1163,7 +1293,18 @@ def analyze_folder(
 
                 emit_status(
                     status_callback,
-                    "Florence-2 loaded successfully.",
+                    "Checking Florence caption and triage compatibility...",
+                )
+                preflight_florence_tasks(
+                    model=model,
+                    processor=processor,
+                    device=device,
+                    dtype=dtype,
+                )
+
+                emit_status(
+                    status_callback,
+                    "Florence-2 loaded and passed compatibility preflight.",
                 )
             else:
                 emit_status(

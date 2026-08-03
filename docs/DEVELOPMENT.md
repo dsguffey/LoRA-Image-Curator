@@ -9,10 +9,10 @@ the included installer because the correct runtime depends on the installed
 CUDA generation.
 
 Florence uses the native implementation in exactly Transformers 4.56.2 and the
-pinned Microsoft model revision recorded in `florence_analyzer.py`. Do not add
-`trust_remote_code=True`, loosen that dependency, remove safetensors-only
-loading, or advance the model revision without a focused security and real
-inference compatibility review.
+pinned native-compatible community conversion recorded in
+`florence_analyzer.py`. Do not add `trust_remote_code=True`, loosen that
+dependency, remove safetensors-only loading, or advance the checkpoint revision
+without a focused security and real inference compatibility review.
 
 Native Trash/Recycle Bin support is a standard safety dependency in
 `requirements.txt`. Optional local body analysis uses `requirements-body.txt`
@@ -44,7 +44,7 @@ python -m tools.compile_project
 python -X dev -m tests.test_v0250_regression
 python -X dev -m tests.test_v0252_regression
 python -X dev -m tests.test_v0260_regression
-python -X dev -m tests.test_v02721_regression
+python -X dev -m tests.test_v02722_regression
 python tools\audit_project.py
 ```
 

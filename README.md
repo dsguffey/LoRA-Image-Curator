@@ -9,7 +9,7 @@ The application prepares image datasets; it does not train a LoRA itself.
 
 | Project at a glance | |
 |---|---|
-| Current release | v0.27.21 Florence provider security stabilization |
+| Current release | v0.27.23 NVIDIA runtime repair |
 | Primary platform | Windows 11, Python 3.11+ |
 | Data model | Versioned SQLite catalog with SHA-256 content identity |
 | Local analysis | Florence-2, optional InsightFace and MediaPipe |
@@ -21,8 +21,13 @@ The application prepares image datasets; it does not train a LoRA itself.
 > reviewed public repository; v0.27.19 added a portable, checklist-driven source
 > setup and launcher. v0.27.20 makes Recycle Bin safety standard, moves public
 > QA files under `tests/`, and prepares a non-mutating new-computer check.
-> v0.27.21 moves Florence to pinned native Transformers code, disables remote
-> repository code execution, and requires safetensors weights.
+> v0.27.21 moved Florence to pinned native Transformers code. v0.27.22 corrects
+> the checkpoint to Hugging Face's native-compatible Florence conversion, adds
+> a fail-fast caption/triage preflight, and safely resumes exact successful
+> 4.49.0 or v0.27.21 results instead of regenerating completed large-catalog
+> work. v0.27.23 fixes setup ordering that could silently install CPU-only
+> PyTorch through `timm`, and adds a verified CUDA 13 repair for modern NVIDIA
+> GPUs while keeping optional ONNX Runtime aligned.
 > Application runtime behavior and catalog schema remain
 > unchanged. Large-catalog measurements,
 > active-provider shutdown/quarantine stress testing, and the first complete
@@ -143,14 +148,21 @@ are:
 
 ```powershell
 py -3 -m venv venv
-venv\Scripts\python.exe -m pip install -r requirements.txt
+venv\Scripts\python.exe -m pip install --upgrade pip setuptools wheel
 ```
 
 Install PyTorch from its
 [official installation selector](https://pytorch.org/get-started/locally/),
-then launch with `venv\Scripts\python.exe app.py`. The guided assistant can
-safely run a command copied from that official selector inside the local venv,
-or install the official CPU-only build automatically.
+using `venv\Scripts\python.exe -m pip` in place of the selector's `pip3`. Then
+run `venv\Scripts\python.exe -m pip install -r requirements.txt` and launch
+with `venv\Scripts\python.exe app.py`. The guided assistant selects
+PyTorch before installing packages whose dependency chains include Torch. It
+can automatically install and verify the reviewed PyTorch 2.13.0 / Torchvision
+0.28.0 CUDA 13.0 pair on a compatible modern NVIDIA system, safely run a
+command copied from the official selector inside the local venv, or install the
+official CPU-only build. The automatic NVIDIA path requires Windows driver
+580.88 or newer and performs a real CUDA tensor operation before reporting
+success.
 
 An external virtual environment is also supported. The golden-build test
 reports the project-source folder and Python runtime separately and rejects
@@ -186,12 +198,19 @@ move or delete those old root test copies and that one old batch file; do not
 remove application modules, catalogs, images, models, outputs, settings, or the
 virtual environment. Git users should use `git rm` so Git records the moves.
 
-After overlaying v0.27.21 onto an existing installation, run
-`Install Base Dependencies.bat` once. Setup will replace Transformers 4.49.0
-with the required 4.56.2 native Florence line while preserving PyTorch, the
-venv, models, catalogs, and user data. Stored Florence results remain intact,
-but results recorded under 4.49.0 will be regenerated only if the user starts a
-new Florence run because provider-version reuse is deliberately exact.
+After overlaying v0.27.23, run `Install Base Dependencies.bat` once. If an
+NVIDIA GPU is present but the established venv contains CPU-only PyTorch, the
+installer now exposes that mismatch and offers the tested CUDA 13 repair. The
+repair records the current package list, changes only the project-local venv,
+verifies a real GPU tensor operation, and realigns an already-installed
+InsightFace/ONNX Runtime stack to CUDA 13. It does not modify catalogs, models,
+settings, outputs, image sources, caches, or another application's environment.
+
+The corrected Florence checkpoint downloads only on the first run that still
+needs inference. With stored-result reuse enabled, exact successful results
+from the former Microsoft checkpoint under Transformers 4.49.0 or 4.56.2 are
+retained; only unfinished images use the corrected
+`florence-community/Florence-2-large-ft` checkpoint.
 
 ## Safety and privacy
 
@@ -231,7 +250,7 @@ For a quick dependency-free repository check:
 ```powershell
 python -m tools.compile_project
 python tools\audit_project.py
-python -X dev -m tests.test_v02721_regression
+python -X dev -m tests.test_v02722_regression
 ```
 
 `python -X dev -m tests.test_golden_build --no-gui` is useful in a headless

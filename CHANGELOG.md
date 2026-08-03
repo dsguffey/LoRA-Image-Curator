@@ -1,5 +1,70 @@
 # LoRA Image Curator Changelog
 
+## v0.27.23 — NVIDIA Runtime Repair
+
+### Fixed
+
+- corrected base-setup ordering so PyTorch is selected before `timm` and its
+  Torch/Torchvision dependency chain; a clean NVIDIA installation can no longer
+  acquire CPU-only PyTorch silently and then have that accidental choice
+  preserved as an intentional runtime
+- made base repair detect the mismatch between visible NVIDIA hardware and a
+  PyTorch build that cannot use CUDA, then route the user to an explicit
+  PyTorch choice instead of reporting the environment as fully suitable for
+  GPU inference
+
+### Added
+
+- added a Windows-qualified automatic repair for the official PyTorch 2.13.0 /
+  Torchvision 0.28.0 CUDA 13.0 pair, with a minimum NVIDIA driver check before
+  installation, a timestamped package snapshot, and a real synchronized CUDA
+  tensor operation after installation
+- the repair realigns an already-installed InsightFace/ONNX Runtime stack to
+  the CUDA 13 package line; it does not install optional face packages when
+  they were not already present
+- setup status now distinguishes CUDA visibility from a successfully executed
+  tensor operation and reports the CUDA architectures compiled into PyTorch
+  during the focused repair
+
+### Verification and compatibility
+
+- Florence remains pinned to native Transformers 4.56.2 and the exact corrected
+  checkpoint; catalog schema remains 12 and stored Florence results retain the
+  v0.27.22 large-catalog resume contract
+- the repair changes only the project-local `venv`; catalogs, models, settings,
+  outputs, source images, caches, and separate application environments such as
+  ComfyUI are outside its ownership
+- added dependency-free v0.27.23 setup-order, driver-gate, CUDA-smoke, release,
+  and cumulative Windows GUI contracts
+
+## v0.27.22 — Florence Large-Catalog Recovery
+
+### Fixed
+
+- replaced the incompatible Microsoft/native pairing with Hugging Face's
+  official Transformers-converted `florence-community/Florence-2-large-ft`
+  checkpoint, pinned to
+  `26b734a54fdfbf9c398351eedfabb7f27fc470b7`
+- changed the loader to Transformers' native image-to-text auto class while
+  retaining `trust_remote_code=False`, safetensors-only weights, exact
+  Transformers 4.56.2, and native-module rejection
+- added a fail-fast compatibility preflight that prepares caption, object
+  detection, and regional OCR prompts and performs one bounded generation
+  before the first unfinished catalog image
+
+### Recovery and compatibility
+
+- exact successful Florence results recorded with the former Microsoft
+  checkpoint under Transformers 4.49.0 or 4.56.2 are reusable; new results are
+  stored under the corrected checkpoint identity
+- interrupted large catalogs can therefore retain completed caption/triage
+  work and resume only the remaining images when stored-result reuse is enabled
+- catalog schema remains 12 and no settings, catalogs, models, outputs, image
+  sources, caches, or virtual environments are migrated or removed
+- added dependency-free v0.27.22 recovery contracts and a cumulative Windows
+  GUI endpoint; final release qualification still requires a live Windows run
+  against a tiny catalog followed by a bounded resume of the real catalog
+
 ## v0.27.21 — Florence Provider Security Stabilization
 
 ### Security

@@ -1,6 +1,8 @@
-# Install the appropriate PyTorch build for the target CPU/CUDA environment
-# before this file. PyTorch is deliberately not pinned here because its correct
-# wheel depends on the workstation's accelerator and driver stack.
+# Install the appropriate PyTorch/Torchvision build for the target CPU/CUDA
+# environment before this file. timm depends on those packages, so reversing
+# this order can silently select CPU-only PyTorch on an NVIDIA workstation.
+# PyTorch remains outside this static file because its correct official wheel
+# depends on the workstation's accelerator and driver stack.
 
 numpy>=1.26,<3
 Pillow>=10,<13

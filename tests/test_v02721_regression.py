@@ -8,7 +8,7 @@ from app_identity import APP_VERSION
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-MODEL_REVISION = "4a12a2b54b7016a48a22037fbd62da90cd566f2a"
+MODEL_REVISION = "26b734a54fdfbf9c398351eedfabb7f27fc470b7"
 TRANSFORMERS_VERSION = "4.56.2"
 
 
@@ -19,9 +19,9 @@ def _project(relative_name: str) -> str:
 
 def test_release_identity_and_dependency_pin_are_synchronized() -> None:
     """Keep the focused security release and native dependency line exact."""
-    assert APP_VERSION == "0.27.21"
-    assert "Version 0.27.21" in _project("VERSION.txt")
-    assert 'version = "0.27.21"' in _project("pyproject.toml")
+    assert APP_VERSION == "0.27.23"
+    assert "Version 0.27.23" in _project("VERSION.txt")
+    assert 'version = "0.27.23"' in _project("pyproject.toml")
     assert f"transformers=={TRANSFORMERS_VERSION}" in _project("requirements.txt")
     assert (
         f'"transformers=={TRANSFORMERS_VERSION}"'
@@ -58,15 +58,13 @@ def test_security_disclosure_and_release_gates_cover_the_change() -> None:
     notices = _project("MODEL_LICENSES.txt")
     regressions = _project("tools/run_regressions.py")
     builder = _project("tools/build_release.py")
-    workflow = _project(".github/workflows/repository-checks.yml")
     golden = _project("tests/test_golden_build.py")
     assert "does not enable `trust_remote_code`" in " ".join(security.split())
     assert MODEL_REVISION in notices
     assert '"tests/test_v02721_regression.py"' in regressions
     assert '"tests/test_v02721_regression.py"' in builder
     assert '"tests/test_v02721_gui.py"' in builder
-    assert "tests.test_v02721_regression" in workflow
-    assert 'GUI_ENTRYPOINT = "tests/test_v02721_gui.py"' in golden
+    assert 'GUI_ENTRYPOINT = "tests/test_v02723_gui.py"' in golden
 
 
 if __name__ == "__main__":

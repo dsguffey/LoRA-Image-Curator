@@ -138,7 +138,7 @@ def test_current_release_chains_include_v02714() -> None:
     build = _source("tools/build_release.py")
     assert '"tests/test_v02714_regression.py"' in build
     assert '"tests/test_v02714_gui.py"' in build
-    assert '"tests/test_v02721_gui.py"' in _source("test_golden_build.py")
+    assert '"tests/test_v02723_gui.py"' in _source("test_golden_build.py")
     assert (
         "from test_v02714_gui import run as run_v02714"
         in _source("test_v02715_gui.py")

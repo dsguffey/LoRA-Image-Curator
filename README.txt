@@ -1,4 +1,4 @@
-LORA IMAGE CURATOR GUI v0.27.21
+LORA IMAGE CURATOR GUI v0.27.23
 ========================
 
 OVERVIEW
@@ -13,7 +13,7 @@ layers around that catalog. Provider output is preserved, user decisions are
 stored independently, and final training text is derived only when it is
 previewed or exported.
 
-Version 0.27.21 is the Florence provider security stabilization candidate for
+Version 0.27.23 is the NVIDIA runtime repair candidate for
 Milestone 11B. The
 application
 has been exercised with roughly 14,000 to 17,000 local images. Current primary
@@ -36,10 +36,47 @@ required/optional dependency tiers, and first-time launcher recovery without
 changing application behavior or schema. v0.27.20 makes Recycle Bin safety a
 base dependency, separates optional MediaPipe setup, moves public QA files into
 `tests`, and prepares the real new-computer validation milestone. v0.27.21
-moves Florence to native Transformers 4.56.2, pins Microsoft's verified model
-snapshot, disables remote repository code, and requires safetensors weights.
+moved Florence to native Transformers 4.56.2 and disabled remote repository
+code. v0.27.22 corrects the native checkpoint, validates the caption/triage
+contract before a large run, and resumes exact successful legacy results.
+v0.27.23 prevents the source installer from silently selecting CPU-only
+PyTorch through timm's dependency chain, detects an NVIDIA/CPU-runtime mismatch,
+and provides a driver-gated CUDA 13 repair with real tensor verification.
 Broader
 large-catalog measurements and deferred high-risk QA remain pre-1.0 work.
+
+
+WHAT IS NEW IN v0.27.23
+-----------------------
+
+- PyTorch is now selected before timm and its Torch/Torchvision dependency
+  chain, preventing a clean NVIDIA setup from silently acquiring CPU-only
+  PyTorch
+- established environments now warn when NVIDIA hardware is visible but the
+  installed PyTorch build cannot use CUDA
+- the setup assistant can install the reviewed PyTorch 2.13.0 / Torchvision
+  0.28.0 CUDA 13.0 pair after confirming Windows NVIDIA driver 580.88 or newer
+- the focused repair records the current package list, runs a synchronized CUDA
+  tensor operation, and realigns an already-installed ONNX Runtime face stack
+- catalogs, settings, models, outputs, images, caches, Florence identities, and
+  separate application environments are unchanged
+
+
+WHAT IS NEW IN v0.27.22
+-----------------------
+
+- native Florence now uses Hugging Face's corrected
+  `florence-community/Florence-2-large-ft` checkpoint, pinned to verified
+  revision `26b734a54fdfbf9c398351eedfabb7f27fc470b7`
+- the loader uses Transformers' native image-to-text auto class, explicitly
+  disables repository code, and accepts only safetensors weights
+- before the first unfinished image, a bounded compatibility preflight checks
+  caption, object-detection, and OCR prompts plus one single-token generation
+- exact successful results created with the former Microsoft checkpoint under
+  Transformers 4.49.0 or 4.56.2 remain reusable, so interrupted large catalogs
+  resume only the remaining images
+- catalog schema remains 12; catalogs, settings, models, outputs, image sources,
+  and virtual environments require no migration
 
 
 WHAT IS NEW IN v0.27.21
@@ -471,7 +508,7 @@ UPGRADING FROM v0.24.0
 
 1. Close LoRA Image Curator.
 
-2. Extract LoRA_Image_Curator_v0.27.21.zip directly into your existing
+2. Extract LoRA_Image_Curator_v0.27.23.zip directly into your existing
    DatasetTools folder and allow Windows to replace older release files.
 
 3. Keep your existing `venv`, model files, catalogs, images, settings, logs,
@@ -484,14 +521,16 @@ UPGRADING FROM v0.24.0
    catalog.
 
 5. Run `Install Base Dependencies.bat` once. This updates the established venv
-   from Transformers 4.49.0 to the required native 4.56.2 line without
-   replacing PyTorch, catalogs, models, settings, images, outputs, or caches.
+   to required dependencies and checks whether visible NVIDIA hardware is
+   paired with CPU-only PyTorch. If so, choose the tested CUDA 13 repair. The
+   operation does not replace catalogs, models, settings, images, outputs, or
+   caches.
 
 6. Start the application with:
 
        Run LoRA Image Curator.bat
 
-Version 0.27.21 uses schema 12 and accepts both
+Version 0.27.23 uses schema 12 and accepts both
 current and historical catalog identity markers. If upgrading directly from
 v0.19.0, the existing schema-10
 migration removes only file records that match LoRA Image Curator's exact
@@ -503,7 +542,7 @@ history remain intact.
 
 The old `<output folder>\thumbnail_cache` directory is not deleted
 automatically. After closing v0.19.0, it is safe to delete that entire legacy
-folder manually to recover disk space. v0.27.21 will ignore it if you leave it in
+folder manually to recover disk space. v0.27.23 will ignore it if you leave it in
 place and writes any new previews beneath:
 
     %APPDATA%\LoRAImageCurator\thumbnail_cache
@@ -679,8 +718,9 @@ For a new GitHub/source download, first double-click:
     Setup and Launch LoRA Image Curator.bat
 
 Choose `1. First-time setup (recommended)`. The assistant creates `venv`,
-installs the required base packages, guides the PyTorch choice, offers optional
-features separately, and can launch the app. Python 3.11 or newer is still
+guides the PyTorch choice before packages that depend on Torch are installed,
+installs the remaining required base packages, offers optional features
+separately, and can launch the app. Python 3.11 or newer is still
 needed because this is a source distribution; a future executable/installer is
 planned so ordinary users will not need to manage Python at all.
 
@@ -1594,11 +1634,12 @@ Do not install `onnxruntime` and `onnxruntime-gpu` together. Starting with ONNX
 Runtime 1.27, the default GPU package uses CUDA 13, so the newest package is not
 automatically compatible with a CUDA 12 PyTorch environment.
 
-The current tested system reports CPUExecutionProvider rather than
-CUDAExecutionProvider. Face analysis works through CPU fallback, but GPU
-availability remains an open issue documented in BUGS.md. This does not apply
-to Florence: Florence uses its separate PyTorch path, selects CUDA/FP16 when
-PyTorch reports CUDA available, and displays/logs the actual device.
+The v0.27.23 NVIDIA repair realigns an already-installed ONNX Runtime stack to
+the CUDA 13 package line after PyTorch passes its real GPU tensor check. Final
+availability still depends on the live Windows driver/DLL boundary and is shown
+by `Check Face Analysis Setup.bat`. Florence uses the same PyTorch CUDA runtime,
+selects CUDA/FP16 when verification succeeds, and displays/logs the actual
+device.
 
 
 PRIVACY AND DATA OWNERSHIP
@@ -1697,7 +1738,7 @@ exit indicates a failed gate; the runner stops at the first failure.
 `docs/GOLDEN_TEST.md` records the exact coverage and honest limits of the result.
 
 
-KNOWN LIMITATIONS IN v0.27.21
+KNOWN LIMITATIONS IN v0.27.23
 ---------------------------
 
 - Florence object detection and regional OCR follow the official 1,024-token

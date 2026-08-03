@@ -52,7 +52,7 @@ if "torch" not in sys.modules:
     sys.modules["torch"] = torch_stub
 if "transformers" not in sys.modules:
     transformers_stub = ModuleType("transformers")
-    transformers_stub.AutoModelForCausalLM = object
+    transformers_stub.AutoModelForImageTextToText = object
     transformers_stub.AutoProcessor = object
     sys.modules["transformers"] = transformers_stub
 
