@@ -18,11 +18,11 @@ def _project(relative_name: str) -> str:
 
 
 def test_version_and_public_history_are_synchronized() -> None:
-    """Keep the source release identity consistently at v0.27.20."""
-    assert APP_VERSION == "0.27.20"
-    assert "Version 0.27.20" in _project("VERSION.txt")
-    assert 'version = "0.27.20"' in _project("pyproject.toml")
-    assert "v0.27.20" in _project("README.md")
+    """Keep current identity synchronized and retain v0.27.20 history."""
+    assert APP_VERSION == "0.27.21"
+    assert "Version 0.27.21" in _project("VERSION.txt")
+    assert 'version = "0.27.21"' in _project("pyproject.toml")
+    assert "v0.27.21" in _project("README.md")
     assert "## v0.27.20" in _project("CHANGELOG.md")
 
 
@@ -54,9 +54,9 @@ def test_tests_are_public_but_no_longer_clutter_the_repository_root() -> None:
     regressions = _project("tools/run_regressions.py")
     builder = _project("tools/build_release.py")
     readme = _project("README.md")
-    assert "tests.test_v02720_regression" in workflow
+    assert "tests.test_v02721_regression" in workflow
     assert '"tests/test_v02720_regression.py"' in regressions
-    assert '"tests/test_v02720_gui.py"' in builder
+    assert '"tests/test_v02721_gui.py"' in builder
     assert "python -X dev -m tests.test_golden_build" in readme
     assert "`tests/`" in readme
 
@@ -77,7 +77,7 @@ def test_every_public_batch_file_is_current_and_project_relative() -> None:
     """Prevent stale launcher banners and machine-specific paths."""
     for batch in PROJECT_ROOT.glob("*.bat"):
         text = batch.read_text(encoding="utf-8")
-        assert "v0.27.20" in text, batch.name
+        assert f"v{APP_VERSION}" in text, batch.name
         assert 'cd /d "%~dp0"' in text, batch.name
         assert not re.search(r"(?i)\b[A-Z]:\\", text), batch.name
 

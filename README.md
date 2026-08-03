@@ -9,7 +9,7 @@ The application prepares image datasets; it does not train a LoRA itself.
 
 | Project at a glance | |
 |---|---|
-| Current release | v0.27.20 pre-portable source stabilization candidate |
+| Current release | v0.27.21 Florence provider security stabilization |
 | Primary platform | Windows 11, Python 3.11+ |
 | Data model | Versioned SQLite catalog with SHA-256 content identity |
 | Local analysis | Florence-2, optional InsightFace and MediaPipe |
@@ -21,6 +21,8 @@ The application prepares image datasets; it does not train a LoRA itself.
 > reviewed public repository; v0.27.19 added a portable, checklist-driven source
 > setup and launcher. v0.27.20 makes Recycle Bin safety standard, moves public
 > QA files under `tests/`, and prepares a non-mutating new-computer check.
+> v0.27.21 moves Florence to pinned native Transformers code, disables remote
+> repository code execution, and requires safetensors weights.
 > Application runtime behavior and catalog schema remain
 > unchanged. Large-catalog measurements,
 > active-provider shutdown/quarantine stress testing, and the first complete
@@ -115,6 +117,8 @@ to hide Python and environment setup from ordinary non-source users.
 
 Florence-2, InsightFace, and MediaPipe model weights are not bundled. Review
 [MODEL_LICENSES.txt](MODEL_LICENSES.txt) before downloading or using models.
+Florence requires the exact `transformers==4.56.2` dependency installed by the
+base setup so the app can enforce its reviewed native-code boundary.
 
 ### Recommended guided setup
 
@@ -182,6 +186,13 @@ move or delete those old root test copies and that one old batch file; do not
 remove application modules, catalogs, images, models, outputs, settings, or the
 virtual environment. Git users should use `git rm` so Git records the moves.
 
+After overlaying v0.27.21 onto an existing installation, run
+`Install Base Dependencies.bat` once. Setup will replace Transformers 4.49.0
+with the required 4.56.2 native Florence line while preserving PyTorch, the
+venv, models, catalogs, and user data. Stored Florence results remain intact,
+but results recorded under 4.49.0 will be regenerated only if the user starts a
+new Florence run because provider-version reuse is deliberately exact.
+
 ## Safety and privacy
 
 - The application does not upload images, captions, embeddings, identity names,
@@ -220,7 +231,7 @@ For a quick dependency-free repository check:
 ```powershell
 python -m tools.compile_project
 python tools\audit_project.py
-python -X dev -m tests.test_v02720_regression
+python -X dev -m tests.test_v02721_regression
 ```
 
 `python -X dev -m tests.test_golden_build --no-gui` is useful in a headless

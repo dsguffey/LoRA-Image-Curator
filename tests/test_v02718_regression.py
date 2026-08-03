@@ -78,7 +78,7 @@ def test_dependency_free_repository_workflow_is_bounded() -> None:
     assert "actions/setup-python@v7" in workflow
     assert "python -m tools.compile_project" in workflow
     assert "python tools/audit_project.py" in workflow
-    assert "python -X dev -m tests.test_v02720_regression" in workflow
+    assert "python -X dev -m tests.test_v02721_regression" in workflow
     assert "pip install" not in workflow
 
 
@@ -96,7 +96,7 @@ def test_current_release_chains_include_v02718() -> None:
     ):
         assert member in build
     assert '"tests/test_v02718_regression.py"' in regressions
-    assert '"tests/test_v02720_gui.py"' in golden
+    assert '"tests/test_v02721_gui.py"' in golden
     assert "from test_v02717_gui import run as run_v02717" in gui
 
 

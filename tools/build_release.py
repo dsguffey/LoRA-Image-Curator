@@ -125,6 +125,8 @@ REQUIRED_MEMBERS = {
     "tests/test_v02719_gui.py",
     "tests/test_v02720_regression.py",
     "tests/test_v02720_gui.py",
+    "tests/test_v02721_regression.py",
+    "tests/test_v02721_gui.py",
     "tests/test_clean_install.py",
     "tests/__init__.py",
     "tests/paths.py",

@@ -43,10 +43,11 @@ asks before network operations, and does not enable telemetry.
 
 ## Current optional third-party components
 
+- Microsoft Florence-2 Large FT — MIT-licensed model; downloaded separately at
+  a pinned revision and executed through native, pinned Transformers code.
 - Google MediaPipe Pose Landmarker — Apache 2.0 code; separate model bundle and
   documentation terms apply.
 - Send2Trash — BSD-3-Clause; used only to request native operating-system Trash
   or Recycle Bin behavior.
 - InsightFace / ONNX Runtime / Florence-2 / FFmpeg — see
   `MODEL_LICENSES.txt`, their upstream licenses, and their current terms.
-

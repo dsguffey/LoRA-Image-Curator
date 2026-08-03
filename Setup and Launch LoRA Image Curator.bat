@@ -2,7 +2,7 @@
 setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 
-echo LoRA Image Curator v0.27.20 - Portable Setup and Launcher
+echo LoRA Image Curator v0.27.21 - Portable Setup and Launcher
 echo Project folder: %CD%
 echo.
 

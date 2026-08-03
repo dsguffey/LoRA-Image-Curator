@@ -47,6 +47,12 @@ REQUIRED_DISTRIBUTIONS = (
     ("timm", "timm"),
     ("Send2Trash", "Recycle Bin safety"),
 )
+REQUIRED_EXACT_VERSIONS = {
+    # Native Florence-2 support begins after the project's former 4.49 line.
+    # Exact matching keeps setup readiness aligned with the loader's reviewed
+    # no-remote-code execution boundary.
+    "transformers": "4.56.2",
+}
 FACE_DISTRIBUTIONS = (
     ("insightface", "InsightFace"),
     ("onnxruntime-gpu", "ONNX Runtime GPU"),
@@ -73,9 +79,18 @@ class SetupStatus:
     def required_ready(self) -> bool:
         """Return whether the application has every launch-time package."""
         unavailable = {"not installed", "check failed"}
-        return self.environment_exists and all(
+        packages_available = self.environment_exists and all(
             value not in unavailable for value in self.required_packages.values()
-        ) and not self.torch_runtime.get("error")
+        )
+        exact_versions_match = all(
+            self.required_packages.get(name) == expected
+            for name, expected in REQUIRED_EXACT_VERSIONS.items()
+        )
+        return (
+            packages_available
+            and exact_versions_match
+            and not self.torch_runtime.get("error")
+        )
 
 
 def _run(
@@ -263,6 +278,13 @@ def print_setup_status() -> SetupStatus:
         REQUIRED_DISTRIBUTIONS, status.required_packages
     ):
         print(line)
+    for name, expected in REQUIRED_EXACT_VERSIONS.items():
+        installed = status.required_packages.get(name, "check failed")
+        if installed not in {"not installed", "check failed", expected}:
+            print(
+                f"    UPDATE REQUIRED    {name} {expected} is required; "
+                f"found {installed}"
+            )
     if status.torch_runtime.get("error"):
         print(f"    PyTorch runtime    {status.torch_runtime['error']}")
     else:

@@ -19,9 +19,12 @@ optional FFmpeg executable. Its principal security goals are:
 - constrain model selection to InsightFace's expected root/models/name layout;
 - exclude catalogs, caches, logs, model weights, and private paths from releases.
 
-The application does not attempt to sandbox third-party model code, PyTorch,
-Transformers `trust_remote_code`, InsightFace, ONNX Runtime, or FFmpeg. Install
-those components only from sources you trust and review their licenses.
+The application does not attempt to sandbox PyTorch, Transformers,
+InsightFace, ONNX Runtime, MediaPipe, or FFmpeg. Install third-party components
+only from sources you trust and review their licenses. The Florence path does
+not enable `trust_remote_code`: it pins a reviewed Transformers release and
+Microsoft model revision, requires safetensors weights, and rejects a model or
+processor implementation outside native `transformers.models.florence2` code.
 
 ## Reporting a vulnerability
 
@@ -53,4 +56,3 @@ provider packages are blocked in this release.
 
 Compatibility checks do not establish provenance or safety. See
 `THIRD_PARTY_NOTICE.md`.
-

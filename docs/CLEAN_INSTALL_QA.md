@@ -11,7 +11,7 @@ files, settings, catalogs, models, or datasets.
 
 ## Phase 1: real new-computer / before setup
 
-1. Download or clone v0.27.20 into a new folder on a Windows 11 computer that
+1. Download or clone v0.27.21 into a new folder on a Windows 11 computer that
    has never run LoRA Image Curator.
 2. From PowerShell in that folder, run:
 
@@ -39,7 +39,8 @@ venv\Scripts\python.exe setup_assistant.py --check
 ```
 
 Confirm the local environment exists, all required packages—including Recycle
-Bin safety—are ready, and optional providers are reported separately. Launch
+Bin safety and exactly Transformers 4.56.2—are ready, and optional providers
+are reported separately. Launch
 the application from menu option 9 and verify that it starts without selecting
 or reopening an old catalog.
 

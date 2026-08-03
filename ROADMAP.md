@@ -51,15 +51,16 @@ Completed foundations include:
   and a dedicated missing-file filter
 - video-origin manifests and browser-visible source timestamps
 
-## Current: Milestone 11B — Pre-Portable Source Stabilization
+## Current: Milestone 11B — Provider Security Stabilization
 
-v0.27.20 is the current public-source candidate after cleanup and functional
+v0.27.21 is the current public-source candidate after cleanup and functional
 testing at roughly 14,000–17,000 images, deterministic Tk lifecycle fixes,
 repository-boundary hardening, a first-visitor presentation review, and a
 checklist-driven project-local setup path. v0.27.17 passed the complete
-live-Windows golden gate. v0.27.20 changes setup ownership, repository layout,
-documentation, and release verification without changing catalog schema or the
-application's file-action behavior.
+live-Windows golden gate. v0.27.20 changed setup ownership, repository layout,
+documentation, and release verification. v0.27.21 pins the Florence dependency
+and model snapshot, removes repository-code execution, and preserves catalog
+schema and file-action behavior.
 
 - keep public version, launcher, README, bugs, roadmap, test, and release
   metadata synchronized
@@ -76,8 +77,19 @@ application's file-action behavior.
   or generated exports are included
 - retain a concise architecture/module map instead of combining independent
   modules only to reduce the file count
-- publish the deterministic v0.27.20 source ZIP and Git commit as the pre-1.0
+- publish the deterministic v0.27.21 source ZIP and Git commit as the pre-1.0
   reference snapshot
+
+## Completed within Milestone 11: v0.27.21
+
+- replaced Florence's unpinned remote-code loader with native Transformers
+  4.56.2 and an exact Microsoft model revision
+- required safetensors and rejected non-native model/processor classes
+- made setup detect and explain an established venv that still contains the
+  former Transformers 4.49.0 dependency
+- documented exact provider identity, version, revision, license, third-party
+  status, and the remaining real-inference Windows verification boundary
+- retained schema 12, runtime-data locations, and stored provider results
 
 ## Completed within Milestone 11: v0.27.20
 
@@ -844,10 +856,22 @@ for the source-tree cleanup.
 
 ## Milestone 12 — Executable and Installer
 
+- design one Provider Center that shows each third-party component's publisher,
+  exact version/revision, license, source, size, hash, installed state, and
+  notices before install, repair, browse, or removal actions
+- bundle only small components and model assets with clear redistribution
+  rights; use verified publisher-direct downloads for large or
+  hardware-specific providers
+- keep InsightFace pretrained weights outside the default bundle unless written
+  redistribution permission is obtained; provide a clearly license-gated path
+- support portable offline provider packs with signed/hashed manifests and no
+  executable provider code in the initial format
+- add a concise first-launch third-party and warranty acknowledgment without
+  implying that a click changes upstream license rights
 - create a proper Windows executable for ordinary use without manually invoking
   Python
 - make the ordinary installer experience hide Python and virtual-environment
-  administration entirely; retain the v0.27.20 source setup for developers
+  administration entirely; retain the v0.27.21 source setup for developers
 - create an installer or installer-like distribution with clear install,
   upgrade, uninstall, and troubleshooting behavior
 - decide how optional dependencies such as FFmpeg and face-analysis packages are

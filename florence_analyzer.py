@@ -59,7 +59,11 @@ from video_origin import VideoOriginManifestCache
 # =============================================================================
 
 MODEL_NAME = "microsoft/Florence-2-large-ft"
-KNOWN_WORKING_TRANSFORMERS_VERSION = "4.49.0"
+# The model snapshot is pinned to Microsoft's verified revision that added
+# safetensors weights. Native Transformers code owns execution; repository
+# Python files are never trusted or imported at runtime.
+MODEL_REVISION = "4a12a2b54b7016a48a22037fbd62da90cd566f2a"
+KNOWN_WORKING_TRANSFORMERS_VERSION = "4.56.2"
 
 # Increment this only when LoRA Image Curator changes the meaning or structure of
 # generated analysis data. It is separate from the SQLite schema version.
@@ -350,17 +354,44 @@ def load_florence(
     device: str,
     dtype: torch.dtype,
 ) -> tuple[AutoProcessor, AutoModelForCausalLM]:
-    """Load Florence-2 and its processor once for the required work."""
+    """Load the pinned Florence-2 snapshot through native Transformers code.
+
+    The exact Transformers version is a security and compatibility boundary,
+    not merely a performance recommendation. Version 4.56.2 contains native
+    Florence-2 model and processor implementations, so the model repository's
+    custom Python files must never execute. Requiring safetensors also prevents
+    fallback to the repository's older pickle-based PyTorch weight file.
+    """
+    installed_version = get_transformers_version()
+    if installed_version != KNOWN_WORKING_TRANSFORMERS_VERSION:
+        raise RuntimeError(
+            "Florence-2 requires Transformers "
+            f"{KNOWN_WORKING_TRANSFORMERS_VERSION} for the reviewed native "
+            f"loader; found {installed_version}. Run "
+            "Install Base Dependencies.bat, then try again."
+        )
+
     processor = AutoProcessor.from_pretrained(
         model_name,
-        trust_remote_code=True,
+        revision=MODEL_REVISION,
+        trust_remote_code=False,
     )
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name,
-        torch_dtype=dtype,
-        trust_remote_code=True,
+        revision=MODEL_REVISION,
+        dtype=dtype,
+        trust_remote_code=False,
+        use_safetensors=True,
     )
+
+    for label, component in (("processor", processor), ("model", model)):
+        implementation_module = type(component).__module__
+        if not implementation_module.startswith("transformers.models.florence2"):
+            raise RuntimeError(
+                "Florence-2 security check rejected a non-native "
+                f"{label} implementation: {implementation_module}"
+            )
 
     model = model.to(device)
     model.eval()
@@ -398,6 +429,8 @@ def prepare_inputs_for_task(
         device=device,
         dtype=dtype,
     )
+    if "attention_mask" in inputs:
+        inputs["attention_mask"] = inputs["attention_mask"].to(device)
 
     return inputs
 
@@ -421,8 +454,7 @@ def run_florence_task(
 
     with torch.inference_mode():
         generated_ids = model.generate(
-            input_ids=inputs["input_ids"],
-            pixel_values=inputs["pixel_values"],
+            **inputs,
             max_new_tokens=TASK_MAX_NEW_TOKENS[task_prompt],
             num_beams=NUM_BEAMS,
             do_sample=False,

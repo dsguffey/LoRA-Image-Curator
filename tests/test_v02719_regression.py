@@ -26,11 +26,11 @@ def _source(filename: str) -> str:
 
 def test_current_version_retains_v02719_setup_history() -> None:
     """Keep the v0.27.19 setup contract visible after later source cleanup."""
-    assert APP_VERSION == "0.27.20"
-    assert "Version 0.27.20" in _source("VERSION.txt")
-    assert 'version = "0.27.20"' in _source("pyproject.toml")
-    assert "v0.27.20" in _source("README.md")
-    assert "v0.27.20" in _source("README.txt")
+    assert APP_VERSION == "0.27.21"
+    assert "Version 0.27.21" in _source("VERSION.txt")
+    assert 'version = "0.27.21"' in _source("pyproject.toml")
+    assert "v0.27.21" in _source("README.md")
+    assert "v0.27.21" in _source("README.txt")
     assert "## v0.27.19 — Portable and Sane Source Setup" in _source(
         "CHANGELOG.md"
     )
@@ -143,8 +143,8 @@ def test_current_release_chains_include_v02719() -> None:
     ):
         assert member in build
     assert '"tests/test_v02719_regression.py"' in regressions
-    assert '"tests/test_v02720_gui.py"' in golden
-    assert "python -X dev -m tests.test_v02720_regression" in workflow
+    assert '"tests/test_v02721_gui.py"' in golden
+    assert "python -X dev -m tests.test_v02721_regression" in workflow
     assert "from test_v02718_gui import run as run_v02718" in gui
 
 

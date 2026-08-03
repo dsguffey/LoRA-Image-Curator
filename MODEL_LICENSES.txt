@@ -3,6 +3,26 @@ LORA IMAGE CURATOR — MODEL AND PROVIDER LICENSE NOTES
 
 This file is informational and is not legal advice.
 
+MICROSOFT FLORENCE-2 LARGE FT
+-----------------------------
+
+Provider: Microsoft
+Model: microsoft/Florence-2-large-ft
+Pinned revision: 4a12a2b54b7016a48a22037fbd62da90cd566f2a
+Model license: MIT
+Execution library: Transformers 4.56.2 (Apache License 2.0)
+
+LoRA Image Curator does not bundle the model weights. When Florence is started,
+Transformers obtains Microsoft's pinned model snapshot from Hugging Face or
+uses matching cached files. The application explicitly disables repository
+code execution, uses Transformers' native Florence-2 implementation, and
+requires the snapshot's safetensors weight file.
+
+Official sources:
+https://huggingface.co/microsoft/Florence-2-large-ft
+https://huggingface.co/docs/transformers/v4.56.2/model_doc/florence2
+
+
 INSIGHTFACE PYTHON CODE
 -----------------------
 

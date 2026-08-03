@@ -1,5 +1,37 @@
 # LoRA Image Curator Changelog
 
+## v0.27.21 — Florence Provider Security Stabilization
+
+### Security
+
+- migrated Florence-2 from repository-supplied Python execution to the native
+  implementation in the pinned `transformers==4.56.2` release
+- disabled `trust_remote_code` explicitly for both model and processor loading
+  and added a runtime check that rejects implementations outside
+  `transformers.models.florence2`
+- pinned `microsoft/Florence-2-large-ft` to Microsoft's verified
+  `4a12a2b54b7016a48a22037fbd62da90cd566f2a` snapshot and required its
+  safetensors weights rather than permitting pickle-weight fallback
+
+### Improved
+
+- made setup readiness reject an established environment with the old
+  Transformers line and show the exact required repair version
+- passed the processor's attention mask through native Florence generation,
+  matching the maintained Transformers interface
+- documented provider identity, model revision, license, third-party status,
+  upgrade behavior, and the no-remote-code execution boundary
+
+### Verification and compatibility
+
+- added dependency-free v0.27.21 security contracts plus a cumulative Windows
+  GUI endpoint; the exact Florence model still requires a real Windows/GPU
+  inference smoke test
+- existing catalogs remain schema 12 and require no migration; stored Florence
+  results remain intact, but 4.49.0 results are not considered compatible with
+  4.56.2 and will be regenerated only when the user starts Florence again
+- model weights remain outside the source ZIP and release manifest
+
 ## v0.27.20 — Pre-Portable Source Stabilization
 
 ### Improved

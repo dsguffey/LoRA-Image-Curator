@@ -1,4 +1,4 @@
-LORA IMAGE CURATOR GUI v0.27.20
+LORA IMAGE CURATOR GUI v0.27.21
 ========================
 
 OVERVIEW
@@ -13,7 +13,7 @@ layers around that catalog. Provider output is preserved, user decisions are
 stored independently, and final training text is derived only when it is
 previewed or exported.
 
-Version 0.27.20 is the pre-portable source stabilization candidate for
+Version 0.27.21 is the Florence provider security stabilization candidate for
 Milestone 11B. The
 application
 has been exercised with roughly 14,000 to 17,000 local images. Current primary
@@ -35,8 +35,25 @@ checklist-driven setup assistant, project-local environment creation, clear
 required/optional dependency tiers, and first-time launcher recovery without
 changing application behavior or schema. v0.27.20 makes Recycle Bin safety a
 base dependency, separates optional MediaPipe setup, moves public QA files into
-`tests`, and prepares the real new-computer validation milestone. Broader
+`tests`, and prepares the real new-computer validation milestone. v0.27.21
+moves Florence to native Transformers 4.56.2, pins Microsoft's verified model
+snapshot, disables remote repository code, and requires safetensors weights.
+Broader
 large-catalog measurements and deferred high-risk QA remain pre-1.0 work.
+
+
+WHAT IS NEW IN v0.27.21
+-----------------------
+
+- Florence now executes through the native implementation in exactly
+  Transformers 4.56.2; model-repository Python code is explicitly disabled
+- Microsoft's `microsoft/Florence-2-large-ft` model is pinned to verified
+  revision `4a12a2b54b7016a48a22037fbd62da90cd566f2a`
+- only safetensors weights are accepted, and runtime checks reject any model or
+  processor implementation outside native Transformers Florence-2 code
+- setup reports older Transformers installations as requiring an update
+- catalog schema remains 12 and stored provider results remain intact; results
+  recorded under Transformers 4.49.0 are regenerated only when Florence is run
 
 
 WHAT IS NEW IN v0.27.20
@@ -454,7 +471,7 @@ UPGRADING FROM v0.24.0
 
 1. Close LoRA Image Curator.
 
-2. Extract LoRA_Image_Curator_v0.27.20.zip directly into your existing
+2. Extract LoRA_Image_Curator_v0.27.21.zip directly into your existing
    DatasetTools folder and allow Windows to replace older release files.
 
 3. Keep your existing `venv`, model files, catalogs, images, settings, logs,
@@ -466,11 +483,15 @@ UPGRADING FROM v0.24.0
 4. Keep your existing `venv` folder, model files, and `dataset_tools.db`
    catalog.
 
-5. Start the application with:
+5. Run `Install Base Dependencies.bat` once. This updates the established venv
+   from Transformers 4.49.0 to the required native 4.56.2 line without
+   replacing PyTorch, catalogs, models, settings, images, outputs, or caches.
+
+6. Start the application with:
 
        Run LoRA Image Curator.bat
 
-Version 0.27.20 uses schema 12 and accepts both
+Version 0.27.21 uses schema 12 and accepts both
 current and historical catalog identity markers. If upgrading directly from
 v0.19.0, the existing schema-10
 migration removes only file records that match LoRA Image Curator's exact
@@ -482,7 +503,7 @@ history remain intact.
 
 The old `<output folder>\thumbnail_cache` directory is not deleted
 automatically. After closing v0.19.0, it is safe to delete that entire legacy
-folder manually to recover disk space. v0.27.20 will ignore it if you leave it in
+folder manually to recover disk space. v0.27.21 will ignore it if you leave it in
 place and writes any new previews beneath:
 
     %APPDATA%\LoRAImageCurator\thumbnail_cache
@@ -1676,7 +1697,7 @@ exit indicates a failed gate; the runner stops at the first failure.
 `docs/GOLDEN_TEST.md` records the exact coverage and honest limits of the result.
 
 
-KNOWN LIMITATIONS IN v0.27.20
+KNOWN LIMITATIONS IN v0.27.21
 ---------------------------
 
 - Florence object detection and regional OCR follow the official 1,024-token

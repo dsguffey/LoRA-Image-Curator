@@ -3,6 +3,18 @@
 This file contains defects and unresolved technical problems. Planned features
 and speculative enhancements belong in `ROADMAP.md` or `WISHLIST.md`.
 
+## Fixed in v0.27.21
+
+### Florence could execute changing repository code during model loading
+
+The former Florence loader used `trust_remote_code=True` with an unpinned
+Hugging Face repository. That allowed model-repository Python files to execute
+locally and made the effective implementation change independently of the
+application release. Florence now runs through the native, pinned Transformers
+4.56.2 implementation, pins Microsoft's exact verified model snapshot,
+requires safetensors weights, and rejects any non-native loaded class. Existing
+4.49.0 environments are reported as requiring a base-dependency update.
+
 ## Fixed in v0.27.20
 
 ### Recycle Bin safety was misleadingly bundled with body analysis
