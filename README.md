@@ -9,7 +9,7 @@ The application prepares image datasets; it does not train a LoRA itself.
 
 | Project at a glance | |
 |---|---|
-| Current release | v0.28.0 portable provider-provenance foundation |
+| Current release | v0.28.2 slim Portable Source distribution |
 | Primary platform | Windows 11, Python 3.11+ |
 | Data model | Versioned SQLite catalog with SHA-256 content identity |
 | Local analysis | Florence-2, optional InsightFace and MediaPipe |
@@ -31,8 +31,14 @@ The application prepares image datasets; it does not train a LoRA itself.
 > machine-readable provider registry, versioned/hash-verified MediaPipe model,
 > source-scoped SPDX SBOM, first-launch third-party notice, and smart runtime
 > launcher that form the security boundary for later end-user packaging.
-> Application runtime behavior and catalog schema remain
-> unchanged. Large-catalog measurements,
+> v0.28.1 adds explicit model-download confirmations and reuses the established
+> Setup & Launch assistant from the Tools menu; checks never download anything.
+> v0.28.2 turns the tested slim-inventory policy into a deterministic
+> `LoRA_Image_Curator_Portable_Source_vX.Y.Z.zip`: it retains the complete
+> guided setup/application payload while excluding repository-only files and
+> every user/runtime-data category. The full source archive and future
+> self-contained Windows package remain separate artifacts.
+> Catalog schema remains unchanged. Large-catalog measurements,
 > active-provider shutdown/quarantine stress testing, and the first complete
 > exported-dataset training trial remain on the roadmap.
 

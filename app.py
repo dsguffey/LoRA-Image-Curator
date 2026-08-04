@@ -32,7 +32,7 @@ from analysis_control import AnalysisCancelled
 from analysis_progress import WorkflowProgressTracker, format_duration
 from catalog import CATALOG_FILENAME
 from catalog_browser import CatalogBrowserFrame
-from body_analysis import BodyAnalysisOptions
+from body_analysis import BodyAnalysisOptions, inspect_body_setup
 from body_analysis_dialog import BodyAnalysisDialog
 from body_setup_dialog import BodySetupDialog
 from catalog_import_dialog import CatalogImportDialog, show_catalog_import_report
@@ -50,12 +50,16 @@ from dataset_readiness import (
 from export_dialog import DatasetExportDialog
 from image_discovery import discover_supported_images
 from provider_devices import inspect_provider_devices
+from provider_download_dialog import ProviderDownloadDialog
+from provider_registry import get_component
+from provider_setup import format_download_size, inspect_florence_cache
 from readiness_frame import DatasetReadinessFrame
 from face_analyzer import (
     DEFAULT_DETECTION_THRESHOLD,
     DEFAULT_MODEL_NAME,
     DEFAULT_SIMILARITY_THRESHOLD,
     FaceAnalysisOptions,
+    FaceSetupStatus,
     get_model_path,
     inspect_face_setup,
     model_selection_from_pack_folder,
@@ -1013,6 +1017,19 @@ class DatasetToolsApp:
         )
         self.tools_menu.add_separator()
         self.tools_menu.add_command(
+            label="Open Setup & Repair…",
+            command=self._open_setup_and_repair,
+        )
+        self.tools_menu.add_command(
+            label="Check Face Analysis Setup",
+            command=self._check_face_setup,
+        )
+        self.tools_menu.add_command(
+            label="Check Body Analysis Setup",
+            command=self._check_body_setup,
+        )
+        self.tools_menu.add_separator()
+        self.tools_menu.add_command(
             label="Start Catalog & Providers",
             command=self._start_analysis,
         )
@@ -1035,15 +1052,6 @@ class DatasetToolsApp:
         self.tools_menu.add_command(
             label="Pause / Resume Active Run",
             command=self._toggle_analysis_pause,
-        )
-        self.tools_menu.add_separator()
-        self.tools_menu.add_command(
-            label="Check Face Analysis Setup",
-            command=self._check_face_setup,
-        )
-        self.tools_menu.add_command(
-            label="Check Body Analysis Setup",
-            command=self._check_body_setup,
         )
         menu_bar.add_cascade(label="Tools", menu=self.tools_menu)
 
@@ -1329,6 +1337,12 @@ class DatasetToolsApp:
             "Extract Frames from Video…",
             state=normal_if(not locked),
         )
+        for label in (
+            "Open Setup & Repair…",
+            "Check Face Analysis Setup",
+            "Check Body Analysis Setup",
+        ):
+            self.tools_menu.entryconfigure(label, state=normal_if(not locked))
         provider_running = self.worker_thread is not None and self.worker_thread.is_alive()
         self.tools_menu.entryconfigure(
             "Start Catalog & Providers",
@@ -2944,8 +2958,9 @@ class DatasetToolsApp:
                 "landmarks with visibility evidence. Ordinary analysis is local; "
                 "LoRA Image Curator does not upload images or catalog results.\n\n"
                 "INSTALLATION\n\n"
-                "Run “Install Body Analysis Dependencies.bat” from the "
-                "application folder. It installs MediaPipe and can "
+                "Open Setup & Repair from the Tools menu, or run “Setup and "
+                "Launch LoRA Image Curator.bat” and choose optional body/pose "
+                "analysis. It installs MediaPipe and can "
                 "download Google's documented Pose Landmarker Full model into "
                 "the per-user model folder. Then use Settings > Body / Pose Scanning "
                 "to browse to the model and run Check Compatibility.\n\n"
@@ -3093,7 +3108,120 @@ class DatasetToolsApp:
         )
         self.root.wait_window(dialog)
 
+    def _open_setup_and_repair(self, reason: str = "") -> bool:
+        """Close the GUI and open the established setup assistant.
+
+        Dependency changes never run inside the live application process.  The
+        assistant remains the one owner of venv, PyTorch, optional package, and
+        FFmpeg checks, so Tools and first-time setup cannot drift into two
+        different installation systems.
+        """
+        reason_text = f"{reason}\n\n" if reason else ""
+        if not messagebox.askyesno(
+            "Open Setup & Repair?",
+            (
+                reason_text
+                + "LoRA Image Curator must close before packages or runtimes are "
+                "installed or repaired. Catalogs, images, settings, models, "
+                "and completed provider results will not be removed.\n\n"
+                "Close the application and open the existing Setup & Launch "
+                "menu now?"
+            ),
+            parent=self.root,
+        ):
+            return False
+
+        setup_batch = Path(__file__).with_name(
+            "Setup and Launch LoRA Image Curator.bat"
+        )
+        try:
+            if os.name == "nt" and hasattr(os, "startfile"):
+                os.startfile(str(setup_batch))  # type: ignore[attr-defined]
+            else:
+                subprocess.Popen(
+                    [sys.executable, str(Path(__file__).with_name("setup_assistant.py"))],
+                    cwd=Path(__file__).resolve().parent,
+                )
+        except OSError as error:
+            messagebox.showerror(
+                "Could not open setup",
+                f"{type(error).__name__}: {error}",
+                parent=self.root,
+            )
+            return False
+
+        self._finish_close()
+        return True
+
+    def _offer_setup_for_missing_packages(self, provider_label: str) -> None:
+        """Explain a package boundary, then reuse the setup assistant action."""
+        self._open_setup_and_repair(
+            (
+                f"{provider_label} cannot run until its optional Python "
+                "packages are installed. No packages were downloaded or "
+                "changed. In Setup & Launch, select the matching optional "
+                "component."
+            )
+        )
+
     def _run_body_analysis(self) -> None:
+        model_path = self._body_model_path()
+        setup = inspect_body_setup(model_path, perform_runtime_check=False)
+        if not setup.package_installed:
+            self._offer_setup_for_missing_packages("Body / Pose Analysis")
+            return
+        if not setup.model_exists:
+            default_model_path = get_default_body_model_path().resolve()
+            if model_path.expanduser().resolve() != default_model_path:
+                messagebox.showerror(
+                    "Selected body model is missing",
+                    (
+                        f"The selected model file does not exist:\n\n{model_path}\n\n"
+                        "Choose an existing vetted model in Settings, or clear "
+                        "the custom path to use the recommended model download."
+                    ),
+                    parent=self.root,
+                )
+                return
+            component = get_component("mediapipe_pose_full_v1")
+            approved = messagebox.askyesno(
+                "Download MediaPipe Pose model?",
+                (
+                    "Body / Pose Analysis needs the following local model:\n\n"
+                    f"{component['artifact']}\n"
+                    f"Publisher: {component['publisher']}\n"
+                    f"Download: {format_download_size(component['approx_download_bytes'])}\n"
+                    f"License: {component['license']}\n"
+                    f"Source: {component['source_url']}\n"
+                    f"Save to: {model_path}\n\n"
+                    "The pinned file will be checked against its expected size "
+                    "and SHA-256 before it replaces anything. Download it now?"
+                ),
+                parent=self.root,
+            )
+            if not approved:
+                return
+            dialog = ProviderDownloadDialog(
+                self.root,
+                title="Downloading MediaPipe Pose model",
+                status_text=(
+                    "Downloading the approved model from Google and verifying "
+                    "its exact size and SHA-256…"
+                ),
+                download_action=lambda: self._download_body_model(model_path),
+                on_complete=self._run_body_analysis,
+            )
+            self.root.wait_window(dialog)
+            return
+        if not setup.model_filename_vetted:
+            messagebox.showerror(
+                "Body model is not vetted",
+                "Use Settings to choose a vetted MediaPipe Pose Landmarker "
+                "lite, full, or heavy .task file, then run Check Setup.",
+                parent=self.root,
+            )
+            return
+
         catalog_path = self._current_catalog_path()
         if catalog_path is None:
             messagebox.showinfo(
@@ -3133,6 +3261,13 @@ class DatasetToolsApp:
         finally:
             self._set_running_provider(None)
 
+    @staticmethod
+    def _download_body_model(model_path: Path) -> None:
+        """Call the registry-pinned atomic downloader only after GUI approval."""
+        from install_body_dependencies import download_model
+
+        download_model(model_path)
+
     def _body_analysis_completed(self) -> None:
         """Refresh browser evidence and provider coverage after a body pass."""
         self.catalog_browser.refresh(quiet=True)
@@ -3167,6 +3302,69 @@ class DatasetToolsApp:
             ),
             parent=self.root,
         )
+
+    def _confirm_florence_download_if_needed(self) -> bool | None:
+        """Return download authority, or ``None`` when the run was cancelled."""
+        cache = inspect_florence_cache()
+        if cache.model_ready:
+            return False
+        component = get_component("florence_model")
+        approved = messagebox.askyesno(
+            "Download Florence-2 model?",
+            (
+                "Florence Caption & Triage needs the following model, and the "
+                "exact reviewed revision is not complete in the local cache:\n\n"
+                f"{component['artifact']}\n"
+                f"Publisher: {component['publisher']}\n"
+                f"Download: {format_download_size(component['approx_download_bytes'])}\n"
+                f"License: {component['license']}\n"
+                f"Source: {component['source_url']}\n"
+                f"Cache: {cache.cache_root}\n\n"
+                "Download and cache this pinned revision, then run Florence?"
+            ),
+            parent=self.root,
+        )
+        return True if approved else None
+
+    def _confirm_face_model_download(
+        self,
+        setup: FaceSetupStatus,
+        model_name: str,
+    ) -> bool | None:
+        """Ask before InsightFace acquires restricted pretrained weights."""
+        if setup.model_installed:
+            return False
+        if model_name != DEFAULT_MODEL_NAME:
+            messagebox.showerror(
+                "Selected face model is missing",
+                (
+                    f"The selected model pack is not installed:\n\n{setup.model_path}"
+                    "\n\nAutomatic download is available only for the reviewed "
+                    f"{DEFAULT_MODEL_NAME} pack. Choose an installed/licensed "
+                    "pack in Settings, or select the default pack and try again."
+                ),
+                parent=self.root,
+            )
+            return None
+
+        component = get_component("insightface_buffalo_l")
+        approved = messagebox.askyesno(
+            "Download InsightFace buffalo_l?",
+            (
+                f"The selected model pack is not installed:\n\n{setup.model_path}\n\n"
+                f"Model: {component['artifact']}\n"
+                f"Publisher: {component['publisher']}\n"
+                f"Download: {format_download_size(component['approx_download_bytes'])}\n"
+                f"Source: {component['source_url']}\n"
+                f"Save to: {setup.model_path}\n\n"
+                "IMPORTANT LICENSE: InsightFace's distributed pretrained models "
+                "are restricted to non-commercial research use unless you "
+                "obtain a separate license. LoRA Image Curator does not bundle "
+                "or relicense these weights.\n\nDownload and use this model?"
+            ),
+            parent=self.root,
+        )
+        return True if approved else None
 
     # =========================================================================
     # Background work
@@ -3264,30 +3462,13 @@ class DatasetToolsApp:
         model_name, model_root = selection
         setup = inspect_face_setup(model_name, model_root)
         if not setup.insightface_installed or not setup.onnxruntime_installed:
-            messagebox.showerror(
-                "Face dependencies missing",
-                (
-                    "Run “Install Face Analysis Dependencies.bat”, reopen "
-                    "LoRA Image Curator, and use Check Setup."
-                ),
-                parent=self.root,
-            )
+            self._offer_setup_for_missing_packages("Face Analysis")
             return
 
-        allow_model_download = False
-        if not setup.model_installed:
-            allow_model_download = messagebox.askyesno(
-                "Download InsightFace model?",
-                (
-                    f"The selected model pack is not installed:\n\n{setup.model_path}\n\n"
-                    "Allow InsightFace to download it from its official model "
-                    "source? Distributed pretrained weights are restricted to "
-                    "non-commercial research use unless separately licensed."
-                ),
-                parent=self.root,
-            )
-            if not allow_model_download:
-                return
+        download_choice = self._confirm_face_model_download(setup, model_name)
+        if download_choice is None:
+            return
+        allow_model_download = download_choice
 
         options = FaceAnalysisOptions(
             model_name=model_name,
@@ -3433,6 +3614,11 @@ class DatasetToolsApp:
             )
             return
 
+        florence_download_choice = self._confirm_florence_download_if_needed()
+        if florence_download_choice is None:
+            return
+        allow_florence_model_download = florence_download_choice
+
         run_face_analysis = (
             self.run_face_analysis_var.get()
             if run_face_override is None
@@ -3492,37 +3678,13 @@ class DatasetToolsApp:
             setup = inspect_face_setup(model_name, model_root)
 
             if not setup.insightface_installed or not setup.onnxruntime_installed:
-                messagebox.showerror(
-                    "Face dependencies missing",
-                    (
-                        "Face analysis is optional and is not installed yet.\n\n"
-                        f"Run this file from the {APP_NAME} folder:\n\n"
-                        "Install Face Analysis Dependencies.bat\n\n"
-                        "Then reopen LoRA Image Curator and click Check Setup."
-                    ),
-                    parent=self.root,
-                )
+                self._offer_setup_for_missing_packages("Face Analysis")
                 return
 
-            if not setup.model_installed:
-                allow_model_download = messagebox.askyesno(
-                    "Download InsightFace model?",
-                    (
-                        f"The selected model pack is not installed:\n\n"
-                        f"{setup.model_path}\n\n"
-                        f"{APP_NAME} can ask InsightFace to download it from "
-                        "its official model source. Model packs can be several "
-                        "hundred megabytes.\n\n"
-                        "IMPORTANT LICENSE: InsightFace's distributed pretrained "
-                        "models are for non-commercial research use only unless "
-                        f"you obtain a separate license. {APP_NAME} does not "
-                        "bundle or relicense the model.\n\n"
-                        "Download and use this model?"
-                    ),
-                    parent=self.root,
-                )
-                if not allow_model_download:
-                    return
+            download_choice = self._confirm_face_model_download(setup, model_name)
+            if download_choice is None:
+                return
+            allow_model_download = download_choice
 
             face_options = FaceAnalysisOptions(
                 model_name=model_name,
@@ -3609,6 +3771,7 @@ class DatasetToolsApp:
                 include_triage,
                 reuse_analysis,
                 run_face_analysis,
+                allow_florence_model_download,
                 identity_name,
                 reference_folder,
                 face_options,
@@ -3629,6 +3792,7 @@ class DatasetToolsApp:
         include_triage: bool,
         reuse_analysis: bool,
         run_face_analysis: bool,
+        allow_florence_model_download: bool,
         identity_name: str,
         reference_folder: Path | None,
         face_options: FaceAnalysisOptions | None,
@@ -3646,6 +3810,7 @@ class DatasetToolsApp:
                 include_triage=include_triage,
                 reuse_stored_analysis=reuse_analysis,
                 run_face_analysis=run_face_analysis,
+                allow_florence_model_download=allow_florence_model_download,
                 recursive=recursive,
                 face_recursive=face_recursive,
                 face_reference_recursive=face_reference_recursive,
@@ -3804,6 +3969,15 @@ class DatasetToolsApp:
                 "Cataloging complete; preparing Florence analysis…"
             ),
             "Loading Florence-2...": "Loading the Florence-2 model…",
+            "Loading Florence-2 from the local cache...": (
+                "Loading the Florence-2 model from the local cache…"
+            ),
+            "Downloading the approved Florence-2 model and loading it...": (
+                "Downloading the approved Florence-2 model…"
+            ),
+            "Downloading the approved InsightFace model pack...": (
+                "Downloading the approved InsightFace model pack…"
+            ),
             "Florence-2 loaded successfully.": (
                 "Florence-2 loaded; starting image analysis…"
             ),

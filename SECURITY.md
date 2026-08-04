@@ -18,9 +18,9 @@ optional FFmpeg executable. Its principal security goals are:
 - validate a catalog before replacement or deletion;
 - constrain model selection to InsightFace's expected root/models/name layout;
 - exclude catalogs, caches, logs, model weights, and private paths from releases.
-- keep source and end-user portable inventories separate so development files
-  and an existing user/developer virtual environment cannot enter the portable
-  payload.
+- keep the full source, slim Portable Source, and future private-runtime
+  Windows inventories separate so repository-only files and an existing
+  user/developer virtual environment cannot enter either end-user payload.
 
 The application does not attempt to sandbox PyTorch, Transformers,
 InsightFace, ONNX Runtime, MediaPipe, or FFmpeg. Install third-party components

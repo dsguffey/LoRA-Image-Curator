@@ -515,15 +515,21 @@ class InsightFaceProvider:
         if not setup.insightface_installed or not setup.onnxruntime_installed:
             raise FaceProviderUnavailableError(
                 "Face-analysis dependencies are not installed.\n\n"
-                "Run:\n"
-                "Install Face Analysis Dependencies.bat\n\n"
-                "Then use Check Face Setup in LoRA Image Curator."
+                "Open Setup & Repair from the Tools menu, or run "
+                "Setup and Launch LoRA Image Curator.bat and choose optional "
+                "face analysis. Then use Check Face Setup in the app."
             )
 
         if not setup.model_installed and not allow_model_download:
             raise FaceModelDownloadRequiredError(
                 "The selected InsightFace model pack is not installed:\n"
                 f"{setup.model_path}"
+            )
+
+        if not setup.model_installed and allow_model_download:
+            emit_status(
+                status_callback,
+                "Downloading the approved InsightFace model pack...",
             )
 
         # Importing torch before ONNX Runtime lets recent ORT releases reuse the

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 
 APP_NAME = "LoRA Image Curator"
-APP_VERSION = "0.28.0"
+APP_VERSION = "0.28.2"
 AUTHOR_NAME = "David Scott Guffey"
 AUTHOR_LINKEDIN = "https://www.linkedin.com/in/davidsguffey/"
 

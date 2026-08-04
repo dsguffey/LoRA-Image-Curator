@@ -44,9 +44,9 @@ def _project(relative_name: str) -> str:
 
 def test_release_identity_registry_and_provider_pins_are_synchronized() -> None:
     """Keep product, Florence, PyTorch, and MediaPipe identities in one release."""
-    assert APP_VERSION == "0.28.0"
-    assert "Version 0.28.0" in _project("VERSION.txt")
-    assert 'version = "0.28.0"' in _project("pyproject.toml")
+    assert tuple(int(part) for part in APP_VERSION.split(".")) >= (0, 28, 0)
+    assert f"Version {APP_VERSION}" in _project("VERSION.txt")
+    assert f'version = "{APP_VERSION}"' in _project("pyproject.toml")
     registry = load_provider_registry()
     assert registry["application"]["version"] == APP_VERSION
     assert registry["notice_version"] == "2026-08-03.2"
@@ -205,8 +205,8 @@ def test_smart_launcher_and_release_gates_cover_the_foundation() -> None:
     assert '"tests/test_v0280_regression.py"' in regressions
     assert '"tests/test_v0280_regression.py"' in builder
     assert '"tests/test_v0280_gui.py"' in builder
-    assert "tests.test_v0280_regression" in workflow
-    assert 'GUI_ENTRYPOINT = "tests/test_v0280_gui.py"' in golden
+    assert "tests.test_v0282_regression" in workflow
+    assert 'GUI_ENTRYPOINT = "tests/test_v0282_gui.py"' in golden
 
 
 if __name__ == "__main__":

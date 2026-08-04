@@ -2,8 +2,8 @@
   "spdxVersion": "SPDX-2.3",
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
-  "name": "LoRA Image Curator v0.28.0 source/provider SBOM",
-  "documentNamespace": "https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/v0.28.0/sbom",
+  "name": "LoRA Image Curator v0.28.2 source/provider SBOM",
+  "documentNamespace": "https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/v0.28.2/sbom",
   "creationInfo": {
     "created": "2026-08-03T00:00:00Z",
     "creators": [
@@ -18,7 +18,7 @@
     {
       "SPDXID": "SPDXRef-Application",
       "name": "LoRA Image Curator",
-      "versionInfo": "0.28.0",
+      "versionInfo": "0.28.2",
       "downloadLocation": "https://github.com/dsguffey/LoRA-Image-Curator",
       "filesAnalyzed": false,
       "licenseConcluded": "MIT",
@@ -71,7 +71,7 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "NOASSERTION",
-      "comment": "Function: CPU tensor runtime for Florence and compatible providers. Restriction: CPU inference is supported but substantially slower than a compatible GPU. Integrity: Official wheel index; exact portable CPU pack remains a v0.28.2 build decision. Bundled in source release: False."
+      "comment": "Function: CPU tensor runtime for Florence and compatible providers. Restriction: CPU inference is supported but substantially slower than a compatible GPU. Integrity: Official wheel index; exact portable CPU pack remains a future locked Windows-build decision. Bundled in source release: False."
     },
     {
       "SPDXID": "SPDXRef-mediapipe",
@@ -83,7 +83,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "NOASSERTION",
-      "comment": "Function: Optional local body and pose analysis. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+      "comment": "Function: Optional local body and pose analysis. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the future Windows runtime build. Bundled in source release: False."
     },
     {
       "SPDXID": "SPDXRef-mediapipe-pose-full-v1",
@@ -161,7 +161,7 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "NOASSERTION",
-      "comment": "Function: Native operating-system Trash / Recycle Bin requests. Restriction: No permanent-delete fallback is provided when the native trash request fails. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+      "comment": "Function: Native operating-system Trash / Recycle Bin requests. Restriction: No permanent-delete fallback is provided when the native trash request fails. Integrity: Portable wheel version and hash are locked during the future Windows runtime build. Bundled in source release: False."
     },
     {
       "SPDXID": "SPDXRef-numpy",
@@ -173,7 +173,7 @@
       "licenseConcluded": "BSD-3-Clause",
       "licenseDeclared": "BSD-3-Clause",
       "copyrightText": "NOASSERTION",
-      "comment": "Function: Array and numeric operations. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+      "comment": "Function: Array and numeric operations. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the future Windows runtime build. Bundled in source release: False."
     },
     {
       "SPDXID": "SPDXRef-pillow",
@@ -185,7 +185,7 @@
       "licenseConcluded": "HPND",
       "licenseDeclared": "HPND",
       "copyrightText": "NOASSERTION",
-      "comment": "Function: Local image decoding and manipulation. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+      "comment": "Function: Local image decoding and manipulation. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the future Windows runtime build. Bundled in source release: False."
     },
     {
       "SPDXID": "SPDXRef-einops",
@@ -197,7 +197,7 @@
       "licenseConcluded": "MIT",
       "licenseDeclared": "MIT",
       "copyrightText": "NOASSERTION",
-      "comment": "Function: Tensor-shape operations required by Florence. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+      "comment": "Function: Tensor-shape operations required by Florence. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the future Windows runtime build. Bundled in source release: False."
     },
     {
       "SPDXID": "SPDXRef-timm",
@@ -209,7 +209,7 @@
       "licenseConcluded": "Apache-2.0",
       "licenseDeclared": "Apache-2.0",
       "copyrightText": "NOASSERTION",
-      "comment": "Function: Vision model utilities required by Florence. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the v0.28.2 Windows build. Bundled in source release: False."
+      "comment": "Function: Vision model utilities required by Florence. Restriction: None identified beyond the license terms. Integrity: Portable wheel version and hash are locked during the future Windows runtime build. Bundled in source release: False."
     }
   ],
   "relationships": [

@@ -8,7 +8,8 @@ builds still ship CUDA 12 libraries.
 
 The script installs software libraries only.  It does not download InsightFace
 model weights; LoRA Image Curator requests explicit license approval before a model
-pack is downloaded on first use.
+pack is downloaded only after the user approves the model-specific prompt from
+a Face Run command.
 """
 
 from __future__ import annotations
@@ -148,8 +149,9 @@ def main() -> int:
         ):
             print(
                 "\nWARNING: CUDAExecutionProvider is not available. Dataset "
-                "Tools can still use CPU face analysis, but run Check Face "
-                "Analysis Setup.bat and review the output."
+                "Tools can still use CPU face analysis. Run Setup and Launch "
+                "LoRA Image Curator.bat and choose Check optional face "
+                "analysis to review the complete status."
             )
 
     except Exception as error:

@@ -3,6 +3,7 @@
   "purpose": "End-user portable Windows payload boundary",
   "artifact_name_template": "LoRA_Image_Curator_Portable_Windows_x64_v{version}.zip",
   "source_artifact_name_template": "LoRA_Image_Curator_Source_v{version}.zip",
+  "portable_source_artifact_name_template": "LoRA_Image_Curator_Portable_Source_v{version}.zip",
   "required_user_files": [
     "LICENSE",
     "MODEL_LICENSES.txt",

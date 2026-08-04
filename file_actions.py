@@ -367,8 +367,8 @@ class FileActionService:
         except ImportError as error:
             raise RuntimeError(
                 "Recycle Bin support is not installed. Run "
-                "\"Install Base Dependencies.bat\" to repair the standard "
-                "application setup. "
+                "\"Setup and Launch LoRA Image Curator.bat\" and choose "
+                "required app dependency repair. "
                 "No files were deleted."
             ) from error
 

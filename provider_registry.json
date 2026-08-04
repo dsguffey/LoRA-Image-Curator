@@ -3,7 +3,7 @@
   "notice_version": "2026-08-03.2",
   "application": {
     "name": "LoRA Image Curator",
-    "version": "0.28.0",
+    "version": "0.28.2",
     "license": "MIT",
     "source": "https://github.com/dsguffey/LoRA-Image-Curator"
   },
@@ -79,7 +79,7 @@
       "usage_restriction": "CPU inference is supported but substantially slower than a compatible GPU.",
       "approx_download_bytes": null,
       "sha256": null,
-      "integrity_scope": "Official wheel index; exact portable CPU pack remains a v0.28.2 build decision",
+      "integrity_scope": "Official wheel index; exact portable CPU pack remains a future locked Windows-build decision",
       "redistribution": "separate_runtime_pack",
       "bundled": false,
       "acquisition": "publisher_direct_pip"
@@ -98,7 +98,7 @@
       "usage_restriction": "None identified beyond the license terms.",
       "approx_download_bytes": null,
       "sha256": null,
-      "integrity_scope": "Portable wheel version and hash are locked during the v0.28.2 Windows build",
+      "integrity_scope": "Portable wheel version and hash are locked during the future Windows runtime build",
       "redistribution": "permitted_with_notice",
       "bundled": false,
       "acquisition": "pypi"
@@ -212,7 +212,7 @@
       "usage_restriction": "No permanent-delete fallback is provided when the native trash request fails.",
       "approx_download_bytes": null,
       "sha256": null,
-      "integrity_scope": "Portable wheel version and hash are locked during the v0.28.2 Windows build",
+      "integrity_scope": "Portable wheel version and hash are locked during the future Windows runtime build",
       "redistribution": "permitted_with_notice",
       "bundled": false,
       "acquisition": "pypi"
@@ -231,7 +231,7 @@
       "usage_restriction": "None identified beyond the license terms.",
       "approx_download_bytes": null,
       "sha256": null,
-      "integrity_scope": "Portable wheel version and hash are locked during the v0.28.2 Windows build",
+      "integrity_scope": "Portable wheel version and hash are locked during the future Windows runtime build",
       "redistribution": "permitted_with_notice",
       "bundled": false,
       "acquisition": "pypi"
@@ -250,7 +250,7 @@
       "usage_restriction": "None identified beyond the license terms.",
       "approx_download_bytes": null,
       "sha256": null,
-      "integrity_scope": "Portable wheel version and hash are locked during the v0.28.2 Windows build",
+      "integrity_scope": "Portable wheel version and hash are locked during the future Windows runtime build",
       "redistribution": "permitted_with_notice",
       "bundled": false,
       "acquisition": "pypi"
@@ -269,7 +269,7 @@
       "usage_restriction": "None identified beyond the license terms.",
       "approx_download_bytes": null,
       "sha256": null,
-      "integrity_scope": "Portable wheel version and hash are locked during the v0.28.2 Windows build",
+      "integrity_scope": "Portable wheel version and hash are locked during the future Windows runtime build",
       "redistribution": "permitted_with_notice",
       "bundled": false,
       "acquisition": "pypi"
@@ -288,7 +288,7 @@
       "usage_restriction": "None identified beyond the license terms.",
       "approx_download_bytes": null,
       "sha256": null,
-      "integrity_scope": "Portable wheel version and hash are locked during the v0.28.2 Windows build",
+      "integrity_scope": "Portable wheel version and hash are locked during the future Windows runtime build",
       "redistribution": "permitted_with_notice",
       "bundled": false,
       "acquisition": "pypi"

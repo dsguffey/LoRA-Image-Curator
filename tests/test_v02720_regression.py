@@ -19,10 +19,10 @@ def _project(relative_name: str) -> str:
 
 def test_version_and_public_history_are_synchronized() -> None:
     """Keep current identity synchronized and retain v0.27.20 history."""
-    assert APP_VERSION == "0.28.0"
-    assert "Version 0.28.0" in _project("VERSION.txt")
-    assert 'version = "0.28.0"' in _project("pyproject.toml")
-    assert "v0.28.0" in _project("README.md")
+    assert APP_VERSION == "0.28.2"
+    assert "Version 0.28.2" in _project("VERSION.txt")
+    assert 'version = "0.28.2"' in _project("pyproject.toml")
+    assert "v0.28.2" in _project("README.md")
     assert "## v0.27.20" in _project("CHANGELOG.md")
 
 
@@ -42,7 +42,7 @@ def test_recycle_bin_is_standard_and_body_analysis_remains_optional() -> None:
     body_batch = _project("Install Body Analysis Dependencies.bat")
     assert '"venv\\Scripts\\python.exe" install_body_dependencies.py' in body_batch
     file_actions = _project("file_actions.py")
-    assert "Install Base Dependencies.bat" in file_actions
+    assert "Setup and Launch LoRA Image Curator.bat" in file_actions
     assert "permanent deletion" in file_actions
 
 
@@ -54,7 +54,7 @@ def test_tests_are_public_but_no_longer_clutter_the_repository_root() -> None:
     regressions = _project("tools/run_regressions.py")
     builder = _project("tools/build_release.py")
     readme = _project("README.md")
-    assert "tests.test_v0280_regression" in workflow
+    assert "tests.test_v0282_regression" in workflow
     assert '"tests/test_v02720_regression.py"' in regressions
     assert '"tests/test_v02723_gui.py"' in builder
     assert "python -X dev -m tests.test_golden_build" in readme

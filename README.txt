@@ -1,4 +1,4 @@
-LORA IMAGE CURATOR GUI v0.28.0
+LORA IMAGE CURATOR GUI v0.28.2
 ========================
 
 OVERVIEW
@@ -13,8 +13,8 @@ layers around that catalog. Provider output is preserved, user decisions are
 stored independently, and final training text is derived only when it is
 previewed or exported.
 
-Version 0.28.0 is the portable provider-provenance foundation. The
-application
+Version 0.28.2 adds the deterministic slim Portable Source distribution on top
+of v0.28.1's explicit provider setup and model-download consent. The application
 has been exercised with roughly 14,000 to 17,000 local images. Current primary
 workstation observations are about five seconds for a cold first launch and
 three seconds for the first Browser load at approximately 14,000 images, with a
@@ -48,8 +48,45 @@ ordinary launcher validate its runtime before starting. It also formally
 separates the full source archive from the later slim end-user portable ZIP;
 tests, release tools, GitHub metadata, developer documents, source-only setup
 files, and user/runtime data do not belong in that portable payload.
-Broader
+v0.28.1 prevents provider Run commands from silently downloading model files:
+Florence, InsightFace buffalo_l, and the recommended MediaPipe Pose model each
+show their identity, source, approximate size, destination, and relevant terms
+before a transfer. Tools can reopen the established Setup & Launch assistant
+for package/runtime repair after closing the GUI. Broader
 large-catalog measurements and deferred high-risk QA remain pre-1.0 work.
+
+
+WHAT IS NEW IN v0.28.2
+----------------------
+
+- `LoRA_Image_Curator_Portable_Source_v0.28.2.zip` is the slim end-user source
+  package; it is distinct from the full GitHub source archive and the future
+  self-contained Windows x64 package
+- the package retains every signed top-level application/setup module, the
+  guided setup and ordinary/diagnostic launchers, requirements, user guide,
+  licenses, notices, provider registry, SBOM, version, and its own exact
+  SHA-256 manifest
+- tests, tools, developer documents, GitHub metadata, redundant one-off batch
+  helpers, the known-broken hidden VBS launcher, and repository planning files
+  are excluded from the end-user ZIP
+- the builder selects only from the signed source manifest and rejects virtual
+  environments, catalogs, settings, models, caches, logs, datasets, exports,
+  archives, credentials, and other generated or private artifacts
+- two independent Portable Source builds must be byte-identical, and the full
+  golden gate verifies clean extraction alongside the normal source release
+
+
+WHAT IS NEW IN v0.28.1
+----------------------
+
+- checks never download components; missing models require explicit approval
+- Florence defaults to local-cache-only loading and cannot silently start its
+  approximately 1.54 GB transfer
+- InsightFace buffalo_l shows its approximate 326 MB size and restricted model
+  terms before download authority is granted
+- Body / Pose preflights before its run window and uses visible, hash-verified
+  download feedback for the recommended Google model
+- Tools > Open Setup & Repair reuses the same assistant as first-time setup
 
 
 WHAT IS NEW IN v0.28.0
@@ -532,7 +569,7 @@ UPGRADING FROM v0.24.0
 
 1. Close LoRA Image Curator.
 
-2. Extract LoRA_Image_Curator_Source_v0.28.0.zip directly into your existing
+2. Extract LoRA_Image_Curator_Source_v0.28.2.zip directly into your existing
    DatasetTools folder and allow Windows to replace older release files.
 
 3. Keep your existing `venv`, model files, catalogs, images, settings, logs,
@@ -554,7 +591,7 @@ UPGRADING FROM v0.24.0
 
        Run LoRA Image Curator.bat
 
-Version 0.28.0 uses schema 12 and accepts both
+Version 0.28.2 uses schema 12 and accepts both
 current and historical catalog identity markers. If upgrading directly from
 v0.19.0, the existing schema-10
 migration removes only file records that match LoRA Image Curator's exact
@@ -566,7 +603,7 @@ history remain intact.
 
 The old `<output folder>\thumbnail_cache` directory is not deleted
 automatically. After closing v0.19.0, it is safe to delete that entire legacy
-folder manually to recover disk space. v0.28.0 will ignore it if you leave it in
+folder manually to recover disk space. v0.28.2 will ignore it if you leave it in
 place and writes any new previews beneath:
 
     %APPDATA%\LoRAImageCurator\thumbnail_cache
@@ -1747,11 +1784,12 @@ Activate the virtual environment and run the one authoritative test:
     python -X dev -m tests.test_golden_build
 
 It creates a temporary synthetic fixture for historical checks, compiles and
-audits the source, runs every maintained non-GUI regression, rebuilds the
-release twice to prove deterministic output, verifies clean extraction and the
-supported overwrite-in-place overlay, then runs the current cumulative GUI
-chain. Several temporary windows will open and close during the Windows
-GUI phase. That is expected.
+audits the source, runs every maintained non-GUI regression, rebuilds both the
+full source release and slim Portable Source release twice to prove
+deterministic output, verifies their clean extraction plus the supported
+source overwrite-in-place overlay, then runs the current cumulative GUI chain.
+Several temporary windows will open and close during the Windows GUI phase.
+That is expected.
 
 `python -X dev -m tests.test_golden_build --no-gui` is available for headless
 development checks. A build is not recorded as golden until the default command
@@ -1762,7 +1800,7 @@ exit indicates a failed gate; the runner stops at the first failure.
 `docs/GOLDEN_TEST.md` records the exact coverage and honest limits of the result.
 
 
-KNOWN LIMITATIONS IN v0.28.0
+KNOWN LIMITATIONS IN v0.28.2
 ---------------------------
 
 - Florence object detection and regional OCR follow the official 1,024-token

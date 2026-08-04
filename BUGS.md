@@ -3,6 +3,25 @@
 This file contains defects and unresolved technical problems. Planned features
 and speculative enhancements belong in `ROADMAP.md` or `WISHLIST.md`.
 
+## Fixed in v0.28.1
+
+### Florence could silently begin a large model download from Run / Restart
+
+The native Transformers loader could turn a missing Florence cache into an
+approximately 1.54 GB network transfer as soon as the provider worker reached
+`from_pretrained(...)`. Florence now performs an offline exact-revision cache
+preflight, identifies the publisher, size, source, license, and cache location,
+and requires explicit approval before granting network access for that run.
+The loader enforces local-files-only operation when approval was not granted.
+
+### Body analysis reported missing setup only after opening its run dialog
+
+Run / Restart Body previously opened progress feedback and performed setup
+inspection afterward. It now checks the optional package and selected model
+first. Missing packages route to the existing Setup & Launch assistant, while a
+missing recommended model receives a separate confirmation and visible,
+hash-verified download before analysis begins.
+
 ## Fixed in v0.28.0
 
 ### First-launch acknowledgment was erased during ordinary shutdown

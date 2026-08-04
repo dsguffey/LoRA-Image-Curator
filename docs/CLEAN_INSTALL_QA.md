@@ -11,7 +11,8 @@ files, settings, catalogs, models, or datasets.
 
 ## Phase 1: real new-computer / before setup
 
-1. Download or clone v0.28.0 into a new folder on a Windows 11 computer that
+1. Download or clone the full v0.28.2 source release into a new folder on a
+   Windows 11 computer that
    has never run LoRA Image Curator.
 2. From PowerShell in that folder, run:
 

@@ -365,6 +365,8 @@ def load_florence(
     model_name: str,
     device: str,
     dtype: torch.dtype,
+    *,
+    allow_model_download: bool = False,
 ) -> tuple[AutoProcessor, AutoModelForImageTextToText]:
     """Load the pinned Florence-2 snapshot through native Transformers code.
 
@@ -373,7 +375,9 @@ def load_florence(
     Florence-2 model and processor implementations. The pinned community
     conversion supplies matching native processor metadata, so repository
     Python files must never execute. Requiring safetensors also prevents
-    pickle-weight fallback.
+    pickle-weight fallback.  ``local_files_only`` is the final enforcement
+    boundary behind the GUI confirmation: a normal run cannot turn a cache
+    miss into a network transfer unless the user approved this specific run.
     """
     installed_version = get_transformers_version()
     if installed_version != KNOWN_WORKING_TRANSFORMERS_VERSION:
@@ -381,13 +385,15 @@ def load_florence(
             "Florence-2 requires Transformers "
             f"{KNOWN_WORKING_TRANSFORMERS_VERSION} for the reviewed native "
             f"loader; found {installed_version}. Run "
-            "Install Base Dependencies.bat, then try again."
+            "Setup and Launch LoRA Image Curator.bat and choose required app "
+            "dependency repair, then try again."
         )
 
     processor = AutoProcessor.from_pretrained(
         model_name,
         revision=MODEL_REVISION,
         trust_remote_code=False,
+        local_files_only=not allow_model_download,
     )
 
     model = AutoModelForImageTextToText.from_pretrained(
@@ -396,6 +402,7 @@ def load_florence(
         dtype=dtype,
         trust_remote_code=False,
         use_safetensors=True,
+        local_files_only=not allow_model_download,
     )
 
     for label, component in (("processor", processor), ("model", model)):
@@ -1078,6 +1085,7 @@ def analyze_folder(
     include_triage: bool = True,
     reuse_stored_analysis: bool = True,
     recursive: bool = True,
+    allow_model_download: bool = False,
     progress_callback: ProgressCallback | None = None,
     status_callback: StatusCallback | None = None,
     cancel_event: Event | None = None,
@@ -1282,13 +1290,18 @@ def analyze_folder(
 
                 emit_status(
                     status_callback,
-                    "Loading Florence-2...",
+                    (
+                        "Downloading the approved Florence-2 model and loading it..."
+                        if allow_model_download
+                        else "Loading Florence-2 from the local cache..."
+                    ),
                 )
 
                 processor, model = load_florence(
                     model_name=MODEL_NAME,
                     device=device,
                     dtype=dtype,
+                    allow_model_download=allow_model_download,
                 )
 
                 emit_status(

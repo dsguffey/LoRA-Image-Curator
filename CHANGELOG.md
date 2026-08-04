@@ -1,5 +1,65 @@
 # LoRA Image Curator Changelog
 
+## v0.28.2 — Slim Portable Source Distribution
+
+### Added
+
+- added the deterministic
+  `LoRA_Image_Curator_Portable_Source_vX.Y.Z.zip` builder and a concise
+  end-user guide that clearly states Python, dependencies, models, FFmpeg, and
+  a private runtime are not bundled
+- added a dedicated machine-readable Portable Source policy separate from both
+  the full GitHub/source release and the future self-contained Windows x64
+  payload policy
+- made the Portable Source package include every signed top-level runtime/setup
+  module plus only the launchers, requirements, licenses, notices, registry,
+  SBOM, version, and package manifest needed by an end user
+
+### Packaging and verification
+
+- excluded tests, release tools, GitHub metadata, developer and planning
+  documents, redundant one-off batch helpers, and the known-broken hidden VBS
+  launcher from the end-user package
+- continued to reject existing environments, catalogs, settings, models,
+  caches, logs, datasets, exports, source images, archives, and credential-like
+  artifacts rather than discovering files recursively
+- added two byte-identical Portable Source builds, CRC and exact-inventory
+  verification, package-specific SHA-256 manifest validation, and clean
+  extraction to the golden release gate
+- catalog schema remains 12; application behavior, providers, user data,
+  models, caches, and existing virtual environments require no migration
+
+## v0.28.1 — Explicit Provider Setup and Downloads
+
+### Changed
+
+- Florence Run / Restart now performs an offline check for the exact pinned
+  cache revision and displays the model, publisher, approximate 1.54 GB size,
+  source, license, and cache location before any missing model is downloaded
+- the Florence loader uses local-files-only mode unless that specific run was
+  approved to download, preventing lower-level Transformers behavior from
+  bypassing the application confirmation
+- the InsightFace `buffalo_l` prompt now gives its approximate 326 MB size,
+  publisher, source, destination, and non-commercial-research restriction;
+  custom model names must already point to a user-supplied/licensed pack
+- Body / Pose Analysis now checks packages and the selected model before its run
+  window opens; the missing recommended Google model uses visible progress and
+  the existing pinned-size/SHA-256/atomic-publish downloader
+
+### Setup and compatibility
+
+- added `Tools > Open Setup & Repair…`, which closes the GUI before opening the
+  existing Setup & Launch assistant; later repair and first-time installation
+  therefore share one dependency, PyTorch, optional-provider, and FFmpeg path
+- package checks never download anything, every model transfer requires
+  explicit approval, FFmpeg remains user-installed, and package/runtime changes
+  remain outside the running application
+- catalog schema remains 12; catalogs, provider results, settings, images,
+  models already present, outputs, caches, and virtual environments require no
+  migration or deletion
+- added v0.28.1 offline-cache, explicit-consent, shared-setup, release, and
+  cumulative GUI contracts
+
 ## v0.28.0 — Portable Provider-Provenance Foundation
 
 ### Fixed

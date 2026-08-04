@@ -139,6 +139,25 @@ These ideas came from early real-use curation, where selection usually means
 Any online capability must follow the privacy and data-ownership principles in
 `DESIGN_PHILOSOPHY.md`.
 
+## Optional launcher and provider workflow polish
+
+- make the ordinary visible terminal close when the GUI application exits, if
+  Windows process ownership can be handled reliably; do not close the terminal
+  merely because the user presses an in-app setup/repair/action button, since
+  that would hide diagnostics and make failures harder to understand
+- change provider action labels so each section shows either `Run` or `Resume`
+  according to the provider's current state instead of `Run / Restart`; avoid
+  `Restart` unless a future action truly discards progress and begins over from
+  scratch
+- if provider runs expose a `Pause` action, expose the matching `Resume` action
+  in the same workflow so interrupted work feels recoverable and symmetrical
+- make the Analyze tab detect stale provider state when catalog contents change:
+  on tab entry, run only cheap metadata/database checks such as image-count
+  comparison or `LIMIT 1` missing-result queries; show a clear "Recheck to
+  update provider counts" style message if new or unchecked images are present,
+  then reserve full count refreshes for `Recheck` and final preflight checks for
+  `Run`/`Resume`
+
 ## Source-tree and legal maintenance
 
 - reorganize the 100+ source/test files into coherent packages only as a

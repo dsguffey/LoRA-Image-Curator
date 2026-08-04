@@ -50,9 +50,10 @@ Examples:
 - buffalo_sc
 - antelopev2
 
-The InsightFace project states that the pretrained models it distributes,
-including models downloaded automatically by its Python package, are available
-for non-commercial research purposes only unless separately licensed.
+The InsightFace project states that the pretrained models it distributes are
+available for non-commercial research purposes only unless separately
+licensed. Its Python package can download these packs; LoRA Image Curator does
+not permit that download until the user approves the model-specific prompt.
 
 InsightFace's repository also directs users seeking a license for open-source
 recognition models such as buffalo_l to its recognition-model licensing

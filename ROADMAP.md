@@ -53,7 +53,7 @@ Completed foundations include:
 
 ## Current: Milestone 12 — Portable Distribution
 
-v0.28.0 is the current public-source candidate after cleanup and functional
+v0.28.2 is the current public-source candidate after cleanup and functional
 testing at roughly 14,000–17,000 images, deterministic Tk lifecycle fixes,
 repository-boundary hardening, a first-visitor presentation review, and a
 checklist-driven project-local setup path. v0.27.17 passed the complete
@@ -67,8 +67,12 @@ silently select CPU-only PyTorch on NVIDIA hardware and adds a verified CUDA 13
 recovery without changing catalog or provider-result compatibility.
 v0.28.0 establishes provider provenance, verified model-download rules,
 first-launch disclosure, smart runtime launch, a source/provider SBOM, and a
-strictly trimmed future portable-payload boundary. Provider Center and the
-clean locked Windows one-folder prototype are the next staged work.
+strictly trimmed future portable-payload boundary. v0.28.1 adds explicit
+provider model consent and a modest Tools setup/repair route without duplicating
+the status already shown on Analyze. v0.28.2 adds the deterministic slim
+Portable Source distribution while keeping repository files and user/runtime
+data out of the end-user package. The clean locked Windows one-folder prototype
+with a private runtime is the next staged work.
 
 - keep public version, launcher, README, bugs, roadmap, test, and release
   metadata synchronized
@@ -85,8 +89,8 @@ clean locked Windows one-folder prototype are the next staged work.
   or generated exports are included
 - retain a concise architecture/module map instead of combining independent
   modules only to reduce the file count
-- publish the deterministic v0.27.23 source ZIP and Git commit as the pre-1.0
-  reference snapshot
+- publish the deterministic v0.28.2 full-source and Portable Source ZIPs plus
+  Git commit as the current pre-1.0 reference snapshot
 
 ## Completed within Milestone 11: v0.27.23
 
@@ -905,18 +909,38 @@ for the source-tree cleanup.
   developer documents, source-only setup files, existing virtual environments,
   and every user/runtime-data location
 
+### Completed setup workflow: v0.28.1
+
+- kept provider/device status on Analyze instead of adding a redundant Provider
+  Center screen
+- added one Tools action that reopens the established Setup & Launch assistant
+  after closing the GUI, preserving the original required/optional install,
+  PyTorch, provider, and FFmpeg choices
+- made Florence, InsightFace buffalo_l, and the recommended MediaPipe model ask
+  before downloads, with source, approximate size, destination, and applicable
+  licensing visible before approval
+- enforced Florence local-cache-only loading without per-run authority and
+  retained MediaPipe's verified, atomic downloader
+
 ### Next staged work
 
-- v0.28.1: Provider Center with install, browse, repair, remove, notices,
-  verified publisher-direct downloads, hardware-aware runtime selection,
-  rollback, and offline provider-pack import
-- v0.28.2: clean locked Windows one-folder prototype, exact runtime/wheel SBOM,
-  source-to-portable payload trimming, Defender scan, and clean-machine tests
-- v0.28.3: installer/MSIX, upgrade/uninstall behavior, and signing decision
+### Completed slim end-user source distribution: v0.28.2
 
-- design one Provider Center that shows each third-party component's publisher,
-  exact version/revision, license, source, size, hash, installed state, and
-  notices before install, repair, browse, or removal actions
+- built a deterministic `LoRA_Image_Curator_Portable_Source_vX.Y.Z.zip` from
+  the signed source inventory without recursively collecting the installation
+- retained the complete guided setup and application payload while excluding
+  tests, tools, GitHub metadata, developer/planning documents, redundant helper
+  launchers, and every user/runtime-data category
+- added a concise package-specific guide and exact package manifest; the source
+  archive, Portable Source archive, and future self-contained Windows archive
+  have unambiguous names and independent tested inventories
+
+### Next staged work
+
+- v0.28.3: clean locked Windows one-folder prototype with a private runtime,
+  exact runtime/wheel SBOM, Defender scan, and clean-machine tests
+- v0.28.4: installer/MSIX, upgrade/uninstall behavior, and signing decision
+
 - bundle only small components and model assets with clear redistribution
   rights; use verified publisher-direct downloads for large or
   hardware-specific providers

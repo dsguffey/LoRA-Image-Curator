@@ -64,7 +64,7 @@ def test_current_release_chains_include_v02717() -> None:
     assert '"tests/test_v02717_regression.py"' in build
     assert '"tests/test_v02717_gui.py"' in build
     assert '"tests/test_v02717_regression.py"' in regressions
-    assert '"tests/test_v0280_gui.py"' in golden
+    assert '"tests/test_v0282_gui.py"' in golden
     assert "from test_v02716_gui import run as run_v02716" in gui
 
 
