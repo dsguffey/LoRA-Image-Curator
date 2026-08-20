@@ -7,6 +7,16 @@ quality review, and non-destructive export in one workflow.
 
 The application prepares image datasets; it does not train a LoRA itself.
 
+## Demo
+
+[![Watch the LoRA Image Curator demo](https://img.youtube.com/vi/YiKs0tyUasY/maxresdefault.jpg)](https://youtu.be/YiKs0tyUasY)
+
+**[Watch the LoRA Image Curator demonstration on YouTube](https://youtu.be/YiKs0tyUasY)**
+
+See the workflow from a deliberately messy 100-image synthetic portrait
+collection through AI-assisted analysis, human-guided curation, validation,
+and export of training-ready data.
+
 | Project at a glance | |
 |---|---|
 | Current release | v0.28.2 slim Portable Source distribution |
