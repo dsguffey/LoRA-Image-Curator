@@ -64,9 +64,20 @@ def run(*, include_history: bool = True) -> None:
                 assert "Delete Catalog…" in labels
                 assert "Export Training Data…" in labels
                 assert application.start_button.cget("text") == (
-                    "Update Catalog & Run Enabled Analysis"
+                    "Update Catalog & Run All Analysis"
                 )
                 assert application.run_quality_analysis_var.get() is True
+                assert application.run_quality_analysis_button.cget("text") == (
+                    "Run Quality Analysis"
+                )
+                assert application.reanalyze_quality_checkbutton.cget("text") == (
+                    "Reanalyze cached images"
+                )
+                assert application.florence_analysis_progress.cget("maximum") == 100
+                assert application.face_analysis_progress.cget("maximum") == 100
+                assert application.body_analysis_progress.cget("maximum") == 100
+                assert application.dataset_readiness.run_button.winfo_manager() == ""
+                assert application.dataset_readiness.cancel_button.winfo_manager() == ""
                 profile_combo = application.dataset_readiness.profile_combo
                 assert isinstance(profile_combo, ttk.Combobox)
                 assert str(profile_combo.cget("state")) in {
@@ -119,8 +130,8 @@ def run(*, include_history: bool = True) -> None:
     mode = "cumulative" if include_history else "focused"
     print(
         f"v0.28.4 {mode} GUI smoke test passed: File menu catalog/export "
-        "commands, Analyze quality controls, editable Filters, Finalize target, "
-        "and Prominent Overlay are visible."
+        "commands, primary Analyze quality controls, status-only Finalize, "
+        "editable Filters, Finalize target, and Prominent Overlay are visible."
     )
 
 

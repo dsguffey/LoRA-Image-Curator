@@ -2,6 +2,17 @@
 
 ## v0.28.4 — Pre-Feedback Workflow UI Pass
 
+### v0.28.4.8 — Analysis progress clarity
+
+- renamed visible provider cards and workflow language to **Analysis** while
+  retaining each provider name, such as Florence-2 or MediaPipe
+- added dedicated Florence, Face, and Body/Pose progress bars alongside the
+  existing Quality Analysis bar
+- synchronized individual bars with the combined **Update Catalog & Run All
+  Analysis** workflow and restored persisted successful coverage after refresh
+- clarified that cached compatible results count as completed work while failed
+  results remain incomplete
+
 ### v0.28.4.5 follow-up
 
 - marked initial large-catalog validation complete after practical testing at
@@ -10,11 +21,12 @@
 
 ### Changed
 
-- renamed the combined action to **Update Catalog & Run Enabled Analysis** and made its
+- renamed the combined action to **Update Catalog & Run All Analysis** and made its
   order explicit: catalog registration, optional default-on Quality Analysis,
   then Florence and selected providers
 - placed primary Quality Analysis controls under Analyze & Update Catalog while
-  retaining cached status and missing-analysis warnings in Finalize & Export
+  retaining cached status and missing-analysis warnings in Finalize & Export;
+  Finalize no longer offers a duplicate Quality Analysis launch button
 - made Browser Filter Settings editable in place and synchronized the shared
   target, Blur threshold, duplicate similarity, overlay coverage threshold, and
   spatial-overlap rule across Browser, Settings, and Finalize & Export

@@ -188,6 +188,7 @@ class DatasetToolsApp:
         self.run_quality_analysis_var = tk.BooleanVar(
             value=self.settings.run_quality_analysis
         )
+        self.reanalyze_all_var = tk.BooleanVar(value=False)
         self.face_identity_name_var = tk.StringVar(
             value=self.settings.face_identity_name
         )
@@ -215,6 +216,13 @@ class DatasetToolsApp:
         self.progress_text_var = tk.StringVar(value="0 / 0 images")
         self.progress_detail_var = tk.StringVar(value="")
         self.progress_warning_var = tk.StringVar(value="")
+        # Each analysis owns a determinate bar.  Values are refreshed from
+        # durable catalog coverage and updated live during a combined run.
+        self.analysis_progress_vars = {
+            "florence": tk.DoubleVar(value=0.0),
+            "face": tk.DoubleVar(value=0.0),
+            "body": tk.DoubleVar(value=0.0),
+        }
         self.input_folder_count_var = tk.StringVar(
             value="Images found: choose an input folder"
         )
@@ -526,14 +534,14 @@ class DatasetToolsApp:
         quality_frame.columnconfigure(3, weight=1)
         self.quality_include_checkbutton = ttk.Checkbutton(
             quality_frame,
-            text="Include in Update Catalog & Run Enabled Analysis",
+            text="Include in Update Catalog & Run All Analysis",
             variable=self.run_quality_analysis_var,
             command=self._save_current_settings,
         )
         self.quality_include_checkbutton.grid(row=0, column=0, sticky="w")
         self.run_quality_analysis_button = ttk.Button(
             quality_frame,
-            text="Run / Restart Quality",
+            text="Run Quality Analysis",
             command=self._start_quality_analysis_from_analyze,
         )
         self.run_quality_analysis_button.grid(row=0, column=1, padx=(12, 0))
@@ -553,12 +561,20 @@ class DatasetToolsApp:
             wraplength=920,
             justify="left",
         ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(7, 4))
+        self.reanalyze_quality_checkbutton = ttk.Checkbutton(
+            quality_frame,
+            text="Reanalyze cached images",
+            variable=self.reanalyze_all_var,
+        )
+        self.reanalyze_quality_checkbutton.grid(
+            row=2, column=0, sticky="w", pady=(2, 0)
+        )
         self.analysis_quality_progress = ttk.Progressbar(
             quality_frame,
             maximum=100,
         )
         self.analysis_quality_progress.grid(
-            row=2, column=0, columnspan=4, sticky="ew", pady=(2, 4)
+            row=3, column=0, columnspan=4, sticky="ew", pady=(2, 4)
         )
         self.analysis_quality_status_label = ttk.Label(
             quality_frame,
@@ -566,7 +582,7 @@ class DatasetToolsApp:
             style="Muted.TLabel",
         )
         self.analysis_quality_status_label.grid(
-            row=3, column=0, columnspan=4, sticky="w"
+            row=4, column=0, columnspan=4, sticky="w"
         )
 
         provider_container = ttk.Frame(main_frame)
@@ -584,15 +600,15 @@ class DatasetToolsApp:
 
         self.start_button = ttk.Button(
             controls_frame,
-            text="Update Catalog & Run Enabled Analysis",
+            text="Update Catalog & Run All Analysis",
             command=self._start_analysis,
         )
         self.start_button.grid(row=0, column=0, sticky="w")
         self.start_analysis_help = HelpIcon(
             controls_frame,
-            "Updates the catalog, then runs Quality Analysis, Florence, and "
-            "enabled Face Analysis. Use the provider Run buttons to rerun one "
-            "provider; Body Analysis is started separately from Analyze.",
+            "Updates the catalog, then runs the selected Quality, Florence, "
+            "Face, and Body/Pose analyses. Each section shows its own progress; "
+            "completed compatible results are reused.",
         )
         self.start_analysis_help.grid(row=0, column=1, sticky="w", padx=(4, 0))
 
@@ -762,6 +778,7 @@ class DatasetToolsApp:
             show_query=self._show_readiness_query,
             load_records=self._load_readiness_records,
             settings=self.settings,
+            reanalyze_all_var=self.reanalyze_all_var,
             on_quality_running_changed=self._on_quality_running_changed,
             export_scope=self._open_readiness_export,
         )
@@ -892,7 +909,7 @@ class DatasetToolsApp:
         """Place body analysis where it occurs in the normal catalog workflow."""
         frame = ttk.LabelFrame(
             parent,
-            text="Provider 3 — MediaPipe Body / Pose",
+            text="Analysis — MediaPipe Body / Pose",
             padding=10,
         )
         frame.grid(
@@ -945,9 +962,13 @@ class DatasetToolsApp:
         )
         self.body_running_label.grid(row=4, column=0, sticky="w", pady=(5, 0))
         self.body_running_label.grid_remove()
+        self.body_analysis_progress = ttk.Progressbar(
+            frame, maximum=100, variable=self.analysis_progress_vars["body"]
+        )
+        self.body_analysis_progress.grid(row=5, column=0, sticky="ew", pady=(6, 0))
 
         actions = ttk.Frame(frame)
-        actions.grid(row=0, column=1, rowspan=5, sticky="e", padx=(14, 0))
+        actions.grid(row=0, column=1, rowspan=6, sticky="e", padx=(14, 0))
         self.run_body_analysis_button = ttk.Button(
             actions,
             text="Run / Restart Body",
@@ -1006,6 +1027,15 @@ class DatasetToolsApp:
         self.florence_provider_status_var.set(florence_text)
         self.face_provider_status_var.set(coverage.face.status_text())
         self.body_provider_status_var.set(coverage.body.status_text())
+        for key, item in (
+            ("florence", coverage.florence),
+            ("face", coverage.face),
+            ("body", coverage.body),
+        ):
+            self.analysis_progress_vars[key].set(
+                (item.successful_images / item.total_images * 100)
+                if item.total_images else 0
+            )
 
     # ------------------------------------------------------------------
     # Workstation menu bar
@@ -1130,7 +1160,7 @@ class DatasetToolsApp:
         )
         self.tools_menu.add_separator()
         self.tools_menu.add_command(
-            label="Update Catalog & Run Enabled Analysis",
+            label="Update Catalog & Run All Analysis",
             command=self._start_analysis,
         )
         self.tools_menu.add_command(
@@ -1457,7 +1487,7 @@ class DatasetToolsApp:
             self.tools_menu.entryconfigure(label, state=normal_if(not locked))
         provider_running = self.worker_thread is not None and self.worker_thread.is_alive()
         self.tools_menu.entryconfigure(
-            "Update Catalog & Run Enabled Analysis",
+            "Update Catalog & Run All Analysis",
             state=normal_if(not locked),
         )
         self.tools_menu.entryconfigure(
@@ -1645,7 +1675,7 @@ class DatasetToolsApp:
         """Build the clearly labeled Florence provider card."""
         frame = ttk.LabelFrame(
             parent,
-            text="Provider 1 — Florence-2 Caption & Triage",
+            text="Analysis — Florence-2 Caption & Triage",
             padding=10,
         )
         frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
@@ -1693,6 +1723,12 @@ class DatasetToolsApp:
             row=2, column=0, columnspan=2, sticky="w", pady=(4, 0)
         )
         self.florence_running_label.grid_remove()
+        self.florence_analysis_progress = ttk.Progressbar(
+            frame, maximum=100, variable=self.analysis_progress_vars["florence"]
+        )
+        self.florence_analysis_progress.grid(
+            row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0)
+        )
 
         ttk.Label(
             frame,
@@ -1724,7 +1760,7 @@ class DatasetToolsApp:
             frame,
             text="Files changed: none. Processing: local. GPU recommended.",
             foreground="#555555",
-        ).grid(row=3, column=0, sticky="w", pady=(7, 0))
+        ).grid(row=4, column=0, sticky="w", pady=(7, 0))
         ttk.Label(
             frame,
             text=(
@@ -1735,13 +1771,13 @@ class DatasetToolsApp:
             foreground="#7A4A00",
             wraplength=500,
             justify="left",
-        ).grid(row=4, column=0, sticky="w", pady=(4, 0))
+            ).grid(row=5, column=0, sticky="w", pady=(4, 0))
 
     def _build_face_provider(self, parent: ttk.Frame) -> None:
         """Build the optional face provider card and its first identity profile."""
         frame = ttk.LabelFrame(
             parent,
-            text="Provider 2 — Face Detection & Identity Matching",
+            text="Analysis — Face Detection & Identity Matching",
             padding=10,
         )
         frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
@@ -1762,7 +1798,7 @@ class DatasetToolsApp:
         self.face_enable_checkbutton.pack(side="left")
         self.face_enable_help = HelpIcon(
             enable_row,
-            "Include local face detection and identity comparison when Update Catalog & Run Enabled Analysis runs. Run Face remains available separately.",
+            "Include local face detection and identity comparison when Update Catalog & Run All Analysis runs. Run Face remains available separately.",
         )
         self.face_enable_help.pack(side="left", padx=(4, 0))
 
@@ -1969,6 +2005,12 @@ class DatasetToolsApp:
             wraplength=500,
             justify="left",
         ).grid(row=row + 3, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        self.face_analysis_progress = ttk.Progressbar(
+            frame, maximum=100, variable=self.analysis_progress_vars["face"]
+        )
+        self.face_analysis_progress.grid(
+            row=row + 4, column=0, columnspan=3, sticky="ew", pady=(6, 0)
+        )
 
     def _add_face_setting_row(
         self,
@@ -4075,10 +4117,18 @@ class DatasetToolsApp:
                         )
                     elif phase == "Face analysis":
                         self._set_running_provider("face")
+                        if int(payload["total"]):
+                            self.analysis_progress_vars["face"].set(
+                                int(payload["completed"]) / int(payload["total"]) * 100
+                            )
                     elif phase == "Cataloging":
                         self._set_running_provider("catalog")
                     else:
                         self._set_running_provider("florence")
+                        if int(payload["total"]):
+                            self.analysis_progress_vars["florence"].set(
+                                int(payload["completed"]) / int(payload["total"]) * 100
+                            )
                     completed = int(payload["completed"])
                     total = int(payload["total"])
                     tracker = self._analysis_progress_tracker
@@ -4165,7 +4215,7 @@ class DatasetToolsApp:
             "Florence-2 loaded successfully.": (
                 "Florence-2 loaded; starting image analysis…"
             ),
-            "Provider 2: face detection and optional identity matching": (
+            "Analysis: face detection and optional identity matching": (
                 "Preparing face detection…"
             ),
         }

@@ -74,11 +74,12 @@ community feedback indicates a need.
 WHAT IS NEW IN v0.28.4
 ----------------------
 
-- the combined action is now Update Catalog & Run Enabled Analysis and executes catalog
+- the combined action is now Update Catalog & Run All Analysis and executes catalog
   registration, optional default-on Quality Analysis, then Florence and selected
-  providers
-- Quality Analysis has primary controls under Analyze & Update Catalog while
-  Finalize & Export retains visible analysis status and missing-analysis warnings
+  analyses; each analysis section has its own persistent progress bar
+- Quality Analysis has its launch, cancellation, and reanalysis controls under
+  Analyze & Update Catalog while Finalize & Export retains visible analysis
+  status and missing-analysis warnings without a second launch button
 - Browser Filter Settings are editable locally and remain synchronized with
   Settings and Finalize & Export
 - Prominent Overlay appears in Browser readiness filters, the readiness report,
@@ -1432,9 +1433,9 @@ Browser > Filters > Readiness.
 LOCAL IMAGE-QUALITY ANALYSIS
 ----------------------------
 
-Quality analysis starts only when you click Run Quality Analysis. It decodes
-each available image locally and stores two replaceable measurements in the
-selected catalog:
+Quality analysis is launched from Analyze & Update Catalog. It decodes each
+available image locally and stores two replaceable measurements in the selected
+catalog:
 
 Blur
 
