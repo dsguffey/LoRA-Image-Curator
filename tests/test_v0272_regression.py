@@ -94,7 +94,8 @@ def test_video_origin_round_trip_and_schema() -> None:
         try:
             assert connection.execute("PRAGMA user_version").fetchone()[0] == (
                 SCHEMA_VERSION
-            ) == 12
+            )
+            assert SCHEMA_VERSION >= 12
             stored = connection.execute(
                 """
                 SELECT source_video, timestamp_seconds, frame_number

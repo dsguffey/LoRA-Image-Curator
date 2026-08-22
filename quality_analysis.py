@@ -14,6 +14,7 @@ because crops, poses, and visually simple images can create false positives.
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import threading
 import time
@@ -23,17 +24,22 @@ from pathlib import Path, PureWindowsPath
 from typing import Callable, Iterable
 
 from PIL import Image, ImageOps, UnidentifiedImageError
+import numpy as np
 
 from catalog import Catalog, utc_now_text
 
 
-QUALITY_ALGORITHM_VERSION = 1
+QUALITY_ALGORITHM_VERSION = 2
 DEFAULT_BLUR_THRESHOLD = 100.0
 DEFAULT_DUPLICATE_SIMILARITY_PERCENT = 96
 SHARPNESS_MAX_SIDE = 512
 HASH_WIDTH = 9
 HASH_HEIGHT = 8
 HASH_BITS = (HASH_WIDTH - 1) * HASH_HEIGHT
+OVERLAY_MAX_SIDE = 256
+OVERLAY_MIN_RUN_FRACTION = 0.25
+OVERLAY_MIN_THICKNESS_FRACTION = 0.025
+OVERLAY_MIN_ASPECT_RATIO = 2.0
 
 
 def duplicate_similarity_description(percentage: int) -> str:
@@ -65,6 +71,7 @@ class QualityMeasurement:
 
     sharpness_score: float
     perceptual_hash: str
+    overlay_regions_json: str
 
 
 @dataclass(slots=True, frozen=True)
@@ -127,13 +134,140 @@ def measure_image_quality(image_path: Path) -> QualityMeasurement:
             )
             sharpness = _variance_of_laplacian(grayscale)
             perceptual_hash = _difference_hash(oriented)
+            overlay_regions_json = _detect_overlay_regions(oriented)
     except (OSError, UnidentifiedImageError) as error:
         raise ValueError(f"Could not decode image: {error}") from error
 
     return QualityMeasurement(
         sharpness_score=sharpness,
         perceptual_hash=perceptual_hash,
+        overlay_regions_json=overlay_regions_json,
     )
+
+
+def _detect_overlay_regions(image: Image.Image) -> str:
+    """Return conservative normalized rectangles for obvious neutral bars.
+
+    This intentionally does not claim to recognize arbitrary occlusion. It
+    finds long, dark or mid-gray, low-saturation runs typical of censor bars,
+    title banners, and other synthetic overlays. OCR boxes remain a separate
+    evidence source and are combined later with face/body geometry.
+    """
+    sample = image.convert("RGB")
+    sample.thumbnail((OVERLAY_MAX_SIDE, OVERLAY_MAX_SIDE), Image.Resampling.LANCZOS)
+    pixels = np.asarray(sample, dtype=np.int16)
+    height, width = pixels.shape[:2]
+    if width < 8 or height < 8:
+        return "[]"
+
+    channel_range = pixels.max(axis=2) - pixels.min(axis=2)
+    luminance = (
+        pixels[:, :, 0] * 299
+        + pixels[:, :, 1] * 587
+        + pixels[:, :, 2] * 114
+    ) / 1000.0
+    neutral_overlay = (channel_range <= 30) & (luminance <= 190)
+
+    rectangles = _long_overlay_runs(neutral_overlay, transpose=False)
+    rectangles.extend(_long_overlay_runs(neutral_overlay, transpose=True))
+    rectangles = _deduplicate_rectangles(rectangles)
+    payload = [
+        {
+            "kind": "bar",
+            "x1": x1 / width,
+            "y1": y1 / height,
+            "x2": x2 / width,
+            "y2": y2 / height,
+        }
+        for x1, y1, x2, y2 in rectangles
+    ]
+    return json.dumps(payload, separators=(",", ":"))
+
+
+def _long_overlay_runs(
+    mask: np.ndarray,
+    *,
+    transpose: bool,
+) -> list[tuple[int, int, int, int]]:
+    """Group long same-tone runs into horizontal or vertical bar rectangles."""
+    working = mask.T if transpose else mask
+    row_count, column_count = working.shape
+    minimum_run = max(4, round(column_count * OVERLAY_MIN_RUN_FRACTION))
+    maximum_gap = max(2, round(row_count * 0.035))
+    rows: list[tuple[int, int, int]] = []
+    for row_index in range(row_count):
+        padded = np.pad(working[row_index], (1, 1), constant_values=False)
+        transitions = np.flatnonzero(padded[1:] != padded[:-1])
+        if transitions.size < 2:
+            continue
+        starts = transitions[0::2]
+        ends = transitions[1::2]
+        lengths = ends - starts
+        longest_index = int(np.argmax(lengths))
+        if int(lengths[longest_index]) >= minimum_run:
+            rows.append(
+                (row_index, int(starts[longest_index]), int(ends[longest_index]))
+            )
+
+    groups: list[list[tuple[int, int, int]]] = []
+    for candidate in rows:
+        if not groups:
+            groups.append([candidate])
+            continue
+        previous = groups[-1][-1]
+        overlap = min(previous[2], candidate[2]) - max(previous[1], candidate[1])
+        shorter = min(previous[2] - previous[1], candidate[2] - candidate[1])
+        if candidate[0] - previous[0] <= maximum_gap and overlap >= shorter * 0.5:
+            groups[-1].append(candidate)
+        else:
+            groups.append([candidate])
+
+    rectangles: list[tuple[int, int, int, int]] = []
+    minimum_thickness = max(
+        2,
+        round(row_count * OVERLAY_MIN_THICKNESS_FRACTION),
+    )
+    for group in groups:
+        first_row = group[0][0]
+        last_row = group[-1][0] + 1
+        if last_row - first_row < minimum_thickness:
+            continue
+        left = min(item[1] for item in group)
+        right = max(item[2] for item in group)
+        run_length = right - left
+        thickness = last_row - first_row
+        if run_length / max(1, thickness) < OVERLAY_MIN_ASPECT_RATIO:
+            continue
+        rectangle = (
+            (first_row, left, last_row, right)
+            if transpose
+            else (left, first_row, right, last_row)
+        )
+        rectangles.append(rectangle)
+    return rectangles
+
+
+def _deduplicate_rectangles(
+    rectangles: list[tuple[int, int, int, int]],
+) -> list[tuple[int, int, int, int]]:
+    """Drop near-contained bar fragments while retaining distinct overlays."""
+    ordered = sorted(
+        rectangles,
+        key=lambda item: (item[2] - item[0]) * (item[3] - item[1]),
+        reverse=True,
+    )
+    kept: list[tuple[int, int, int, int]] = []
+    for candidate in ordered:
+        area = max(1, (candidate[2] - candidate[0]) * (candidate[3] - candidate[1]))
+        if any(
+            max(0, min(candidate[2], existing[2]) - max(candidate[0], existing[0]))
+            * max(0, min(candidate[3], existing[3]) - max(candidate[1], existing[1]))
+            >= area * 0.8
+            for existing in kept
+        ):
+            continue
+        kept.append(candidate)
+    return kept
 
 
 def perceptual_hash_similarity(first_hash: str, second_hash: str) -> float:
@@ -479,6 +613,8 @@ def analyze_catalog_quality(
     reanalyze_all: bool = False,
     cancellation: QualityCancellationToken | None = None,
     progress_callback: ProgressCallback | None = None,
+    cancel_event: threading.Event | None = None,
+    pause_event: threading.Event | None = None,
 ) -> QualityAnalysisSummary:
     """Analyze one catalog in the calling worker thread.
 
@@ -508,7 +644,15 @@ def analyze_catalog_quality(
         completed = 0
 
         for target in targets:
-            if token.cancelled:
+            while pause_event is not None and pause_event.is_set():
+                if token.cancelled or (
+                    cancel_event is not None and cancel_event.is_set()
+                ):
+                    break
+                time.sleep(0.10)
+            if token.cancelled or (
+                cancel_event is not None and cancel_event.is_set()
+            ):
                 break
 
             if target.cached and not reanalyze_all:
@@ -547,7 +691,10 @@ def analyze_catalog_quality(
             analyzed_images=analyzed,
             reused_images=reused,
             failed_images=failed,
-            cancelled=token.cancelled,
+            cancelled=(
+                token.cancelled
+                or (cancel_event is not None and cancel_event.is_set())
+            ),
             total_seconds=time.perf_counter() - started,
         )
     finally:
@@ -617,13 +764,14 @@ def _store_success(
         """
         INSERT INTO image_quality_results(
             image_id, source_file_id, algorithm_version, sharpness_score,
-            perceptual_hash, status, error, analyzed_at
-        ) VALUES (?, ?, ?, ?, ?, 'success', '', ?)
+            perceptual_hash, overlay_regions_json, status, error, analyzed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, 'success', '', ?)
         ON CONFLICT(image_id) DO UPDATE SET
             source_file_id = excluded.source_file_id,
             algorithm_version = excluded.algorithm_version,
             sharpness_score = excluded.sharpness_score,
             perceptual_hash = excluded.perceptual_hash,
+            overlay_regions_json = excluded.overlay_regions_json,
             status = excluded.status,
             error = excluded.error,
             analyzed_at = excluded.analyzed_at
@@ -634,6 +782,7 @@ def _store_success(
             QUALITY_ALGORITHM_VERSION,
             measurement.sharpness_score,
             measurement.perceptual_hash,
+            measurement.overlay_regions_json,
             utc_now_text(),
         ),
     )
@@ -649,13 +798,14 @@ def _store_error(
         """
         INSERT INTO image_quality_results(
             image_id, source_file_id, algorithm_version, sharpness_score,
-            perceptual_hash, status, error, analyzed_at
-        ) VALUES (?, ?, ?, NULL, '', 'error', ?, ?)
+            perceptual_hash, overlay_regions_json, status, error, analyzed_at
+        ) VALUES (?, ?, ?, NULL, '', '[]', 'error', ?, ?)
         ON CONFLICT(image_id) DO UPDATE SET
             source_file_id = excluded.source_file_id,
             algorithm_version = excluded.algorithm_version,
             sharpness_score = NULL,
             perceptual_hash = '',
+            overlay_regions_json = '[]',
             status = 'error',
             error = excluded.error,
             analyzed_at = excluded.analyzed_at

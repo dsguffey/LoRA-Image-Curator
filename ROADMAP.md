@@ -53,7 +53,7 @@ Completed foundations include:
 
 ## Current: Milestone 12 — Portable Distribution
 
-v0.28.2 is the current public-source candidate after cleanup and functional
+v0.28.3 is the current public-source candidate after cleanup and functional
 testing at roughly 14,000–17,000 images, deterministic Tk lifecycle fixes,
 repository-boundary hardening, a first-visitor presentation review, and a
 checklist-driven project-local setup path. v0.27.17 passed the complete
@@ -72,7 +72,11 @@ provider model consent and a modest Tools setup/repair route without duplicating
 the status already shown on Analyze. v0.28.2 adds the deterministic slim
 Portable Source distribution while keeping repository files and user/runtime
 data out of the end-user package. The clean locked Windows one-folder prototype
-with a private runtime is the next staged work.
+with a private runtime is the next staged work. v0.28.3 first restores the
+intended Face Analysis boundary: InsightFace always scans catalog images, while
+identity matching and trigger-word suggestions require a usable reference
+profile. The v0.28.2 Portable Source artifact remains unchanged until this
+source checkpoint passes its Windows/Git smoke test.
 
 - keep public version, launcher, README, bugs, roadmap, test, and release
   metadata synchronized
@@ -89,8 +93,8 @@ with a private runtime is the next staged work.
   or generated exports are included
 - retain a concise architecture/module map instead of combining independent
   modules only to reduce the file count
-- publish the deterministic v0.28.2 full-source and Portable Source ZIPs plus
-  Git commit as the current pre-1.0 reference snapshot
+- publish the deterministic v0.28.3 full-source ZIP and Git commit as the
+  current pre-1.0 source snapshot; propagate it to Portable Source separately
 
 ## Completed within Milestone 11: v0.27.23
 
@@ -180,29 +184,59 @@ with a private runtime is the next staged work.
 - advanced the maintained regression, release inventory, and Windows GUI chains
   to keep the repository-readiness files in the signed source boundary
 
-## Next: Milestone 11B — Large-Catalog Stress Testing
+## Completed: Milestone 11B — Pre-Feedback Workflow UI Pass
 
-Current workstation baseline: roughly five seconds for a cold first launch and
-three seconds for the first Browser load at approximately 14,000 images. A warm
-second load is faster and the UI remains responsive. These observations are
-useful baselines, not final performance guarantees.
+Before seeking broader community feedback or investing in an executable/installer,
+the main workflow should feel coherent to a first-time user. This milestone
+keeps the current source/portable-source packaging boundary and focuses on
+tab ownership, menu discoverability, and the analysis/export sequence.
 
-- measure discovery, cataloging, thumbnail generation, paging, filtering,
-  sorting, provider analysis, quarantine/delete, export, and memory use at
-  several thousand and tens-of-thousands-of-image scales
-- record peak memory, database size, first-page latency, page-change latency,
-  filter latency, cancellation latency, and recovery after interrupted work
-- verify provider Pause/Resume, cancellation, stored-result reuse, ETA, and
-  device reporting under long sustained runs
-- measure false positives and false negatives in the current face/body filters,
-  especially cases where non-person images are incorrectly treated as face or
-  body evidence
-- establish meaningful defaults from measured workflows without changing safe
-  behavior speculatively
-- use evidence to decide whether analysis batching, database indexes, thumbnail
-  scheduling, virtualized results, or a separate staging catalog are required
-- complete the deferred high-risk QA jobs: quarantine/restore, close while a
-  provider is busy, and recovery after interruption
+- move Quality Analysis into Analyze & Update and place it after image
+  acquisition/import/video extraction but before Florence, Face, Body/Pose, and
+  other providers in the combined workflow; once images exist, local quality
+  triage is the first analysis layer the application should run
+- add a default-on Quality Analysis checkbox beside the provider checkboxes and
+  include it in the combined Update Catalog and Providers action
+- rename Start Catalog to Update Catalog so it cannot be confused with Create
+  Catalog, and update combined-action wording accordingly
+- keep Finalize & Export as the final readiness/export gate: it should report
+  whether Quality Analysis has run, warn when it has not, and avoid owning the
+  primary Quality Analysis launch action
+- add Prominent Overlay to Browser readiness filters with clear Florence OCR
+  and Quality Analysis prerequisite wording
+- retain Florence OCR rectangles in additive schema 13, cache conservative
+  bar/banner rectangles in schema 14, and measure their union by visible area
+  across Whole Image, Face, Body, Face or Body, or Face and Body; refresh only
+  the missing analysis layers while preserving reusable captions
+- make the Possible Duplicates readiness filter group or sort duplicate-set
+  members together for review
+- expose context-local filter settings in the Browser filter workflow while
+  retaining Settings as the central home for shared interpretation values
+- allow Finalize & Export to change the target LoRA/profile before validation
+  and export
+- expose Export Training Data and catalog create/open/replace/merge/modify
+  commands from the native File menu while retaining tab-level convenience
+  buttons where useful
+- run the focused GUI/regression/golden-source checks plus a real Windows
+  workflow pass before treating the demo/community-feedback branch as ready
+
+## Completed: Milestone 11C — Initial Large-Catalog Validation
+
+The application has been exercised against roughly 14,000–17,000 local images.
+The current workstation baseline is roughly five seconds for a cold first launch
+and three seconds for the first Browser load at approximately 14,000 images. A
+warm second load is faster, and the UI remains responsive. These results are
+sufficient for the current pre-feedback milestone.
+
+- completed practical large-catalog validation at the scale currently used by
+  the project, including responsive Browser loading and navigation
+- retained deeper peak-memory, sustained-provider, interruption-recovery, and
+  tens-of-thousands-of-image measurements as optional follow-up work
+- deferred architectural changes such as virtualized results or a staging
+  catalog until real users demonstrate that they are needed
+
+The deeper stress-testing list remains available in the deferred QA section and
+can be reopened if community feedback or larger catalogs expose a problem.
 - run the documented real new-computer test from a fresh checkout/folder with
   clean user settings, then repeat as an in-place upgrade with existing
   `%APPDATA%\LoRAImageCurator` settings to verify that first-run and
@@ -889,7 +923,24 @@ for the source-tree cleanup.
 - complete the final refactor/documentation/security delta review
 - publish v1.0.0 only after the release candidate and real Windows workflow pass
 
-## Milestone 12 — Executable and Installer
+## Milestone 12 — Community Outreach Before Executable Packaging
+
+After the pre-feedback workflow UI pass, demo reel, and Git/LinkedIn portfolio
+updates are in place, gather practical feedback before investing in a larger
+Windows executable or installer.
+
+- share the GitHub project and demo with a small number of relevant communities
+  or individual reviewers who understand LoRA dataset preparation, local AI
+  tooling, Python desktop utilities, or portfolio/resume evaluation
+- ask targeted questions about workflow clarity, installation friction,
+  README/demo comprehension, and which missing features actually matter
+- record feedback as bugs, roadmap items, or wishlist ideas according to the
+  project's existing boundaries
+- avoid broad packaging or installer work until feedback confirms that the
+  source/portable-source workflow and application concept are understandable
+  enough to justify that investment
+
+## Milestone 13 — Executable and Installer
 
 ### Completed foundation: v0.28.0
 
@@ -935,11 +986,12 @@ for the source-tree cleanup.
   archive, Portable Source archive, and future self-contained Windows archive
   have unambiguous names and independent tested inventories
 
-### Next staged work
+### Deferred until after the pre-feedback workflow UI pass and community outreach
 
-- v0.28.3: clean locked Windows one-folder prototype with a private runtime,
+- v0.28.3 or later: clean locked Windows one-folder prototype with a private runtime,
   exact runtime/wheel SBOM, Defender scan, and clean-machine tests
-- v0.28.4: installer/MSIX, upgrade/uninstall behavior, and signing decision
+- following staged work: installer/MSIX, upgrade/uninstall behavior, and signing
+  decision
 
 - bundle only small components and model assets with clear redistribution
   rights; use verified publisher-direct downloads for large or
@@ -962,7 +1014,7 @@ for the source-tree cleanup.
   predictable user locations, and does not require source-tree write access
 - preserve diagnostic launch and log-capture paths for support
 
-## Milestone 13 — Demo Reel
+## Milestone 14 — Demo Reel
 
 - produce a short demo reel showing the complete LoRA Image Curator workflow:
   catalog creation, analysis, thumbnail review, video extraction, readiness
@@ -974,7 +1026,7 @@ for the source-tree cleanup.
 - create a linkable video suitable for the Git README, LinkedIn, resume, and
   social-media use
 
-## Milestone 14 — Portfolio and Social Listing
+## Milestone 15 — Portfolio and Social Listing
 
 - publish or update the Git project page with professional formatting,
   documentation, screenshots, release artifacts, and the demo-reel link

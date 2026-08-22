@@ -118,7 +118,10 @@ class DatasetReadinessFrame(ttk.Frame):
         self.export_scope = export_scope
         self.catalog_var = tk.StringVar(value="No catalog selected")
         self.quality_status_var = tk.StringVar(value="Quality analysis has not been started.")
+        self.quality_progress_var = tk.DoubleVar(value=0.0)
         self.reanalyze_all_var = tk.BooleanVar(value=False)
+        self._external_quality_run_button: ttk.Button | None = None
+        self._external_quality_cancel_button: ttk.Button | None = None
         self._records: list[object] = []
         self._catalog_path: Path | None = None
         self._tooltips: list[Tooltip] = []
@@ -186,10 +189,15 @@ class DatasetReadinessFrame(ttk.Frame):
         self.image_set_combo.grid(row=0, column=3, padx=(6, 12))
         self.image_set_combo.bind("<<ComboboxSelected>>", self._on_image_set_changed)
         ttk.Label(header, text="Target:").grid(row=0, column=4, sticky="e")
-        ttk.Label(
+        self.profile_combo = ttk.Combobox(
             header,
             textvariable=self.profile_var,
-        ).grid(row=0, column=5, padx=(6, 8))
+            values=tuple(profile.label for profile in READINESS_PROFILES),
+            state="readonly",
+            width=24,
+        )
+        self.profile_combo.grid(row=0, column=5, padx=(6, 8))
+        self.profile_combo.bind("<<ComboboxSelected>>", self._on_profile_changed)
         ttk.Button(header, text="Refresh", command=self.refresh).grid(row=0, column=6)
 
     def _build_quality_controls(self) -> None:
@@ -246,7 +254,11 @@ class DatasetReadinessFrame(ttk.Frame):
             text="Reanalyze cached images",
             variable=self.reanalyze_all_var,
         ).grid(row=1, column=2, columnspan=2, sticky="w", pady=(7, 0))
-        self.quality_progress = ttk.Progressbar(controls, maximum=100)
+        self.quality_progress = ttk.Progressbar(
+            controls,
+            maximum=100,
+            variable=self.quality_progress_var,
+        )
         self.quality_progress.grid(
             row=1, column=4, columnspan=3, sticky="ew", pady=(7, 0)
         )
@@ -408,6 +420,12 @@ class DatasetReadinessFrame(ttk.Frame):
                 profile_key=self._current_profile_key(),
                 blur_threshold=blur_threshold,
                 duplicate_similarity_percent=round(self.duplicate_similarity_var.get()),
+                overlay_coverage_threshold_percent=(
+                    self.settings.overlay_coverage_threshold_percent
+                ),
+                overlay_spatial_mode=(
+                    self.settings.overlay_spatial_mode
+                ),
             )
         )
 
@@ -467,6 +485,10 @@ class DatasetReadinessFrame(ttk.Frame):
             profile_key=self._current_profile_key(),
             blur_threshold=blur_threshold,
             duplicate_similarity_percent=round(self.duplicate_similarity_var.get()),
+            overlay_coverage_threshold_percent=(
+                self.settings.overlay_coverage_threshold_percent
+            ),
+            overlay_spatial_mode=self.settings.overlay_spatial_mode,
         )
 
     def _update_score_and_issue(
@@ -526,6 +548,28 @@ class DatasetReadinessFrame(ttk.Frame):
         except OSError:
             logging.exception("Could not save readiness preferences")
 
+    def bind_external_quality_controls(
+        self,
+        *,
+        run_button: ttk.Button,
+        cancel_button: ttk.Button,
+        progressbar: ttk.Progressbar,
+    ) -> None:
+        """Share one quality worker with the primary Analyze & Update controls."""
+        self._external_quality_run_button = run_button
+        self._external_quality_cancel_button = cancel_button
+        progressbar.configure(variable=self.quality_progress_var, maximum=100)
+
+    def _set_quality_button_states(self, *, running: bool) -> None:
+        run_state = "disabled" if running else "normal"
+        cancel_state = "normal" if running else "disabled"
+        self.run_button.configure(state=run_state)
+        self.cancel_button.configure(state=cancel_state)
+        if self._external_quality_run_button is not None:
+            self._external_quality_run_button.configure(state=run_state)
+        if self._external_quality_cancel_button is not None:
+            self._external_quality_cancel_button.configure(state=cancel_state)
+
     def _start_quality_analysis(self) -> None:
         if self._worker is not None and self._worker.is_alive():
             return
@@ -540,9 +584,8 @@ class DatasetReadinessFrame(ttk.Frame):
         self._cancellation = QualityCancellationToken()
         if self.on_quality_running_changed is not None:
             self.on_quality_running_changed(True)
-        self.run_button.configure(state="disabled")
-        self.cancel_button.configure(state="normal")
-        self.quality_progress["value"] = 0
+        self._set_quality_button_states(running=True)
+        self.quality_progress_var.set(0)
         self.quality_status_var.set("Starting local quality analysis…")
         database_path = self._catalog_path
         reanalyze_all = self.reanalyze_all_var.get()
@@ -574,6 +617,8 @@ class DatasetReadinessFrame(ttk.Frame):
         if self._cancellation is not None:
             self._cancellation.cancel()
             self.cancel_button.configure(state="disabled")
+            if self._external_quality_cancel_button is not None:
+                self._external_quality_cancel_button.configure(state="disabled")
             self.quality_status_var.set("Cancelling after the current image…")
 
     def _process_quality_queue(self) -> None:
@@ -593,7 +638,7 @@ class DatasetReadinessFrame(ttk.Frame):
 
     def _show_quality_progress(self, progress: QualityProgress) -> None:
         percentage = (progress.completed / progress.total) * 100 if progress.total else 0
-        self.quality_progress["value"] = percentage
+        self.quality_progress_var.set(percentage)
         name = progress.current_path.name if progress.current_path is not None else "Unavailable file"
         self.quality_status_var.set(
             f"{progress.completed:,} / {progress.total:,}: {name}  •  "
@@ -601,13 +646,12 @@ class DatasetReadinessFrame(ttk.Frame):
         )
 
     def _finish_quality_analysis(self, summary: QualityAnalysisSummary) -> None:
-        self.run_button.configure(state="normal")
-        self.cancel_button.configure(state="disabled")
+        self._set_quality_button_states(running=False)
         if self.on_quality_running_changed is not None:
             self.on_quality_running_changed(False)
         if summary.total_images:
             completed = summary.analyzed_images + summary.reused_images + summary.failed_images
-            self.quality_progress["value"] = (completed / summary.total_images) * 100
+            self.quality_progress_var.set((completed / summary.total_images) * 100)
         state = "Cancelled" if summary.cancelled else "Complete"
         self.quality_status_var.set(
             f"{state}: analyzed {summary.analyzed_images:,}, reused {summary.reused_images:,}, "
@@ -616,8 +660,7 @@ class DatasetReadinessFrame(ttk.Frame):
         self.refresh()
 
     def _fail_quality_analysis(self, error: Exception) -> None:
-        self.run_button.configure(state="normal")
-        self.cancel_button.configure(state="disabled")
+        self._set_quality_button_states(running=False)
         if self.on_quality_running_changed is not None:
             self.on_quality_running_changed(False)
         self.quality_status_var.set("Quality analysis failed.")

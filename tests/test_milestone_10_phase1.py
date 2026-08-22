@@ -104,7 +104,7 @@ def _test_discovery_and_cache_location(root: Path) -> None:
             os.environ["APPDATA"] = previous_appdata
 
 
-def _test_schema_repair_and_tag_only_search(root: Path) -> None:
+def _test_schema_repair_and_curated_search(root: Path) -> None:
     source = root / "repair_source"
     original = source / "Gal_Gadot_interview_000001.png"
     preview = source / "thumbnail_cache" / ("c" * 24 + "_190.webp")
@@ -146,6 +146,12 @@ def _test_schema_repair_and_tag_only_search(root: Path) -> None:
 
     # Reproduce a version-9 catalog containing application-generated previews.
     with closing(sqlite3.connect(database)) as connection:
+        connection.execute(
+            "ALTER TABLE analysis_results DROP COLUMN ocr_regions_json"
+        )
+        connection.execute(
+            "ALTER TABLE image_quality_results DROP COLUMN overlay_regions_json"
+        )
         connection.execute("PRAGMA user_version = 9")
         connection.execute(
             "DELETE FROM catalog_metadata WHERE key LIKE 'schema_10_%' "
@@ -159,7 +165,8 @@ def _test_schema_repair_and_tag_only_search(root: Path) -> None:
         pass
 
     with closing(sqlite3.connect(database)) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 12
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+        assert SCHEMA_VERSION >= 12
         assert connection.execute("SELECT COUNT(*) FROM images").fetchone()[0] == 1
         assert connection.execute("SELECT COUNT(*) FROM files").fetchone()[0] == 1
         assert connection.execute(
@@ -216,12 +223,13 @@ def run() -> None:
     with tempfile.TemporaryDirectory(prefix="dataset_tools_10_phase1_") as temporary:
         root = Path(temporary)
         _test_discovery_and_cache_location(root)
-        _test_schema_repair_and_tag_only_search(root)
+        _test_schema_repair_and_curated_search(root)
         _test_prestart_cancellation(root)
     print(
         "Milestone 10 Phase 1 tests passed: generated previews stay outside "
         "sources and out of every scan, schema 12 retains legacy cache repair "
-        "without deleting files, ordinary search is tag-only, and provider "
+        "without deleting files, ordinary search excludes filenames while "
+        "including curated and OCR evidence, and provider "
         "cancellation stops at a safe boundary."
     )
 

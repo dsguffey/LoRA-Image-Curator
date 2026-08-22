@@ -78,7 +78,7 @@ from image_discovery import is_legacy_thumbnail_cache_path
 
 
 CATALOG_FILENAME = "dataset_tools.db"
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 14
 HASH_CHUNK_SIZE = 4 * 1024 * 1024
 
 
@@ -311,6 +311,12 @@ class Catalog:
             elif current_version == 11:
                 self._migrate_11_to_12()
                 current_version = 12
+            elif current_version == 12:
+                self._migrate_12_to_13()
+                current_version = 13
+            elif current_version == 13:
+                self._migrate_13_to_14()
+                current_version = 14
             else:
                 raise RuntimeError(
                     "LoRA Image Curator does not know how to migrate catalog schema "
@@ -1273,6 +1279,50 @@ class Catalog:
             self.connection.rollback()
             raise
 
+    def _migrate_12_to_13(self) -> None:
+        """Retain Florence OCR rectangles for spatial text-overlay review."""
+        migration_sql = """
+        BEGIN IMMEDIATE;
+
+        ALTER TABLE analysis_results
+        ADD COLUMN ocr_regions_json TEXT NOT NULL DEFAULT '[]';
+
+        INSERT OR REPLACE INTO catalog_metadata(key, value)
+        VALUES ('schema_13_migrated_at', CURRENT_TIMESTAMP);
+
+        PRAGMA user_version = 13;
+
+        COMMIT;
+        """
+        try:
+            self.connection.executescript(migration_sql)
+            self.connection.commit()
+        except sqlite3.Error:
+            self.connection.rollback()
+            raise
+
+    def _migrate_13_to_14(self) -> None:
+        """Cache obvious local overlay/bar candidates with quality results."""
+        migration_sql = """
+        BEGIN IMMEDIATE;
+
+        ALTER TABLE image_quality_results
+        ADD COLUMN overlay_regions_json TEXT NOT NULL DEFAULT '[]';
+
+        INSERT OR REPLACE INTO catalog_metadata(key, value)
+        VALUES ('schema_14_migrated_at', CURRENT_TIMESTAMP);
+
+        PRAGMA user_version = 14;
+
+        COMMIT;
+        """
+        try:
+            self.connection.executescript(migration_sql)
+            self.connection.commit()
+        except sqlite3.Error:
+            self.connection.rollback()
+            raise
+
 
     # =========================================================================
     # Import-run tracking
@@ -1763,6 +1813,7 @@ class Catalog:
                 ocr_region_count,
                 ocr_character_count,
                 ocr_text,
+                ocr_regions_json,
                 likely_screenshot_or_ui,
                 candidate_recommendation,
                 recommendation_reason,
@@ -1774,7 +1825,7 @@ class Catalog:
                 analyzed_at
             )
             VALUES (
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 'success', '', ?
             )
             ON CONFLICT (
@@ -1793,6 +1844,7 @@ class Catalog:
                 ocr_region_count = excluded.ocr_region_count,
                 ocr_character_count = excluded.ocr_character_count,
                 ocr_text = excluded.ocr_text,
+                ocr_regions_json = excluded.ocr_regions_json,
                 likely_screenshot_or_ui = excluded.likely_screenshot_or_ui,
                 candidate_recommendation = excluded.candidate_recommendation,
                 recommendation_reason = excluded.recommendation_reason,
@@ -1817,6 +1869,7 @@ class Catalog:
                 result["ocr_region_count"],
                 result["ocr_character_count"],
                 str(result["ocr_text"]),
+                str(result.get("ocr_regions_json", "[]")),
                 str(result["likely_screenshot_or_ui"]),
                 str(result["candidate_recommendation"]),
                 str(result["recommendation_reason"]),

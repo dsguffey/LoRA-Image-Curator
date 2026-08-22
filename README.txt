@@ -1,4 +1,4 @@
-LORA IMAGE CURATOR GUI v0.28.2
+LORA IMAGE CURATOR GUI v0.28.4
 ========================
 
 OVERVIEW
@@ -13,7 +13,20 @@ layers around that catalog. Provider output is preserved, user decisions are
 stored independently, and final training text is derived only when it is
 previewed or exported.
 
-Version 0.28.2 adds the deterministic slim Portable Source distribution on top
+Version 0.28.4 clarifies the main workflow: update the catalog, run default-on
+Quality Analysis, then run the selected model providers. Browser filter
+settings are editable where they are used, Finalize & Export can change the
+shared LoRA target, duplicate filters group comparison images, Prominent
+Overlay is a readiness warning, OCR evidence is searchable without becoming
+automatic tags or training text, and File contains catalog and training-export
+commands. Version 0.28.3 separated general InsightFace detection from optional identity
+matching. The Trigger Keyword and reference folder are optional for a plain
+face scan. If the reference folder produces no usable face, the provider still
+scans every catalog image and stores face evidence, but it creates no identity
+matches or Trigger Keyword suggestions. A later valid reference can reuse those
+detections. The v0.28.2 Portable Source package remains the current portable
+artifact until this Git/source fix is deliberately propagated. Version 0.28.2
+added the deterministic slim Portable Source distribution on top
 of v0.28.1's explicit provider setup and model-download consent. The application
 has been exercised with roughly 14,000 to 17,000 local images. Current primary
 workstation observations are about five seconds for a cold first launch and
@@ -52,8 +65,54 @@ v0.28.1 prevents provider Run commands from silently downloading model files:
 Florence, InsightFace buffalo_l, and the recommended MediaPipe Pose model each
 show their identity, source, approximate size, destination, and relevant terms
 before a transfer. Tools can reopen the established Setup & Launch assistant
-for package/runtime repair after closing the GUI. Broader
-large-catalog measurements and deferred high-risk QA remain pre-1.0 work.
+for package/runtime repair after closing the GUI. Initial large-catalog
+validation is complete at the project's current 14,000–17,000-image scale.
+Deeper interruption, memory, and sustained-provider testing can be reopened if
+community feedback indicates a need.
+
+
+WHAT IS NEW IN v0.28.4
+----------------------
+
+- the combined action is now Update Catalog & Run Enabled Analysis and executes catalog
+  registration, optional default-on Quality Analysis, then Florence and selected
+  providers
+- Quality Analysis has primary controls under Analyze & Update Catalog while
+  Finalize & Export retains visible analysis status and missing-analysis warnings
+- Browser Filter Settings are editable locally and remain synchronized with
+  Settings and Finalize & Export
+- Prominent Overlay appears in Browser readiness filters, the readiness report,
+  and export warnings. It measures the area occupied by Florence OCR text and
+  obvious neutral bars/banners; its shared coverage threshold is adjustable
+  from 1% to 30% and defaults to 5%
+- Prominent Overlay can measure the Whole Image, Face, Body, Face or Body, or
+  Face and Body; this global rule is editable in Settings and Browser Filter
+  Settings
+- Possible Duplicates groups or orders duplicate-cluster members together when
+  activated from the readiness checkbox
+- Finalize & Export can change the shared LoRA target
+- File now exposes catalog creation/open/add/delete and Export Training Data
+- OCR text is searchable evidence but is not automatically converted into tags
+  or training text
+- schema 14 additively stores Quality Analysis bar/banner rectangles alongside
+  schema 13 OCR rectangles. Run Quality Analysis once after updating; run
+  Florence triage once if prior results lack OCR boxes. Portable Source remains
+  v0.28.2
+
+
+WHAT IS NEW IN v0.28.3
+----------------------
+
+- InsightFace always scans catalog images even if the identity reference
+  produces no usable face
+- detection-only fallback stores face counts, boxes, landmarks, and embeddings
+  without guessing an identity or assigning the Trigger Keyword
+- a later valid reference can reuse stored detections and add reviewable
+  identity suggestions
+- completion feedback clearly distinguishes successful face detection from
+  skipped identity matching
+- catalog schema remains 12 and the Portable Source artifact remains v0.28.2
+  for this Git/source-only update
 
 
 WHAT IS NEW IN v0.28.2
@@ -569,7 +628,7 @@ UPGRADING FROM v0.24.0
 
 1. Close LoRA Image Curator.
 
-2. Extract LoRA_Image_Curator_Source_v0.28.2.zip directly into your existing
+2. Extract LoRA_Image_Curator_Source_v0.28.4.zip directly into your existing
    DatasetTools folder and allow Windows to replace older release files.
 
 3. Keep your existing `venv`, model files, catalogs, images, settings, logs,
@@ -591,7 +650,7 @@ UPGRADING FROM v0.24.0
 
        Run LoRA Image Curator.bat
 
-Version 0.28.2 uses schema 12 and accepts both
+Version 0.28.4 uses schema 14 and accepts both
 current and historical catalog identity markers. If upgrading directly from
 v0.19.0, the existing schema-10
 migration removes only file records that match LoRA Image Curator's exact
@@ -601,9 +660,15 @@ analyses, quality results, face results, review decisions, Trigger Keywords,
 tags, exclusions, image sets, saved searches, export history, and undo/redo
 history remain intact.
 
+Schema 13 added stored OCR rectangles. Schema 14 adds only conservative
+bar/banner rectangles to the Quality Analysis cache. Existing captions remain
+reusable. Run Quality Analysis once after updating to populate bar candidates;
+the next Florence triage run refreshes older triage rows only when OCR boxes
+are missing.
+
 The old `<output folder>\thumbnail_cache` directory is not deleted
 automatically. After closing v0.19.0, it is safe to delete that entire legacy
-folder manually to recover disk space. v0.28.2 will ignore it if you leave it in
+folder manually to recover disk space. v0.28.4 will ignore it if you leave it in
 place and writes any new previews beneath:
 
     %APPDATA%\LoRAImageCurator\thumbnail_cache
@@ -1800,7 +1865,7 @@ exit indicates a failed gate; the runner stops at the first failure.
 `docs/GOLDEN_TEST.md` records the exact coverage and honest limits of the result.
 
 
-KNOWN LIMITATIONS IN v0.28.2
+KNOWN LIMITATIONS IN v0.28.4
 ---------------------------
 
 - Florence object detection and regional OCR follow the official 1,024-token

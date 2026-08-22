@@ -20,7 +20,15 @@ from typing import Callable
 
 from body_analysis import BodyProviderStatus
 from body_setup_dialog import BodySetupDialog
-from dataset_readiness import READINESS_PROFILES, READINESS_PROFILES_BY_KEY
+from dataset_readiness import (
+    DEFAULT_OVERLAY_COVERAGE_PERCENT,
+    MAX_OVERLAY_COVERAGE_PERCENT,
+    MIN_OVERLAY_COVERAGE_PERCENT,
+    READINESS_PROFILES,
+    READINESS_PROFILES_BY_KEY,
+    OVERLAY_SPATIAL_MODE_LABELS,
+    normalize_overlay_spatial_mode,
+)
 from quality_analysis import duplicate_similarity_description
 from settings_manager import (
     AppSettings,
@@ -109,7 +117,21 @@ class SettingsDialog(tk.Toplevel):
         self.duplicate_similarity_var = tk.IntVar(
             value=int(settings.quality_duplicate_similarity_percent)
         )
+        self.overlay_coverage_var = tk.IntVar(
+            value=int(settings.overlay_coverage_threshold_percent)
+        )
+        self.run_quality_analysis_var = tk.BooleanVar(
+            value=settings.run_quality_analysis
+        )
         self.duplicate_description_var = tk.StringVar()
+        self.overlay_description_var = tk.StringVar()
+        self.overlay_spatial_mode_var = tk.StringVar(
+            value=OVERLAY_SPATIAL_MODE_LABELS[
+                normalize_overlay_spatial_mode(
+                    settings.overlay_spatial_mode
+                )
+            ]
+        )
         self.telemetry_var = tk.BooleanVar(
             value=settings.allow_provider_telemetry
         )
@@ -478,8 +500,49 @@ class SettingsDialog(tk.Toplevel):
             foreground="#5F5F5F",
             justify="left",
         ).grid(row=9, column=0, columnspan=3, sticky="w", pady=(6, 0))
+        ttk.Label(filters, text="Minimum overlay coverage:").grid(
+            row=10, column=0, sticky="w", pady=(14, 0)
+        )
+        overlay_scale = ttk.Scale(
+            filters,
+            from_=MIN_OVERLAY_COVERAGE_PERCENT,
+            to=MAX_OVERLAY_COVERAGE_PERCENT,
+            variable=self.overlay_coverage_var,
+            command=self._update_overlay_description,
+        )
+        overlay_scale.grid(
+            row=10, column=1, sticky="ew", padx=(8, 8), pady=(14, 0)
+        )
+        ttk.Label(
+            filters,
+            textvariable=self.overlay_coverage_var,
+            width=4,
+        ).grid(row=10, column=2, sticky="e", pady=(14, 0))
+        ttk.Label(filters, text="Relevant region:").grid(
+            row=11, column=0, sticky="w", pady=(10, 0)
+        )
+        ttk.Combobox(
+            filters,
+            textvariable=self.overlay_spatial_mode_var,
+            values=tuple(OVERLAY_SPATIAL_MODE_LABELS.values()),
+            state="readonly",
+            width=28,
+        ).grid(row=11, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
+        ttk.Label(
+            filters,
+            textvariable=self.overlay_description_var,
+            wraplength=700,
+            foreground="#5F5F5F",
+            justify="left",
+        ).grid(row=12, column=0, columnspan=3, sticky="w", pady=(5, 0))
+        ttk.Checkbutton(
+            filters,
+            text="Include Quality Analysis in Update Catalog & Run Enabled Analysis",
+            variable=self.run_quality_analysis_var,
+        ).grid(row=13, column=0, columnspan=3, sticky="w", pady=(18, 0))
         self._update_blur_description()
         self._update_duplicate_description(self.duplicate_similarity_var.get())
+        self._update_overlay_description()
 
         ttk.Label(
             privacy,
@@ -587,7 +650,7 @@ class SettingsDialog(tk.Toplevel):
         ).grid(row=2, column=0, columnspan=2, sticky="w")
         ttk.Label(
             page,
-            text="Default: on. This also defines the source scope for Start Catalog & Providers.",
+            text="Default: on. This also defines the source scope for Update Catalog & Run Enabled Analysis.",
             wraplength=680,
             foreground="#5F5F5F",
             justify="left",
@@ -633,8 +696,8 @@ class SettingsDialog(tk.Toplevel):
         ttk.Label(
             page,
             text=(
-                "Detects faces and compares local embeddings with one reference "
-                "identity. Suggestions remain reviewable provider evidence."
+                "Always detects faces. A Trigger Keyword plus usable reference "
+                "folder also enables reviewable identity suggestions."
             ),
             wraplength=700,
             justify="left",
@@ -657,13 +720,13 @@ class SettingsDialog(tk.Toplevel):
         self._settings_entry_row(
             page,
             5,
-            "Trigger Keyword:",
+            "Trigger Keyword (optional):",
             self.face_identity_var,
         )
         self._settings_entry_row(
             page,
             6,
-            "Reference folder:",
+            "Reference folder (optional):",
             self.face_reference_var,
             browse=self._browse_face_reference,
         )
@@ -899,6 +962,32 @@ class SettingsDialog(tk.Toplevel):
             duplicate_similarity_description(value)
         )
 
+    def _update_overlay_description(
+        self,
+        raw_value: str | float | None = None,
+    ) -> None:
+        """Snap overlay coverage to whole percentage points."""
+        try:
+            raw = (
+                raw_value
+                if raw_value is not None
+                else self.overlay_coverage_var.get()
+            )
+            value = round(float(raw))
+        except (TypeError, ValueError, tk.TclError):
+            value = DEFAULT_OVERLAY_COVERAGE_PERCENT
+        value = max(
+            MIN_OVERLAY_COVERAGE_PERCENT,
+            min(MAX_OVERLAY_COVERAGE_PERCENT, value),
+        )
+        if self.overlay_coverage_var.get() != value:
+            self.overlay_coverage_var.set(value)
+        self.overlay_description_var.set(
+            f"Flags recognized text or an obvious bar/banner covering at least {value}% "
+            "of the selected image or subject region. Quality Analysis finds bars; "
+            "Florence OCR finds text."
+        )
+
     def _browse_quarantine(self) -> None:
         selected = filedialog.askdirectory(
             parent=self,
@@ -1072,6 +1161,23 @@ class SettingsDialog(tk.Toplevel):
             96,
             min(100, int(self.duplicate_similarity_var.get())),
         )
+        overlay_coverage = max(
+            MIN_OVERLAY_COVERAGE_PERCENT,
+            min(
+                MAX_OVERLAY_COVERAGE_PERCENT,
+                int(self.overlay_coverage_var.get()),
+            ),
+        )
+        overlay_spatial_mode = normalize_overlay_spatial_mode(
+            next(
+                (
+                    key
+                    for key, label in OVERLAY_SPATIAL_MODE_LABELS.items()
+                    if label == self.overlay_spatial_mode_var.get()
+                ),
+                "either",
+            )
+        )
         profile = next(
             (
                 candidate
@@ -1128,6 +1234,9 @@ class SettingsDialog(tk.Toplevel):
             readiness_profile_key=profile.key,
             quality_blur_threshold=float(blur_threshold),
             quality_duplicate_similarity_percent=duplicate_similarity,
+            overlay_coverage_threshold_percent=overlay_coverage,
+            overlay_spatial_mode=overlay_spatial_mode,
+            run_quality_analysis=self.run_quality_analysis_var.get(),
         )
         try:
             self._on_save(updated)

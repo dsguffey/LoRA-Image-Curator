@@ -3,7 +3,7 @@
   "notice_version": "2026-08-03.2",
   "application": {
     "name": "LoRA Image Curator",
-    "version": "0.28.2",
+    "version": "0.28.4",
     "license": "MIT",
     "source": "https://github.com/dsguffey/LoRA-Image-Curator"
   },

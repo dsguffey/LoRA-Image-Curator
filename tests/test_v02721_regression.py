@@ -19,9 +19,9 @@ def _project(relative_name: str) -> str:
 
 def test_release_identity_and_dependency_pin_are_synchronized() -> None:
     """Keep the focused security release and native dependency line exact."""
-    assert APP_VERSION == "0.28.2"
-    assert "Version 0.28.2" in _project("VERSION.txt")
-    assert 'version = "0.28.2"' in _project("pyproject.toml")
+    assert APP_VERSION == "0.28.4"
+    assert "Version 0.28.4" in _project("VERSION.txt")
+    assert 'version = "0.28.4"' in _project("pyproject.toml")
     assert f"transformers=={TRANSFORMERS_VERSION}" in _project("requirements.txt")
     assert (
         f'"transformers=={TRANSFORMERS_VERSION}"'
@@ -64,7 +64,7 @@ def test_security_disclosure_and_release_gates_cover_the_change() -> None:
     assert '"tests/test_v02721_regression.py"' in regressions
     assert '"tests/test_v02721_regression.py"' in builder
     assert '"tests/test_v02721_gui.py"' in builder
-    assert 'GUI_ENTRYPOINT = "tests/test_v0282_gui.py"' in golden
+    assert 'GUI_ENTRYPOINT = "tests/test_v0284_gui.py"' in golden
 
 
 if __name__ == "__main__":

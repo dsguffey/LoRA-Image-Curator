@@ -25,6 +25,7 @@ def run() -> None:
             labels = {
                 application.tools_menu.entrycget(index, "label")
                 for index in range(int(application.tools_menu.index("end")) + 1)
+                if str(application.tools_menu.type(index)) != "separator"
             }
             assert "Open Setup & Repair…" in labels
             with (

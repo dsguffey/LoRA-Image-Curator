@@ -124,7 +124,12 @@ def shutdown_logging() -> None:
     ``logging.shutdown`` is idempotent and is the standard library's supported
     process-exit cleanup path.
     """
+    root_logger = logging.getLogger()
+    handlers = tuple(root_logger.handlers)
     logging.shutdown()
+    for handler in handlers:
+        root_logger.removeHandler(handler)
+    root_logger.addHandler(logging.NullHandler())
 
 
 class DatasetToolsApp:
@@ -179,6 +184,9 @@ class DatasetToolsApp:
         # to build and compare during the current run.
         self.run_face_analysis_var = tk.BooleanVar(
             value=self.settings.run_face_analysis
+        )
+        self.run_quality_analysis_var = tk.BooleanVar(
+            value=self.settings.run_quality_analysis
         )
         self.face_identity_name_var = tk.StringVar(
             value=self.settings.face_identity_name
@@ -509,8 +517,60 @@ class DatasetToolsApp:
         )
         self.video_source_help.pack(side="left", padx=(5, 0))
 
+        quality_frame = ttk.LabelFrame(
+            main_frame,
+            text="Quality Analysis",
+            padding=10,
+        )
+        quality_frame.grid(row=4, column=0, sticky="ew", pady=(0, 10))
+        quality_frame.columnconfigure(3, weight=1)
+        self.quality_include_checkbutton = ttk.Checkbutton(
+            quality_frame,
+            text="Include in Update Catalog & Run Enabled Analysis",
+            variable=self.run_quality_analysis_var,
+            command=self._save_current_settings,
+        )
+        self.quality_include_checkbutton.grid(row=0, column=0, sticky="w")
+        self.run_quality_analysis_button = ttk.Button(
+            quality_frame,
+            text="Run / Restart Quality",
+            command=self._start_quality_analysis_from_analyze,
+        )
+        self.run_quality_analysis_button.grid(row=0, column=1, padx=(12, 0))
+        self.cancel_quality_analysis_button = ttk.Button(
+            quality_frame,
+            text="Cancel Quality",
+            command=lambda: self.dataset_readiness._cancel_quality_analysis(),
+            state="disabled",
+        )
+        self.cancel_quality_analysis_button.grid(row=0, column=2, padx=(7, 0))
+        ttk.Label(
+            quality_frame,
+            text=(
+                "Runs cached local sharpness and perceptual-duplicate measurements "
+                "after the catalog update and before model providers."
+            ),
+            wraplength=920,
+            justify="left",
+        ).grid(row=1, column=0, columnspan=4, sticky="w", pady=(7, 4))
+        self.analysis_quality_progress = ttk.Progressbar(
+            quality_frame,
+            maximum=100,
+        )
+        self.analysis_quality_progress.grid(
+            row=2, column=0, columnspan=4, sticky="ew", pady=(2, 4)
+        )
+        self.analysis_quality_status_label = ttk.Label(
+            quality_frame,
+            text="Open or create a catalog to run Quality Analysis.",
+            style="Muted.TLabel",
+        )
+        self.analysis_quality_status_label.grid(
+            row=3, column=0, columnspan=4, sticky="w"
+        )
+
         provider_container = ttk.Frame(main_frame)
-        provider_container.grid(row=4, column=0, sticky="ew", pady=(0, 10))
+        provider_container.grid(row=5, column=0, sticky="ew", pady=(0, 10))
         provider_container.columnconfigure(0, weight=1)
         provider_container.columnconfigure(1, weight=1)
 
@@ -524,10 +584,17 @@ class DatasetToolsApp:
 
         self.start_button = ttk.Button(
             controls_frame,
-            text="Start Catalog & Providers",
+            text="Update Catalog & Run Enabled Analysis",
             command=self._start_analysis,
         )
         self.start_button.grid(row=0, column=0, sticky="w")
+        self.start_analysis_help = HelpIcon(
+            controls_frame,
+            "Updates the catalog, then runs Quality Analysis, Florence, and "
+            "enabled Face Analysis. Use the provider Run buttons to rerun one "
+            "provider; Body Analysis is started separately from Analyze.",
+        )
+        self.start_analysis_help.grid(row=0, column=1, sticky="w", padx=(4, 0))
 
         self.cancel_analysis_button = ttk.Button(
             controls_frame,
@@ -537,7 +604,7 @@ class DatasetToolsApp:
         )
         self.cancel_analysis_button.grid(
             row=0,
-            column=1,
+            column=2,
             sticky="w",
             padx=(8, 0),
         )
@@ -549,7 +616,7 @@ class DatasetToolsApp:
         )
         self.pause_analysis_button.grid(
             row=0,
-            column=2,
+            column=3,
             sticky="w",
             padx=(8, 0),
         )
@@ -698,10 +765,18 @@ class DatasetToolsApp:
             on_quality_running_changed=self._on_quality_running_changed,
             export_scope=self._open_readiness_export,
         )
+        self.dataset_readiness.bind_external_quality_controls(
+            run_button=self.run_quality_analysis_button,
+            cancel_button=self.cancel_quality_analysis_button,
+            progressbar=self.analysis_quality_progress,
+        )
+        self.analysis_quality_status_label.configure(
+            textvariable=self.dataset_readiness.quality_status_var
+        )
         # Attach the writeback callback only after the frame is assigned. Some
         # Tk themes initialize Scale variables during widget construction; this
         # prevents such initialization from calling back into a half-built app.
-        self.dataset_readiness.on_settings_saved = self._save_current_settings
+        self.dataset_readiness.on_settings_saved = self._save_readiness_settings
         self.catalog_browser.on_image_sets_changed = (
             self.dataset_readiness.refresh_image_sets
         )
@@ -953,8 +1028,33 @@ class DatasetToolsApp:
         self.menu_bar = menu_bar
 
         file_menu = tk.Menu(menu_bar, tearoff=False)
+        file_menu.add_command(
+            label="New Empty Catalog…",
+            command=self._create_empty_catalog,
+        )
+        file_menu.add_command(
+            label="Create from Images…",
+            command=self._create_catalog_from_folder,
+        )
+        file_menu.add_command(label="Open Catalog…", command=self._open_catalog)
+        file_menu.add_separator()
+        file_menu.add_command(
+            label="Add Images…",
+            command=self._import_folder_into_catalog,
+        )
+        file_menu.add_command(
+            label="Delete Catalog…",
+            command=self._delete_current_catalog,
+        )
+        file_menu.add_separator()
+        file_menu.add_command(
+            label="Export Training Data…",
+            command=self._export_training_data_from_menu,
+        )
+        file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self._on_close)
         menu_bar.add_cascade(label="File", menu=file_menu)
+        self.file_menu = file_menu
 
         self.edit_menu = tk.Menu(menu_bar, tearoff=False)
         self.edit_menu.add_command(
@@ -1030,12 +1130,15 @@ class DatasetToolsApp:
         )
         self.tools_menu.add_separator()
         self.tools_menu.add_command(
-            label="Start Catalog & Providers",
+            label="Update Catalog & Run Enabled Analysis",
             command=self._start_analysis,
         )
         self.tools_menu.add_command(
             label="Run Florence Caption & Triage…",
-            command=lambda: self._start_analysis(run_face_override=False),
+            command=lambda: self._start_analysis(
+                run_face_override=False,
+                run_quality_override=False,
+            ),
         )
         self.tools_menu.add_command(
             label="Run Face Detection & Identity…",
@@ -1328,11 +1431,20 @@ class DatasetToolsApp:
             "Open Catalog…",
         ):
             self.catalog_menu.entryconfigure(label, state=normal_if(not locked))
+            self.file_menu.entryconfigure(label, state=normal_if(not locked))
         for label in ("Add Images…", "Delete Catalog…"):
             self.catalog_menu.entryconfigure(
                 label,
                 state=normal_if(has_catalog and not locked),
             )
+            self.file_menu.entryconfigure(
+                label,
+                state=normal_if(has_catalog and not locked),
+            )
+        self.file_menu.entryconfigure(
+            "Export Training Data…",
+            state=normal_if(has_catalog and not locked),
+        )
         self.tools_menu.entryconfigure(
             "Extract Frames from Video…",
             state=normal_if(not locked),
@@ -1345,7 +1457,7 @@ class DatasetToolsApp:
             self.tools_menu.entryconfigure(label, state=normal_if(not locked))
         provider_running = self.worker_thread is not None and self.worker_thread.is_alive()
         self.tools_menu.entryconfigure(
-            "Start Catalog & Providers",
+            "Update Catalog & Run Enabled Analysis",
             state=normal_if(not locked),
         )
         self.tools_menu.entryconfigure(
@@ -1555,7 +1667,10 @@ class DatasetToolsApp:
         self.run_florence_button = ttk.Button(
             header,
             text="Run / Restart Florence",
-            command=lambda: self._start_analysis(run_face_override=False),
+            command=lambda: self._start_analysis(
+                run_face_override=False,
+                run_quality_override=False,
+            ),
         )
         self.run_florence_button.grid(row=0, column=1, sticky="e", padx=(8, 0))
         self.florence_provider_device_var = tk.StringVar(
@@ -1647,7 +1762,7 @@ class DatasetToolsApp:
         self.face_enable_checkbutton.pack(side="left")
         self.face_enable_help = HelpIcon(
             enable_row,
-            "Include local face detection and identity comparison when Start Catalog & Providers runs. Run Face remains available separately.",
+            "Include local face detection and identity comparison when Update Catalog & Run Enabled Analysis runs. Run Face remains available separately.",
         )
         self.face_enable_help.pack(side="left", padx=(4, 0))
 
@@ -1684,9 +1799,9 @@ class DatasetToolsApp:
         ttk.Label(
             frame,
             text=(
-                "Detects faces, stores local bounding boxes and identity "
-                "embeddings, then compares each face to reference images for "
-                "one reference identity. Suggestions remain unconfirmed until review."
+                "Always detects faces and stores local bounding boxes and "
+                "embeddings. A Trigger Keyword plus usable reference folder "
+                "also enables reviewable identity suggestions."
             ),
             wraplength=500,
             justify="left",
@@ -1696,11 +1811,12 @@ class DatasetToolsApp:
         self._add_face_setting_row(
             frame,
             row,
-            "Trigger Keyword:",
+            "Trigger Keyword (optional):",
             ttk.Entry(frame, textvariable=self.face_identity_name_var),
             help_text=(
-                "Training activation text applied to this identity. Face detection "
-                "does not infer or verify a person's public name."
+                "Training activation text suggested only when a usable reference "
+                "profile matches. Face detection works without it and does not "
+                "infer or verify a person's public name."
             ),
         )
         row += 1
@@ -1717,12 +1833,13 @@ class DatasetToolsApp:
         self._add_face_setting_row(
             frame,
             row,
-            "Reference folder:",
+            "Reference folder (optional):",
             reference_entry,
             reference_button,
             help_text=(
-                "Choose a folder of clear reference images of the same person. "
-                "One visible face per image is best."
+                "Choose a folder of clear reference images of the same person to "
+                "enable identity matching. Face detection works without one. One "
+                "visible face per reference image is best."
             ),
             help_attribute="face_reference_folder_help",
         )
@@ -2411,11 +2528,27 @@ class DatasetToolsApp:
         self.catalog_browser.refresh(quiet=True)
         return list(self.catalog_browser.all_records), str(self.catalog_browser.catalog_path)
 
+    def _start_quality_analysis_from_analyze(self) -> None:
+        """Run the shared quality worker from its primary workflow location."""
+        catalog_path = self._current_catalog_path()
+        if catalog_path is not None and catalog_path.exists():
+            if self.catalog_browser.catalog_path != catalog_path.resolve():
+                self.catalog_browser.set_catalog_path(
+                    catalog_path,
+                    load=True,
+                    quiet=True,
+                )
+            records, database_path = self._load_readiness_records()
+            self.dataset_readiness.set_records(records, database_path)
+        self.dataset_readiness._start_quality_analysis()
+
     def _sync_readiness_interpretation_from_browser(
         self,
         profile_key: str,
         blur_threshold: float,
         duplicate_similarity_percent: int,
+        overlay_coverage_threshold_percent: int,
+        overlay_spatial_mode: str,
     ) -> None:
         """Keep Browser Filters and Finalize & Export on identical rules."""
         profile = READINESS_PROFILES_BY_KEY.get(
@@ -2427,6 +2560,10 @@ class DatasetToolsApp:
         self.settings.quality_duplicate_similarity_percent = int(
             duplicate_similarity_percent
         )
+        self.settings.overlay_coverage_threshold_percent = int(
+            overlay_coverage_threshold_percent
+        )
+        self.settings.overlay_spatial_mode = overlay_spatial_mode
         self.dataset_readiness.settings = self.settings
         self.dataset_readiness.profile_var.set(profile.label)
         self.dataset_readiness.blur_threshold_var.set(f"{blur_threshold:g}")
@@ -2440,6 +2577,21 @@ class DatasetToolsApp:
         )
         if self.dataset_readiness._records:
             self.dataset_readiness._render_current()
+
+    def _save_readiness_settings(self) -> None:
+        """Persist Finalize controls and mirror their global values to Filters."""
+        self._save_current_settings()
+        self.catalog_browser.apply_analysis_settings(
+            profile_key=self.settings.readiness_profile_key,
+            blur_threshold=self.settings.quality_blur_threshold,
+            duplicate_similarity_percent=(
+                self.settings.quality_duplicate_similarity_percent
+            ),
+            overlay_coverage_threshold_percent=(
+                self.settings.overlay_coverage_threshold_percent
+            ),
+            overlay_spatial_mode=self.settings.overlay_spatial_mode,
+        )
 
     def _open_readiness_export(
         self,
@@ -2466,9 +2618,30 @@ class DatasetToolsApp:
         )
         self.root.wait_window(dialog)
 
+    def _export_training_data_from_menu(self) -> None:
+        """Open the Finalize export for the current all-images or saved-set scope."""
+        catalog_path = self._current_catalog_path()
+        if catalog_path is None or not catalog_path.exists():
+            messagebox.showinfo(
+                "Choose a catalog",
+                "Open or create a catalog before exporting training data.",
+                parent=self.root,
+            )
+            return
+        if self.catalog_browser.catalog_path != catalog_path.resolve():
+            self.catalog_browser.set_catalog_path(
+                catalog_path,
+                load=True,
+                quiet=True,
+            )
+        records, database_path = self._load_readiness_records()
+        self.dataset_readiness.set_records(records, database_path)
+        self.dataset_readiness._export_current_scope()
+
     def _on_quality_running_changed(self, running: bool) -> None:
         """Prevent catalog switching/mutation while quality analysis is active."""
         self._quality_controls_locked = running
+        self._set_controls_enabled(not running)
         self._schedule_menu_state_refresh()
         self._update_catalog_management_state()
 
@@ -2633,6 +2806,11 @@ class DatasetToolsApp:
             quality_duplicate_similarity_percent=round(
                 self.dataset_readiness.duplicate_similarity_var.get()
             ),
+            overlay_coverage_threshold_percent=(
+                self.settings.overlay_coverage_threshold_percent
+            ),
+            overlay_spatial_mode=self.settings.overlay_spatial_mode,
+            run_quality_analysis=self.run_quality_analysis_var.get(),
             export_last_directory=browser_settings.export_last_directory,
             export_profile_key=browser_settings.export_profile_key,
             export_copy_images=browser_settings.export_copy_images,
@@ -3032,6 +3210,7 @@ class DatasetToolsApp:
         self.reuse_analysis_var.set(updated.reuse_stored_analysis)
         self.include_triage_var.set(updated.include_triage)
         self.run_face_analysis_var.set(updated.run_face_analysis)
+        self.run_quality_analysis_var.set(updated.run_quality_analysis)
         self.face_identity_name_var.set(updated.face_identity_name)
         self.face_reference_folder_var.set(updated.face_reference_folder)
         self.face_model_name_var.set(updated.face_model_name or DEFAULT_MODEL_NAME)
@@ -3050,6 +3229,10 @@ class DatasetToolsApp:
             duplicate_similarity_percent=(
                 updated.quality_duplicate_similarity_percent
             ),
+            overlay_coverage_threshold_percent=(
+                updated.overlay_coverage_threshold_percent
+            ),
+            overlay_spatial_mode=updated.overlay_spatial_mode,
         )
         self.dataset_readiness.blur_threshold_var.set(
             f"{updated.quality_blur_threshold:g}"
@@ -3421,28 +3604,7 @@ class DatasetToolsApp:
 
         identity_name = " ".join(self.face_identity_name_var.get().split())
         reference_text = self.face_reference_folder_var.get().strip()
-        if not identity_name:
-            messagebox.showerror(
-                "Trigger Keyword required",
-                "Enter the training keyword represented by the reference folder.",
-                parent=self.root,
-            )
-            return
-        if not reference_text:
-            messagebox.showerror(
-                "Reference folder required",
-                "Choose a folder containing reference images of one person.",
-                parent=self.root,
-            )
-            return
-        reference_folder = Path(reference_text)
-        if not reference_folder.exists() or not reference_folder.is_dir():
-            messagebox.showerror(
-                "Invalid reference folder",
-                f"The identity reference folder is not valid:\n\n{reference_folder}",
-                parent=self.root,
-            )
-            return
+        reference_folder = Path(reference_text) if reference_text else None
 
         similarity_threshold = self._read_threshold(
             self.face_similarity_threshold_var,
@@ -3484,7 +3646,7 @@ class DatasetToolsApp:
         self._analysis_paused = False
         self._close_after_analysis_cancel = False
         self.progress_bar["value"] = 0
-        self.progress_text_var.set("Preparing face detection and identity matching…")
+        self.progress_text_var.set("Preparing face detection…")
         self.progress_detail_var.set("")
         self.progress_warning_var.set("")
         self.status_var.set("Starting face provider…")
@@ -3519,7 +3681,7 @@ class DatasetToolsApp:
         input_folder: Path,
         output_folder: Path,
         identity_name: str,
-        reference_folder: Path,
+        reference_folder: Path | None,
         options: FaceAnalysisOptions,
         allow_model_download: bool,
         reuse_stored_analysis: bool,
@@ -3551,7 +3713,12 @@ class DatasetToolsApp:
         else:
             self.message_queue.put(("face_complete", summary))
 
-    def _start_analysis(self, *, run_face_override: bool | None = None) -> None:
+    def _start_analysis(
+        self,
+        *,
+        run_face_override: bool | None = None,
+        run_quality_override: bool | None = None,
+    ) -> None:
         if self.worker_thread is not None and self.worker_thread.is_alive():
             messagebox.showinfo(
                 "Analysis already running",
@@ -3624,6 +3791,11 @@ class DatasetToolsApp:
             if run_face_override is None
             else bool(run_face_override)
         )
+        run_quality_analysis = (
+            self.run_quality_analysis_var.get()
+            if run_quality_override is None
+            else bool(run_quality_override)
+        )
         allow_model_download = False
         face_options: FaceAnalysisOptions | None = None
         reference_folder: Path | None = None
@@ -3632,31 +3804,7 @@ class DatasetToolsApp:
         if run_face_analysis:
             identity_name = " ".join(self.face_identity_name_var.get().split())
             reference_text = self.face_reference_folder_var.get().strip()
-
-            if not identity_name:
-                messagebox.showerror(
-                    "Trigger Keyword required",
-                    "Enter the training keyword represented by the reference folder.",
-                    parent=self.root,
-                )
-                return
-
-            if not reference_text:
-                messagebox.showerror(
-                    "Reference folder required",
-                    "Choose a folder containing reference images of one person.",
-                    parent=self.root,
-                )
-                return
-
-            reference_folder = Path(reference_text)
-            if not reference_folder.exists() or not reference_folder.is_dir():
-                messagebox.showerror(
-                    "Invalid reference folder",
-                    f"The identity reference folder is not valid:\n\n{reference_folder}",
-                    parent=self.root,
-                )
-                return
+            reference_folder = Path(reference_text) if reference_text else None
 
             similarity_threshold = self._read_threshold(
                 self.face_similarity_threshold_var,
@@ -3706,11 +3854,11 @@ class DatasetToolsApp:
         self.latest_catalog_database = None
 
         self.progress_bar["value"] = 0
-        self.progress_text_var.set("Preparing catalog and provider workflow…")
+        self.progress_text_var.set("Preparing catalog and analysis workflow…")
         self.progress_detail_var.set("")
         self.progress_warning_var.set("")
-        self.status_var.set("Starting catalog and providers...")
-        self._set_running_provider("florence")
+        self.status_var.set("Starting catalog update and analysis...")
+        self._set_running_provider("catalog")
         self.open_output_button.configure(state="disabled")
         self._set_controls_enabled(False)
         self.cancel_analysis_button.configure(state="normal")
@@ -3718,11 +3866,21 @@ class DatasetToolsApp:
 
         include_triage = self.include_triage_var.get()
         reuse_analysis = self.reuse_analysis_var.get()
-        phases = ["Cataloging", "Florence analysis"]
-        phase_weights = [0.05, 0.95]
+        phases = ["Cataloging"]
+        if run_quality_analysis:
+            phases.append("Quality analysis")
+        phases.append("Florence analysis")
         if run_face_analysis:
             phases.append("Face analysis")
-            phase_weights = [0.05, 0.65, 0.30]
+        quality_weight = 0.20 if run_quality_analysis else 0.0
+        face_weight = 0.20 if run_face_analysis else 0.0
+        weight_by_phase = {
+            "Cataloging": 0.05,
+            "Quality analysis": quality_weight,
+            "Florence analysis": 0.95 - quality_weight - face_weight,
+            "Face analysis": face_weight,
+        }
+        phase_weights = [weight_by_phase[phase] for phase in phases]
         self._analysis_progress_tracker = WorkflowProgressTracker(
             phases,
             weights=phase_weights,
@@ -3748,6 +3906,10 @@ class DatasetToolsApp:
             + ("enabled" if reuse_analysis else "disabled")
         )
         self._append_log(
+            "Quality Analysis: "
+            + ("enabled" if run_quality_analysis else "skipped")
+        )
+        self._append_log(
             "Face provider: " + ("enabled" if run_face_analysis else "disabled")
         )
         if run_face_analysis and face_options is not None:
@@ -3770,6 +3932,7 @@ class DatasetToolsApp:
                 output_folder,
                 include_triage,
                 reuse_analysis,
+                run_quality_analysis,
                 run_face_analysis,
                 allow_florence_model_download,
                 identity_name,
@@ -3791,6 +3954,7 @@ class DatasetToolsApp:
         output_folder: Path,
         include_triage: bool,
         reuse_analysis: bool,
+        run_quality_analysis: bool,
         run_face_analysis: bool,
         allow_florence_model_download: bool,
         identity_name: str,
@@ -3809,6 +3973,7 @@ class DatasetToolsApp:
                 output_folder=output_folder,
                 include_triage=include_triage,
                 reuse_stored_analysis=reuse_analysis,
+                run_quality_analysis=run_quality_analysis,
                 run_face_analysis=run_face_analysis,
                 allow_florence_model_download=allow_florence_model_download,
                 recursive=recursive,
@@ -3894,8 +4059,24 @@ class DatasetToolsApp:
 
                 elif message_type == "progress":
                     phase = str(payload["phase"])
-                    if phase == "Face analysis":
+                    if phase == "Quality analysis":
+                        self._set_running_provider("quality")
+                        quality_percent = (
+                            (int(payload["completed"]) / int(payload["total"])) * 100
+                            if int(payload["total"])
+                            else 0
+                        )
+                        self.dataset_readiness.quality_progress_var.set(
+                            quality_percent
+                        )
+                        self.dataset_readiness.quality_status_var.set(
+                            f"Quality Analysis: {int(payload['completed']):,} / "
+                            f"{int(payload['total']):,} images"
+                        )
+                    elif phase == "Face analysis":
                         self._set_running_provider("face")
+                    elif phase == "Cataloging":
+                        self._set_running_provider("catalog")
                     else:
                         self._set_running_provider("florence")
                     completed = int(payload["completed"])
@@ -3966,7 +4147,10 @@ class DatasetToolsApp:
                 "Cataloging images and checking content hashes…"
             ),
             "Catalog registration complete.": (
-                "Cataloging complete; preparing Florence analysis…"
+                "Cataloging complete; preparing selected analysis…"
+            ),
+            "Quality analysis: local sharpness and duplicate evidence": (
+                "Cataloging complete; starting Quality Analysis…"
             ),
             "Loading Florence-2...": "Loading the Florence-2 model…",
             "Loading Florence-2 from the local cache...": (
@@ -3981,8 +4165,8 @@ class DatasetToolsApp:
             "Florence-2 loaded successfully.": (
                 "Florence-2 loaded; starting image analysis…"
             ),
-            "Provider 2: face detection, embeddings, and identity matching": (
-                "Preparing face detection and identity matching…"
+            "Provider 2: face detection and optional identity matching": (
+                "Preparing face detection…"
             ),
         }
         heading = promoted.get(message)
@@ -3992,6 +4176,8 @@ class DatasetToolsApp:
     def _set_running_provider(self, provider: str | None) -> None:
         """Show one temporary provider marker and identify the shared progress owner."""
         labels = {
+            "catalog": None,
+            "quality": None,
             "florence": getattr(self, "florence_running_label", None),
             "face": getattr(self, "face_running_label", None),
             "body": getattr(self, "body_running_label", None),
@@ -4001,6 +4187,8 @@ class DatasetToolsApp:
                 label.grid_remove()
 
         current_work = {
+            "catalog": "Current work: Update Catalog / file registration",
+            "quality": "Current work: Quality Analysis / local image measurements",
             "florence": "Current work: Image Captioning / Florence-2",
             "face": "Current work: Face Scanning / InsightFace",
             "body": "Current work: Body / Pose Scanning / MediaPipe",
@@ -4027,14 +4215,39 @@ class DatasetToolsApp:
         self.latest_face_csv = (
             Path(summary.face.output_csv) if summary.face is not None else None
         )
+        if summary.quality is not None:
+            quality = summary.quality
+            self.dataset_readiness.quality_progress_var.set(100)
+            self.dataset_readiness.quality_status_var.set(
+                f"Complete: analyzed {quality.analyzed_images:,}, reused "
+                f"{quality.reused_images:,}, failed {quality.failed_images:,} "
+                f"in {quality.total_seconds:.1f} seconds."
+            )
+        else:
+            self.dataset_readiness.quality_status_var.set(
+                "Quality Analysis was skipped for the last combined run."
+            )
 
         self.progress_bar["value"] = 100
         self.progress_text_var.set(f"Complete: {summary.total_images} images")
         self.progress_detail_var.set(
             f"Total elapsed: {format_duration(summary.total_seconds)}"
         )
-        self.progress_warning_var.set("")
-        self.status_var.set("Catalog and providers complete")
+        face_detection_only = (
+            summary.face is not None
+            and not summary.face.identity_matching_enabled
+        )
+        if face_detection_only:
+            self.progress_warning_var.set(
+                "Face detection completed; identity matching was skipped because "
+                "the reference folder produced no usable face."
+            )
+            self.status_var.set(
+                "Providers complete; face identity matching skipped"
+            )
+        else:
+            self.progress_warning_var.set("")
+            self.status_var.set("Catalog and providers complete")
         self._set_controls_enabled(True)
         self.open_output_button.configure(state="normal")
         self._refresh_provider_coverage()
@@ -4097,6 +4310,14 @@ class DatasetToolsApp:
             self._append_log(
                 f"Identity suggestions: {face.suggestions_created}"
             )
+            if not face.identity_matching_enabled:
+                self._append_log(
+                    "WARNING: Face detection completed, but identity matching "
+                    "was skipped."
+                )
+                self._append_log(
+                    f"Reference issue: {face.identity_profile_warning}"
+                )
             self._append_log(f"Face CSV report: {face.output_csv}")
 
         self._append_log("")
@@ -4115,8 +4336,17 @@ class DatasetToolsApp:
                 f"\nIdentity suggestions: {summary.face.suggestions_created}"
                 f"\n\nFace report:\n{summary.face.output_csv}\n"
             )
+            if not summary.face.identity_matching_enabled:
+                face_message += (
+                    "\nFace detection completed, but identity matching was "
+                    "skipped because no usable reference face was found. No "
+                    "trigger-word suggestions were created.\n"
+                )
 
-        messagebox.showinfo(
+        completion_dialog = (
+            messagebox.showwarning if face_detection_only else messagebox.showinfo
+        )
+        completion_dialog(
             "Provider run complete",
             (
                 f"Processed {summary.total_images} files.\n\n"
@@ -4150,8 +4380,15 @@ class DatasetToolsApp:
         self.progress_detail_var.set(
             f"Total elapsed: {format_duration(summary.total_seconds)}"
         )
-        self.progress_warning_var.set("")
-        self.status_var.set("Face provider complete")
+        if summary.identity_matching_enabled:
+            self.progress_warning_var.set("")
+            self.status_var.set("Face provider complete")
+        else:
+            self.progress_warning_var.set(
+                "Face detection completed; identity matching was skipped because "
+                "the reference folder produced no usable face."
+            )
+            self.status_var.set("Face detection complete; identity matching skipped")
         self._set_controls_enabled(True)
         self.open_output_button.configure(state="normal")
         self.summary_vars["faces_detected"].set(str(summary.faces_detected))
@@ -4172,9 +4409,30 @@ class DatasetToolsApp:
         self._append_log(
             f"Identity suggestions: {summary.suggestions_created:,}"
         )
+        if not summary.identity_matching_enabled:
+            self._append_log(
+                "WARNING: Face detection completed, but identity matching was skipped."
+            )
+            self._append_log(
+                f"Reference issue: {summary.identity_profile_warning}"
+            )
         self._append_log(f"Report: {summary.output_csv}")
 
-        messagebox.showinfo(
+        completion_dialog = (
+            messagebox.showinfo
+            if summary.identity_matching_enabled
+            else messagebox.showwarning
+        )
+        identity_note = (
+            ""
+            if summary.identity_matching_enabled
+            else (
+                "\n\nFace detection completed, but identity matching was "
+                "skipped because no usable reference face was found. No "
+                "trigger-word suggestions were created."
+            )
+        )
+        completion_dialog(
             "Face provider complete",
             (
                 f"Checked {summary.total_images:,} images.\n\n"
@@ -4182,7 +4440,8 @@ class DatasetToolsApp:
                 f"Generated: {summary.generated_images:,}\n"
                 f"Failed: {summary.failed_images:,}\n"
                 f"Faces detected: {summary.faces_detected:,}\n"
-                f"Identity suggestions: {summary.suggestions_created:,}\n\n"
+                f"Identity suggestions: {summary.suggestions_created:,}"
+                f"{identity_note}\n\n"
                 f"Report:\n{summary.output_csv}"
             ),
             parent=self.root,
@@ -4321,6 +4580,8 @@ class DatasetToolsApp:
             self.start_button,
             self.run_florence_button,
             self.run_face_analysis_button,
+            self.run_quality_analysis_button,
+            self.quality_include_checkbutton,
             self.input_entry,
             self.output_entry,
             self.input_browse_button,

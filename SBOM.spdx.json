@@ -2,8 +2,8 @@
   "spdxVersion": "SPDX-2.3",
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
-  "name": "LoRA Image Curator v0.28.2 source/provider SBOM",
-  "documentNamespace": "https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/v0.28.2/sbom",
+  "name": "LoRA Image Curator v0.28.4 source/provider SBOM",
+  "documentNamespace": "https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/v0.28.4/sbom",
   "creationInfo": {
     "created": "2026-08-03T00:00:00Z",
     "creators": [
@@ -18,7 +18,7 @@
     {
       "SPDXID": "SPDXRef-Application",
       "name": "LoRA Image Curator",
-      "versionInfo": "0.28.2",
+      "versionInfo": "0.28.4",
       "downloadLocation": "https://github.com/dsguffey/LoRA-Image-Curator",
       "filesAnalyzed": false,
       "licenseConcluded": "MIT",

@@ -173,6 +173,8 @@ class FaceBatchSummary:
     catalog_database: Path
 
     identity_name: str
+    identity_matching_enabled: bool
+    identity_profile_warning: str
     reference_images_found: int
     reference_faces_used: int
     similarity_threshold: float
@@ -197,6 +199,27 @@ class FaceModelDownloadRequiredError(RuntimeError):
     """Raised when the selected model is absent and download was not approved."""
 
 
+class IdentityProfileUnavailableError(RuntimeError):
+    """Carry reference diagnostics when detection can continue without matching.
+
+    A missing identity profile is not a face-detector failure.  The catalog can
+    still store bounding boxes, landmarks, and embeddings for every input
+    image, so callers use this typed exception to enter an explicit
+    detection-only fallback instead of discarding the entire provider run.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        reference_details: list[dict[str, Any]],
+        reference_images_found: int,
+    ) -> None:
+        super().__init__(message)
+        self.reference_details = reference_details
+        self.reference_images_found = int(reference_images_found)
+
+
 @runtime_checkable
 class FaceProvider(Protocol):
     """Small interface every face-analysis backend must implement."""
@@ -208,6 +231,7 @@ class FaceProvider(Protocol):
     model_fingerprint: str
     execution_provider: str
     license_label: str
+    embedding_dimension: int
 
     def analyze_image(self, image_path: Path) -> list[FaceDetection]:
         """Return every detected face in deterministic display order."""
@@ -405,6 +429,32 @@ def largest_face(detections: Sequence[FaceDetection]) -> FaceDetection:
         key=lambda detection: max(0.0, detection.bbox[2] - detection.bbox[0])
         * max(0.0, detection.bbox[3] - detection.bbox[1]),
     )
+
+
+def _insightface_embedding_dimension(application: Any) -> int:
+    """Read the recognition model's output width without analyzing an image.
+
+    Detection-only fallback still needs to register the exact face model before
+    catalog rows can be stored.  InsightFace exposes the recognition ONNX
+    session through its prepared application; the final output dimension is
+    the embedding width (512 for ``buffalo_l``).  Returning zero keeps custom
+    providers usable even when they do not expose equivalent metadata.  A
+    later successful identity profile will update the registered model with
+    the observed dimension.
+    """
+    models = getattr(application, "models", None)
+    recognition = models.get("recognition") if isinstance(models, dict) else None
+    session = getattr(recognition, "session", None)
+    if session is None:
+        return 0
+
+    try:
+        outputs = session.get_outputs()
+        output_shape = outputs[0].shape if outputs else ()
+        dimension = output_shape[-1] if output_shape else 0
+        return int(dimension) if int(dimension) > 0 else 0
+    except (AttributeError, IndexError, TypeError, ValueError):
+        return 0
 
 
 # =============================================================================
@@ -614,6 +664,10 @@ class InsightFaceProvider:
                 f"{type(error).__name__}: {error}"
             ) from error
 
+        self.embedding_dimension = _insightface_embedding_dimension(
+            self._application
+        )
+
         model_path = get_model_path(self.model_name, self.model_root)
         self.model_fingerprint = calculate_model_fingerprint(model_path)
 
@@ -651,6 +705,8 @@ class InsightFaceProvider:
                 )
 
             embedding = normalize_embedding(raw_face.normed_embedding)
+            if self.embedding_dimension <= 0:
+                self.embedding_dimension = int(embedding.size)
 
             detections.append(
                 FaceDetection(
@@ -694,8 +750,10 @@ def build_identity_profile(
     reference_files = find_image_files(reference_folder, recursive=recursive)
 
     if not reference_files:
-        raise FileNotFoundError(
-            "No supported images were found in the identity reference folder."
+        raise IdentityProfileUnavailableError(
+            "No supported images were found in the identity reference folder.",
+            reference_details=[],
+            reference_images_found=0,
         )
 
     embeddings: list[np.ndarray] = []
@@ -761,9 +819,11 @@ def build_identity_profile(
             )
 
     if not embeddings:
-        raise RuntimeError(
-            "No usable face was found in the identity reference folder.\n\n"
-            "Use clear images where the intended person's face is visible."
+        raise IdentityProfileUnavailableError(
+            "No usable face was found in the identity reference folder. "
+            "Face detection continued, but identity matching was skipped.",
+            reference_details=details,
+            reference_images_found=len(reference_files),
         )
 
     dimensions = {embedding.size for embedding in embeddings}
@@ -786,8 +846,8 @@ def analyze_faces(
     input_folder: Path,
     output_folder: Path,
     *,
-    identity_name: str,
-    reference_folder: Path,
+    identity_name: str = "",
+    reference_folder: Path | None = None,
     options: FaceAnalysisOptions | None = None,
     reuse_stored_analysis: bool = True,
     recursive: bool = True,
@@ -800,22 +860,44 @@ def analyze_faces(
     pause_event: Event | None = None,
 ) -> FaceBatchSummary:
     """
-    Detect faces, store embeddings, and compare them to one identity profile.
+    Detect and store faces, then optionally compare them to an identity profile.
 
     ``provider`` is injectable for tests and future backends.  Production calls
-    normally leave it as ``None``, which selects ``InsightFaceProvider``.
+    normally leave it as ``None``, which selects ``InsightFaceProvider``. A
+    Trigger Keyword and valid reference folder enable identity matching; face
+    detection remains available without either one.
     """
     batch_start = time.perf_counter()
     options = options or FaceAnalysisOptions()
 
     input_folder = validate_folder(input_folder, "input")
     output_folder = validate_folder(output_folder, "output")
-    reference_folder = validate_folder(reference_folder, "identity reference")
 
     cleaned_identity_name = " ".join(identity_name.split())
+    validated_reference_folder: Path | None = None
+    reference_configuration_warning = ""
+    if reference_folder is None:
+        reference_configuration_warning = (
+            "No identity reference folder was configured. Face detection "
+            "continued, but identity matching was skipped."
+        )
+    else:
+        try:
+            validated_reference_folder = validate_folder(
+                reference_folder,
+                "identity reference",
+            )
+        except FileNotFoundError as error:
+            reference_configuration_warning = (
+                f"{error} Face detection continued, but identity matching was "
+                "skipped."
+            )
 
     if not cleaned_identity_name:
-        raise ValueError("Enter a name for the reference identity.")
+        reference_configuration_warning = (
+            "No Trigger Keyword was configured. Face detection continued, but "
+            "identity matching was skipped."
+        )
 
     if not 0.0 <= float(options.similarity_threshold) <= 1.0:
         raise ValueError("Face similarity threshold must be between 0 and 1.")
@@ -860,16 +942,40 @@ def analyze_faces(
             status_callback=status_callback,
         )
 
-    profile_embedding, reference_details, reference_images_found = (
-        build_identity_profile(
-            provider=provider,
-            reference_folder=reference_folder,
-            status_callback=status_callback,
-            recursive=reference_recursive,
+    identity_matching_enabled = not reference_configuration_warning
+    identity_profile_warning = reference_configuration_warning
+    profile_embedding: np.ndarray | None = None
+    reference_details: list[dict[str, Any]] = []
+    reference_images_found = 0
+    if identity_matching_enabled and validated_reference_folder is not None:
+        try:
+            profile_embedding, reference_details, reference_images_found = (
+                build_identity_profile(
+                    provider=provider,
+                    reference_folder=validated_reference_folder,
+                    status_callback=status_callback,
+                    recursive=reference_recursive,
+                )
+            )
+        except IdentityProfileUnavailableError as error:
+            identity_matching_enabled = False
+            identity_profile_warning = str(error)
+            reference_details = error.reference_details
+            reference_images_found = error.reference_images_found
+
+    if not identity_matching_enabled:
+        emit_status(
+            status_callback,
+            "WARNING: Identity matching is unavailable. Continuing with face "
+            "detection only; no trigger-word suggestions will be created. "
+            f"Reason: {identity_profile_warning}",
         )
-    )
     wait_if_paused(pause_event, cancel_event)
-    embedding_dimension = int(profile_embedding.size)
+    embedding_dimension = (
+        int(profile_embedding.size)
+        if profile_embedding is not None
+        else max(0, int(getattr(provider, "embedding_dimension", 0)))
+    )
 
     generated_images = 0
     reused_images = 0
@@ -893,43 +999,52 @@ def analyze_faces(
                 license_label=provider.license_label,
             )
 
-            identity_id = catalog.get_or_create_identity(cleaned_identity_name)
-            profile_id = catalog.upsert_identity_profile(
-                identity_id=identity_id,
-                face_model_id=face_model_id,
-                profile_embedding=profile_embedding.astype(np.float32).tobytes(),
-                embedding_dimension=embedding_dimension,
-                reference_count=len(
-                    [
-                        detail
-                        for detail in reference_details
-                        if detail.get("status") == "used"
-                    ]
-                ),
-                reference_details_json=json.dumps(
-                    reference_details,
-                    ensure_ascii=False,
-                    sort_keys=True,
-                ),
-            )
+            identity_id: int | None = None
+            profile_id: int | None = None
+            identity_tag_id: int | None = None
+            tag_source = ""
+
+            if identity_matching_enabled and profile_embedding is not None:
+                identity_id = catalog.get_or_create_identity(cleaned_identity_name)
+                profile_id = catalog.upsert_identity_profile(
+                    identity_id=identity_id,
+                    face_model_id=face_model_id,
+                    profile_embedding=(
+                        profile_embedding.astype(np.float32).tobytes()
+                    ),
+                    embedding_dimension=embedding_dimension,
+                    reference_count=len(
+                        [
+                            detail
+                            for detail in reference_details
+                            if detail.get("status") == "used"
+                        ]
+                    ),
+                    reference_details_json=json.dumps(
+                        reference_details,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    ),
+                )
+                identity_tag_id = catalog.get_or_create_tag(
+                    cleaned_identity_name,
+                    category="identity",
+                )
+                tag_source = (
+                    f"face:{provider.provider_key}:model-{face_model_id}:"
+                    f"identity-{identity_id}"
+                )
 
             run_id = catalog.start_face_analysis_run(
                 input_root=input_folder,
                 face_model_id=face_model_id,
-                identity_name=cleaned_identity_name,
+                identity_name=(
+                    cleaned_identity_name if identity_matching_enabled else ""
+                ),
                 similarity_threshold=options.similarity_threshold,
                 reuse_stored_analysis=reuse_stored_analysis,
                 execution_provider=provider.execution_provider,
                 discovered_files=len(image_files),
-            )
-
-            identity_tag_id = catalog.get_or_create_tag(
-                cleaned_identity_name,
-                category="identity",
-            )
-            tag_source = (
-                f"face:{provider.provider_key}:model-{face_model_id}:"
-                f"identity-{identity_id}"
             )
 
             with partial_csv.open(
@@ -1075,47 +1190,53 @@ def analyze_faces(
                         successful_images += 1
                         faces_detected += len(detection_rows)
 
-                        for face_index, (
-                            detection_id,
-                            detection,
-                        ) in enumerate(detection_rows):
-                            similarity = float(
-                                np.dot(
-                                    normalize_embedding(detection.embedding),
-                                    profile_embedding,
+                        if (
+                            identity_matching_enabled
+                            and profile_embedding is not None
+                            and profile_id is not None
+                        ):
+                            for face_index, (
+                                detection_id,
+                                detection,
+                            ) in enumerate(detection_rows):
+                                similarity = float(
+                                    np.dot(
+                                        normalize_embedding(detection.embedding),
+                                        profile_embedding,
+                                    )
                                 )
-                            )
-                            is_suggested = (
-                                similarity >= options.similarity_threshold
-                            )
+                                is_suggested = (
+                                    similarity >= options.similarity_threshold
+                                )
 
-                            catalog.upsert_identity_match(
-                                face_detection_id=detection_id,
-                                identity_profile_id=profile_id,
-                                similarity=similarity,
-                                threshold=options.similarity_threshold,
-                                is_suggested=is_suggested,
-                            )
+                                catalog.upsert_identity_match(
+                                    face_detection_id=detection_id,
+                                    identity_profile_id=profile_id,
+                                    similarity=similarity,
+                                    threshold=options.similarity_threshold,
+                                    is_suggested=is_suggested,
+                                )
 
-                            if (
-                                best_similarity is None
-                                or similarity > best_similarity
-                            ):
-                                best_similarity = similarity
-                                best_face_index = face_index
+                                if (
+                                    best_similarity is None
+                                    or similarity > best_similarity
+                                ):
+                                    best_similarity = similarity
+                                    best_face_index = face_index
 
-                    catalog.remove_suggested_tag_assignment(
-                        image_id=image_id,
-                        tag_id=identity_tag_id,
-                        source=tag_source,
-                    )
+                    if identity_tag_id is not None:
+                        catalog.remove_suggested_tag_assignment(
+                            image_id=image_id,
+                            tag_id=identity_tag_id,
+                            source=tag_source,
+                        )
 
                     is_image_suggested = (
                         best_similarity is not None
                         and best_similarity >= options.similarity_threshold
                     )
 
-                    if is_image_suggested:
+                    if is_image_suggested and identity_tag_id is not None:
                         catalog.assign_tag(
                             image_id=image_id,
                             tag_id=identity_tag_id,
@@ -1138,7 +1259,11 @@ def analyze_faces(
                         relative_path=str(image_path.relative_to(input_folder)),
                         face_analysis_source=analysis_source,
                         face_count=len(detection_rows),
-                        best_identity_name=cleaned_identity_name,
+                        best_identity_name=(
+                            cleaned_identity_name
+                            if identity_matching_enabled
+                            else ""
+                        ),
                         best_similarity=best_similarity,
                         suggested_identity=(
                             cleaned_identity_name if is_image_suggested else ""
@@ -1160,11 +1285,12 @@ def analyze_faces(
                     if index % REPORT_FLUSH_INTERVAL == 0:
                         csv_file.flush()
 
-                    score_note = (
-                        f"best {best_similarity:.3f}"
-                        if best_similarity is not None
-                        else "no face"
-                    )
+                    if best_similarity is not None:
+                        score_note = f"best identity score {best_similarity:.3f}"
+                    elif detection_rows and not identity_matching_enabled:
+                        score_note = "identity matching skipped"
+                    else:
+                        score_note = "no face"
                     emit_status(
                         status_callback,
                         f"Face [{index}/{len(image_files)}] "
@@ -1245,6 +1371,8 @@ def analyze_faces(
         output_csv=final_csv,
         catalog_database=catalog_database,
         identity_name=cleaned_identity_name,
+        identity_matching_enabled=identity_matching_enabled,
+        identity_profile_warning=identity_profile_warning,
         reference_images_found=reference_images_found,
         reference_faces_used=len(
             [

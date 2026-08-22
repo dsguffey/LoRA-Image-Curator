@@ -726,7 +726,9 @@ class DatasetExportDialog(tk.Toplevel):
                     "Missing Trigger Keyword",
                     "Unreviewed",
                     "Low Resolution",
+                    "Quality Not Analyzed",
                     "Blur",
+                    "Prominent Overlay",
                     "Possible Duplicates",
                 }:
                     warnings.append(

@@ -1,5 +1,79 @@
 # LoRA Image Curator Changelog
 
+## v0.28.4 — Pre-Feedback Workflow UI Pass
+
+### v0.28.4.5 follow-up
+
+- marked initial large-catalog validation complete after practical testing at
+  roughly 14,000–17,000 images; deeper sustained-load and interruption testing
+  remains optional follow-up work rather than a blocker for community feedback
+
+### Changed
+
+- renamed the combined action to **Update Catalog & Run Enabled Analysis** and made its
+  order explicit: catalog registration, optional default-on Quality Analysis,
+  then Florence and selected providers
+- placed primary Quality Analysis controls under Analyze & Update Catalog while
+  retaining cached status and missing-analysis warnings in Finalize & Export
+- made Browser Filter Settings editable in place and synchronized the shared
+  target, Blur threshold, duplicate similarity, overlay coverage threshold, and
+  spatial-overlap rule across Browser, Settings, and Finalize & Export
+- made the Finalize & Export LoRA target directly selectable
+- duplicated catalog management and Export Training Data commands in File
+
+### Added
+
+- added **Prominent Overlay** to Browser readiness filters, Finalize readiness,
+  and pre-export warnings. It combines Florence OCR rectangles with conservative
+  Quality Analysis detection of obvious neutral bars/banners, then measures
+  covered area instead of recognized character count
+- added a shared 1–30% coverage control, defaulting to 5%, plus global Whole
+  Image, Face, Body, Face or Body, and Face and Body region rules; the default
+  checks a detected face or body
+- made the Possible Duplicates readiness filter group duplicate clusters for
+  direct review and keep cluster members adjacent in combined Any-filter views
+- restored OCR text to ordinary search and added an explicit `ocr:` field while
+  keeping OCR out of automatic tags and exported training text
+- added v0.28.4 dependency-light orchestration/readiness/search contracts and a
+  cumulative Windows GUI checkpoint
+
+### Compatibility
+
+- catalog schema 14 additively stores Quality Analysis bar/banner rectangles;
+  schema 13's OCR rectangles remain intact, and opening an existing catalog
+  changes no source images or reviewed metadata
+- existing Florence captions remain reusable, but prior triage results are
+  refreshed once when triage runs so spatial OCR boxes can be retained
+- Quality Analysis algorithm version 2 refreshes its lightweight cache once to
+  populate bar/banner candidates
+- this is a Git/source update; the published Portable Source artifact remains
+  v0.28.2 until a deliberate portable release update
+
+## v0.28.3 — Independent Face Detection and Identity Matching
+
+### Fixed
+
+- an absent, invalid, or unusable InsightFace reference folder—and a blank
+  Trigger Keyword—no longer prevents catalog images from being scanned
+- Face Analysis now completes in an explicit detection-only fallback, storing
+  normal face counts, bounding boxes, landmarks, and embeddings while creating
+  no identity matches or trigger-word suggestions
+- a later run with a valid reference profile can reuse the stored face
+  detections and perform identity matching without rerunning inference
+- standalone and integrated provider completion screens now warn that identity
+  matching was skipped instead of reporting the entire provider as failed
+
+### Compatibility and verification
+
+- catalog schema remains 12; catalogs, face results, reviewed tags, settings,
+  models, virtual environments, source images, and outputs require no migration
+- added deterministic-provider regression coverage for failed-reference
+  fallback, database integrity, CSV output, zero guessed suggestions, and later
+  valid-reference reuse
+- added a cumulative Windows GUI checkpoint for the detection-only completion
+  warning; the v0.28.2 Portable Source artifact remains unchanged in this Git
+  source update
+
 ## v0.28.2 — Slim Portable Source Distribution
 
 ### Added

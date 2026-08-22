@@ -21,9 +21,9 @@ def _project(relative_name: str) -> str:
 
 
 def test_release_identity_is_synchronized() -> None:
-    assert APP_VERSION == "0.28.2"
-    assert "Version 0.28.2" in _project("VERSION.txt")
-    assert 'version = "0.28.2"' in _project("pyproject.toml")
+    assert APP_VERSION == "0.28.4"
+    assert "Version 0.28.4" in _project("VERSION.txt")
+    assert 'version = "0.28.4"' in _project("pyproject.toml")
     assert get_component("florence_model")["approx_download_bytes"] == 1_540_000_000
     assert get_component("insightface_buffalo_l")["approx_download_bytes"] == 326_000_000
     assert get_component("mediapipe_pose_full_v1")["approx_download_bytes"] == 9_398_198
@@ -99,8 +99,8 @@ def test_release_gates_include_v0281() -> None:
     assert '"tests/test_v0281_regression.py"' in regressions
     assert '"tests/test_v0281_regression.py"' in builder
     assert '"tests/test_v0281_gui.py"' in builder
-    assert "tests.test_v0282_regression" in workflow
-    assert 'GUI_ENTRYPOINT = "tests/test_v0282_gui.py"' in golden
+    assert "tests.test_v0284_regression" in workflow
+    assert 'GUI_ENTRYPOINT = "tests/test_v0284_gui.py"' in golden
 
 
 if __name__ == "__main__":

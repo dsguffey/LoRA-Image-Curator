@@ -215,7 +215,8 @@ def run() -> None:
         assert cancelled.analyzed_images == 0
 
         with closing(sqlite3.connect(database)) as connection, connection:
-            assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 12
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+            assert SCHEMA_VERSION >= 12
             assert connection.execute(
                 "SELECT COUNT(*) FROM image_quality_results WHERE status='success'"
             ).fetchone()[0] == 3
@@ -230,12 +231,15 @@ def run() -> None:
             connection.execute("DROP TABLE image_set_members")
             connection.execute("DROP TABLE image_sets")
             connection.execute("DROP TABLE image_quality_results")
+            connection.execute(
+                "ALTER TABLE analysis_results DROP COLUMN ocr_regions_json"
+            )
             connection.execute("PRAGMA user_version = 7")
             connection.commit()
         with Catalog(migration_database):
             pass
         with closing(sqlite3.connect(migration_database)) as connection, connection:
-            assert connection.execute("PRAGMA user_version").fetchone()[0] == 12
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
             assert connection.execute(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' "
                 "AND name='image_quality_results'"

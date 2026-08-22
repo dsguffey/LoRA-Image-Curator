@@ -33,6 +33,7 @@ Design notes
 from __future__ import annotations
 
 import logging
+import json
 import queue
 import re
 import sqlite3
@@ -195,6 +196,8 @@ class CatalogImageRecord:
     caption: str
     object_labels: str
     ocr_text: str
+    ocr_regions_json: str
+    face_boxes_json: str
     recommendation: str
     recommendation_reason: str
     person_count: int | None
@@ -216,6 +219,7 @@ class CatalogImageRecord:
     full_body_score: float | None
     full_body: bool
     body_classification: str
+    body_landmarks_json: str
     largest_face_area_ratio: float | None
     second_largest_face_area_ratio: float | None
     identity_match_id: int | None
@@ -225,6 +229,7 @@ class CatalogImageRecord:
     first_seen_at: str
     sharpness_score: float | None
     perceptual_hash: str
+    overlay_regions_json: str
     quality_status: str
     quality_error: str
     quality_analyzed_at: str
@@ -272,12 +277,12 @@ class CatalogImageRecord:
 
     @property
     def search_blob(self) -> str:
-        """Combine tag metadata for the ordinary unqualified search.
+        """Combine curated vocabulary and OCR evidence for ordinary search.
 
         Filenames and paths are deliberately absent. Video-extracted frames
         commonly share a long subject name, so including file identity made a
-        subject search match every frame regardless of its actual tags.
-        Advanced field operators continue to handle non-tag review questions.
+        subject search match every frame regardless of its actual tags. OCR is
+        searchable evidence only; it is never promoted into tags or training text.
         """
         blob = "\n".join(
             (
@@ -286,6 +291,7 @@ class CatalogImageRecord:
                 self.manual_keyword,
                 self.ai_tags_active,
                 self.ai_tags_excluded,
+                self.ocr_text,
             )
         ).casefold()
         return blob + "\n" + blob.replace(" ", "_")
@@ -383,6 +389,7 @@ class CatalogBrowserRepository:
 
         try:
             rows = connection.execute(self._browser_query()).fetchall()
+            face_boxes_by_image = self._fetch_face_boxes(connection)
         finally:
             connection.close()
 
@@ -420,6 +427,11 @@ class CatalogBrowserRepository:
                     caption=str(row["caption"] or ""),
                     object_labels=str(row["object_labels"] or ""),
                     ocr_text=str(row["ocr_text"] or ""),
+                    ocr_regions_json=str(row["ocr_regions_json"] or "[]"),
+                    face_boxes_json=face_boxes_by_image.get(
+                        int(row["image_id"]),
+                        "[]",
+                    ),
                     recommendation=str(row["candidate_recommendation"] or ""),
                     recommendation_reason=str(row["recommendation_reason"] or ""),
                     person_count=(
@@ -456,6 +468,9 @@ class CatalogBrowserRepository:
                     full_body=bool(row["full_body"] or 0),
                     body_classification=str(
                         row["body_classification"] or ""
+                    ),
+                    body_landmarks_json=str(
+                        row["body_landmarks_json"] or "[]"
                     ),
                     largest_face_area_ratio=(
                         float(row["largest_face_area"])
@@ -498,6 +513,9 @@ class CatalogBrowserRepository:
                         else None
                     ),
                     perceptual_hash=str(row["perceptual_hash"] or ""),
+                    overlay_regions_json=str(
+                        row["overlay_regions_json"] or "[]"
+                    ),
                     quality_status=str(row["quality_status"] or ""),
                     quality_error=str(row["quality_error"] or ""),
                     quality_analyzed_at=str(row["quality_analyzed_at"] or ""),
@@ -554,6 +572,50 @@ class CatalogBrowserRepository:
         # explicit candidate scope.
         records.sort(key=lambda item: (item.filename.casefold(), item.absolute_path.casefold()))
         return records
+
+    @staticmethod
+    def _fetch_face_boxes(connection: sqlite3.Connection) -> dict[int, str]:
+        """Return current successful face rectangles grouped by image."""
+        rows = connection.execute(
+            """
+            WITH chosen_face_results AS (
+                SELECT fir.*
+                FROM face_image_results AS fir
+                WHERE fir.status = 'success'
+                  AND fir.id = (
+                      SELECT fir2.id
+                      FROM face_image_results AS fir2
+                      WHERE fir2.image_id = fir.image_id
+                        AND fir2.status = 'success'
+                      ORDER BY fir2.analyzed_at DESC, fir2.id DESC
+                      LIMIT 1
+                  )
+            )
+            SELECT
+                fir.image_id,
+                fd.bbox_x1,
+                fd.bbox_y1,
+                fd.bbox_x2,
+                fd.bbox_y2
+            FROM chosen_face_results AS fir
+            JOIN face_detections AS fd ON fd.face_result_id = fir.id
+            ORDER BY fir.image_id, fd.face_index
+            """
+        ).fetchall()
+        grouped: dict[int, list[dict[str, float]]] = {}
+        for row in rows:
+            grouped.setdefault(int(row["image_id"]), []).append(
+                {
+                    "x1": float(row["bbox_x1"]),
+                    "y1": float(row["bbox_y1"]),
+                    "x2": float(row["bbox_x2"]),
+                    "y2": float(row["bbox_y2"]),
+                }
+            )
+        return {
+            image_id: json.dumps(boxes, separators=(",", ":"))
+            for image_id, boxes in grouped.items()
+        }
 
     def _validate_catalog_identity(self) -> None:
         """Confirm that the chosen SQLite file is a LoRA Image Curator catalog."""
@@ -816,6 +878,7 @@ class CatalogBrowserRepository:
             chosen_analysis.caption,
             chosen_analysis.object_labels,
             chosen_analysis.ocr_text,
+            chosen_analysis.ocr_regions_json,
             chosen_analysis.candidate_recommendation,
             chosen_analysis.recommendation_reason,
             chosen_analysis.person_count,
@@ -842,6 +905,8 @@ class CatalogBrowserRepository:
             COALESCE(chosen_body_results.full_body, 0) AS full_body,
             COALESCE(chosen_body_results.classification, '')
                 AS body_classification,
+            COALESCE(chosen_body_results.landmarks_json, '[]')
+                AS body_landmarks_json,
             chosen_body_results.detection_threshold
                 AS body_detection_threshold,
             chosen_body_results.visibility_threshold
@@ -857,6 +922,7 @@ class CatalogBrowserRepository:
             best_identity.identity_review_status,
             quality.sharpness_score,
             quality.perceptual_hash,
+            quality.overlay_regions_json,
             quality.status AS quality_status,
             quality.error AS quality_error,
             quality.analyzed_at AS quality_analyzed_at,
@@ -1662,7 +1728,7 @@ class CatalogBrowserFrame(ttk.Frame):
         self.file_action_service: FileActionService | None = None
         self.on_image_sets_changed: Callable[[], None] | None = None
         self.on_filter_settings_changed: (
-            Callable[[str, float, int], None] | None
+            Callable[[str, float, int, int, str], None] | None
         ) = None
         self.on_command_state_changed: Callable[[], None] | None = None
         self._session_backup_path: Path | None = None
@@ -1702,6 +1768,10 @@ class CatalogBrowserFrame(ttk.Frame):
             duplicate_similarity_percent=(
                 self.settings.quality_duplicate_similarity_percent
             ),
+            overlay_coverage_threshold_percent=(
+                self.settings.overlay_coverage_threshold_percent
+            ),
+            overlay_spatial_mode=self.settings.overlay_spatial_mode,
         ).normalized()
         self.filter_var.set(self.browser_filter_state.catalog_state)
         self._filter_image_set_ids: frozenset[int] = frozenset()
@@ -2876,7 +2946,15 @@ class CatalogBrowserFrame(ttk.Frame):
             self._browser_filter_cache_key = filter_cache_key
             self._browser_filter_cache_records = filter_result.records
         filtered_records = self._browser_filter_cache_records
-        requested_duplicate_threshold = duplicate_review_threshold(query)
+        explicit_duplicate_threshold = duplicate_review_threshold(query)
+        requested_duplicate_threshold = explicit_duplicate_threshold
+        duplicate_filter_active = (
+            "Possible Duplicates" in self.browser_filter_state.readiness_issues
+        )
+        if requested_duplicate_threshold is None and duplicate_filter_active:
+            requested_duplicate_threshold = float(
+                self.browser_filter_state.duplicate_similarity_percent
+            )
         search_records = filtered_records
         if requested_duplicate_threshold is not None:
             # Explicit duplicate searches still expose the historical
@@ -2919,12 +2997,22 @@ class CatalogBrowserFrame(ttk.Frame):
             return
         records = sorted(records, key=self._sort_key, reverse=self._sort_reverse())
 
-        # Grouping is a temporary presentation mode owned only by a positive
-        # duplicate-similarity search. Ordinary browsing, filters, image sets,
-        # and exact-copy searches retain the familiar flat grid.
+        # A positive duplicate search or a dedicated duplicate readiness filter
+        # owns grouped review. When Possible Duplicates participates in an
+        # any-of-several filter, keep every matching record but order cluster
+        # members together before the remaining results.
         self.duplicate_review_threshold = requested_duplicate_threshold
         self.duplicate_review_clusters = ()
-        if self.duplicate_review_threshold is not None:
+        grouped_duplicate_view = (
+            self.duplicate_review_threshold is not None
+            and (
+                explicit_duplicate_threshold is not None
+                or self.browser_filter_state.readiness_match == "all"
+                or self.browser_filter_state.readiness_issues
+                == frozenset({"Possible Duplicates"})
+            )
+        )
+        if grouped_duplicate_view:
             clusters = duplicate_candidate_clusters(
                 records,
                 self.duplicate_review_threshold,
@@ -2944,6 +3032,26 @@ class CatalogBrowserFrame(ttk.Frame):
             # A perceptual review group is useful only when at least two of its
             # candidates survive the current search/filter/set constraints.
             records = [record for record in records if record.image_id in grouped_ids]
+        elif self.duplicate_review_threshold is not None:
+            clusters = duplicate_candidate_clusters(
+                records,
+                self.duplicate_review_threshold,
+            )
+            original_position = {
+                record.image_id: index for index, record in enumerate(records)
+            }
+            cluster_position = {
+                image_id: (cluster_index, member_index)
+                for cluster_index, cluster in enumerate(clusters)
+                for member_index, image_id in enumerate(cluster)
+            }
+            records.sort(
+                key=lambda record: cluster_position.get(
+                    record.image_id,
+                    (len(clusters), original_position[record.image_id]),
+                )
+            )
+            self.duplicate_review_threshold = None
 
         self.visible_records = records
 
@@ -2990,6 +3098,8 @@ class CatalogBrowserFrame(ttk.Frame):
         profile_key: str,
         blur_threshold: float,
         duplicate_similarity_percent: int,
+        overlay_coverage_threshold_percent: int,
+        overlay_spatial_mode: str,
     ) -> None:
         """Adopt centrally configured quality interpretation without clearing filters."""
         self.browser_filter_state = replace(
@@ -2997,6 +3107,8 @@ class CatalogBrowserFrame(ttk.Frame):
             profile_key=profile_key,
             blur_threshold=blur_threshold,
             duplicate_similarity_percent=duplicate_similarity_percent,
+            overlay_coverage_threshold_percent=overlay_coverage_threshold_percent,
+            overlay_spatial_mode=overlay_spatial_mode,
         ).normalized()
         self._browser_filter_cache_key = None
         self._browser_filter_cache_records = ()
@@ -3037,6 +3149,12 @@ class CatalogBrowserFrame(ttk.Frame):
         self.settings.quality_duplicate_similarity_percent = (
             dialog.result.duplicate_similarity_percent
         )
+        self.settings.overlay_coverage_threshold_percent = (
+            dialog.result.overlay_coverage_threshold_percent
+        )
+        self.settings.overlay_spatial_mode = (
+            dialog.result.overlay_spatial_mode
+        )
         self._reload_filter_image_set_scope()
         self._save_browser_settings()
         if self.on_filter_settings_changed is not None:
@@ -3044,6 +3162,8 @@ class CatalogBrowserFrame(ttk.Frame):
                 dialog.result.profile_key,
                 dialog.result.blur_threshold,
                 dialog.result.duplicate_similarity_percent,
+                dialog.result.overlay_coverage_threshold_percent,
+                dialog.result.overlay_spatial_mode,
             )
         self._apply_search()
         self._record_filter_change(
@@ -3063,6 +3183,12 @@ class CatalogBrowserFrame(ttk.Frame):
             blur_threshold=self.browser_filter_state.blur_threshold,
             duplicate_similarity_percent=(
                 self.browser_filter_state.duplicate_similarity_percent
+            ),
+            overlay_coverage_threshold_percent=(
+                self.browser_filter_state.overlay_coverage_threshold_percent
+            ),
+            overlay_spatial_mode=(
+                self.browser_filter_state.overlay_spatial_mode
             ),
         )
         self._filter_image_set_ids = frozenset()
@@ -3118,6 +3244,12 @@ class CatalogBrowserFrame(ttk.Frame):
         self.settings.quality_duplicate_similarity_percent = (
             self.browser_filter_state.duplicate_similarity_percent
         )
+        self.settings.overlay_coverage_threshold_percent = (
+            self.browser_filter_state.overlay_coverage_threshold_percent
+        )
+        self.settings.overlay_spatial_mode = (
+            self.browser_filter_state.overlay_spatial_mode
+        )
         self._reload_filter_image_set_scope()
         self._update_filter_button_state()
         self._save_browser_settings()
@@ -3126,6 +3258,8 @@ class CatalogBrowserFrame(ttk.Frame):
                 self.browser_filter_state.profile_key,
                 self.browser_filter_state.blur_threshold,
                 self.browser_filter_state.duplicate_similarity_percent,
+                self.browser_filter_state.overlay_coverage_threshold_percent,
+                self.browser_filter_state.overlay_spatial_mode,
             )
         self._apply_search()
 
@@ -6190,6 +6324,16 @@ class CatalogBrowserFrame(ttk.Frame):
             quality_status += f"\nError: {record.quality_error}"
         if record.quality_analyzed_at:
             quality_status += f"\nAnalyzed: {record.quality_analyzed_at}"
+        try:
+            overlay_candidates = json.loads(record.overlay_regions_json or "[]")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            overlay_candidates = []
+        overlay_value = (
+            f"{len(overlay_candidates)} obvious bar/banner candidate"
+            f"{'s' if len(overlay_candidates) != 1 else ''} cached"
+            if record.quality_status == "success"
+            else "Run Quality Analysis to measure bars/banners"
+        )
 
         ImageQualityDialog(
             self,
@@ -6197,6 +6341,7 @@ class CatalogBrowserFrame(ttk.Frame):
             fields=(
                 ("Local sharpness / Blur", blur_value),
                 ("Possible duplicate evidence", duplicate_value),
+                ("Overlay candidates", overlay_value),
                 ("Quality-analysis status", quality_status),
                 ("Face evidence", face_value),
                 ("Florence person count", (

@@ -47,15 +47,22 @@ embeddings.
 
 ## Reference profile workflow
 
-1. Analyze every supported reference image.
+Face detection is independent of the optional identity reference:
+
+1. Attempt to analyze every supported reference image.
 2. Select the only face, or the largest face when several are present.
-3. Normalize each embedding.
-4. Average the embeddings.
-5. Normalize the average.
-6. Store the profile against the exact face model.
-7. Compare each target face with cosine similarity.
-8. Store every comparison, not only matches above the current threshold.
-9. Create a general `identity` tag only when the best face passes the threshold.
+3. If at least one reference face is usable, normalize and average its
+   embeddings, store the profile against the exact model, and enable identity
+   matching.
+4. Scan every catalog image for faces regardless of whether reference-profile
+   construction succeeded.
+5. Store detections, bounding boxes, landmarks, and embeddings independently.
+6. When a profile exists, compare each target face with cosine similarity and
+   store every comparison, not only matches above the current threshold.
+7. Create a reviewable `identity`/Trigger Keyword suggestion only when the best
+   face passes the threshold.
+8. When no profile exists, create no identity matches or Trigger Keyword
+   suggestions and report that the run completed in detection-only mode.
 
 ## Review-state rule
 

@@ -19,7 +19,7 @@ and export of training-ready data.
 
 | Project at a glance | |
 |---|---|
-| Current release | v0.28.2 slim Portable Source distribution |
+| Current release | v0.28.4 Git/source release; v0.28.2 Portable Source |
 | Primary platform | Windows 11, Python 3.11+ |
 | Data model | Versioned SQLite catalog with SHA-256 content identity |
 | Local analysis | Florence-2, optional InsightFace and MediaPipe |
@@ -48,9 +48,26 @@ and export of training-ready data.
 > guided setup/application payload while excluding repository-only files and
 > every user/runtime-data category. The full source archive and future
 > self-contained Windows package remain separate artifacts.
-> Catalog schema remains unchanged. Large-catalog measurements,
-> active-provider shutdown/quarantine stress testing, and the first complete
-> exported-dataset training trial remain on the roadmap.
+> v0.28.3 separates InsightFace detection from optional identity matching: an
+> absent, invalid, or unusable reference no longer blocks the catalog scan, while trigger-word
+> suggestions are created only when a valid reference profile exists. The
+> Portable Source artifact remains at v0.28.2 until the source fix passes its
+> Windows/Git smoke test and is deliberately propagated.
+> v0.28.4 makes the first-use workflow explicit: catalog update, optional
+> default-on Quality Analysis, then providers. It also adds editable local
+> filter settings, Prominent Overlay readiness, duplicate grouping from the
+> readiness checkbox, Finalize target selection, OCR search, and native File
+> menu catalog/export commands. Prominent Overlay measures the visible area of
+> Florence OCR text and conservative bar/banner candidates against the whole
+> image, face, body, either, or both; the setting is shared everywhere. Schema
+> 14 adds cached bar/banner rectangles to schema 13's OCR geometry. Existing
+> catalogs need one Quality Analysis rerun for bar candidates and one Florence
+> rerun if OCR rectangles are absent. Portable Source
+> remains at v0.28.2 pending a deliberate portable update. Initial large-catalog
+> validation is complete at the project's current 14,000–17,000-image scale;
+> deeper interruption, memory, and sustained-provider testing can be reopened if
+> community feedback indicates a need. The first complete exported-dataset
+> training trial remains on the roadmap.
 
 ## Why this project exists
 
@@ -67,7 +84,8 @@ export.
 ## Core workflow
 
 1. Create a catalog from one or more image folders.
-2. Run local caption, face, and optional body/pose analysis.
+2. Update the catalog, run local Quality Analysis, then run caption, face, and
+   optional body/pose providers.
 3. Search, filter, compare, and review images in a paged thumbnail browser.
 4. Prune a named image set with duplicate, quality, identity, and readiness
    evidence.
@@ -104,7 +122,7 @@ invariants, and concurrency rules.
 
 ## Feature summary
 
-- Local Florence-2 captioning, object detection, OCR, and triage evidence.
+- Local Florence-2 captioning, object detection, OCR text/regions, and triage evidence.
 - Optional InsightFace detection and identity suggestions.
 - Optional MediaPipe pose/body analysis with vetted model compatibility checks.
 - Independent inclusive-by-default subfolder scopes for catalog import,

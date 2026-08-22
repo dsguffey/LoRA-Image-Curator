@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 
-echo LoRA Image Curator v0.28.2 - Face Analysis Setup Check
+echo LoRA Image Curator v0.28.4 - Face Analysis Setup Check
 echo.
 
 if not exist "venv\Scripts\python.exe" (

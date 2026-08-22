@@ -21,6 +21,7 @@ CSV remains a convenient human-readable report and future export format.
 from __future__ import annotations
 
 import csv
+import json
 import re
 import time
 
@@ -68,17 +69,19 @@ KNOWN_WORKING_TRANSFORMERS_VERSION = "4.56.2"
 
 # Increment this only when LoRA Image Curator changes the meaning or structure of
 # generated analysis data. It is separate from the SQLite schema version.
-ANALYSIS_VERSION = 1
+ANALYSIS_VERSION = 2
 
 # These exact historical identities produced valid Florence-2 Large FT results
 # before the native-compatible checkpoint correction. Reusing only successful
 # rows from these reviewed identities lets an interrupted large catalog resume
-# without discarding thousands of completed captions/triage results. New rows
-# are always stored under MODEL_NAME; this tuple is intentionally not a general
+# without discarding thousands of completed captions. Triage rows are rerun so
+# v2 can retain OCR rectangles for spatial text-overlay review. New rows are
+# always stored under MODEL_NAME; this tuple is intentionally not a general
 # "any Florence version" compatibility escape hatch.
 LEGACY_REUSABLE_ANALYSIS_IDENTITIES = (
-    ("microsoft/Florence-2-large-ft", "4.56.2", ANALYSIS_VERSION),
-    ("microsoft/Florence-2-large-ft", "4.49.0", ANALYSIS_VERSION),
+    (MODEL_NAME, KNOWN_WORKING_TRANSFORMERS_VERSION, 1),
+    ("microsoft/Florence-2-large-ft", "4.56.2", 1),
+    ("microsoft/Florence-2-large-ft", "4.49.0", 1),
 )
 
 CAPTION_TASK = "<MORE_DETAILED_CAPTION>"
@@ -165,6 +168,7 @@ class ImageAnalysisResult:
     ocr_region_count: int | None
     ocr_character_count: int | None
     ocr_text: str
+    ocr_regions_json: str
 
     likely_screenshot_or_ui: str
     candidate_recommendation: str
@@ -602,10 +606,9 @@ def get_reusable_florence_analysis(
     original and native-converted checkpoints is owned here at the provider
     boundary, where the model family and reviewed version list are explicit.
     """
-    identities = (
-        (MODEL_NAME, KNOWN_WORKING_TRANSFORMERS_VERSION, ANALYSIS_VERSION),
-        *LEGACY_REUSABLE_ANALYSIS_IDENTITIES,
-    )
+    identities = [(MODEL_NAME, KNOWN_WORKING_TRANSFORMERS_VERSION, ANALYSIS_VERSION)]
+    if not requested_triage:
+        identities.extend(LEGACY_REUSABLE_ANALYSIS_IDENTITIES)
     for model_name, transformers_version, analysis_version in identities:
         stored_result = catalog.get_reusable_analysis(
             image_id=image_id,
@@ -679,30 +682,51 @@ def parse_object_detection(
 
 def parse_ocr_with_regions(
     task_result: object,
-) -> tuple[int, int, str]:
-    """Extract OCR region count, text size, and joined readable text."""
+) -> tuple[int, int, str, str]:
+    """Extract OCR text and axis-aligned rectangles from Florence output."""
     if not isinstance(task_result, dict):
-        raise ValueError(
-            f"OCR did not return a dictionary: {task_result}"
-        )
+        raise ValueError(f"OCR did not return a dictionary: {task_result}")
 
     raw_labels = task_result.get("labels", [])
-
+    raw_boxes = task_result.get("quad_boxes", [])
     if not isinstance(raw_labels, list):
-        raise ValueError(
-            f"OCR labels were not a list: {raw_labels}"
-        )
+        raise ValueError(f"OCR labels were not a list: {raw_labels}")
+    if not isinstance(raw_boxes, list):
+        raw_boxes = []
 
-    text_regions = [
-        " ".join(str(label).split())
-        for label in raw_labels
-        if str(label).strip()
-    ]
+    text_regions: list[str] = []
+    regions: list[dict[str, object]] = []
+    for index, raw_label in enumerate(raw_labels):
+        text = " ".join(str(raw_label).split())
+        if not text:
+            continue
+        text_regions.append(text)
+        if index >= len(raw_boxes):
+            continue
+        raw_box = raw_boxes[index]
+        if not isinstance(raw_box, (list, tuple)) or len(raw_box) < 8:
+            continue
+        try:
+            coordinates = [float(value) for value in raw_box[:8]]
+        except (TypeError, ValueError):
+            continue
+        x_values = coordinates[0::2]
+        y_values = coordinates[1::2]
+        regions.append(
+            {
+                "text": text,
+                "x1": min(x_values),
+                "y1": min(y_values),
+                "x2": max(x_values),
+                "y2": max(y_values),
+            }
+        )
 
     return (
         len(text_regions),
         sum(len(text) for text in text_regions),
         " | ".join(text_regions),
+        json.dumps(regions, separators=(",", ":"), ensure_ascii=False),
     )
 
 
@@ -853,6 +877,7 @@ def analyze_one_image(
         ocr_region_count: int | None = None
         ocr_character_count: int | None = None
         ocr_text = ""
+        ocr_regions_json = "[]"
 
         likely_screenshot_or_ui = "not_evaluated"
         candidate_recommendation = "not_evaluated"
@@ -901,6 +926,7 @@ def analyze_one_image(
                     ocr_region_count,
                     ocr_character_count,
                     ocr_text,
+                    ocr_regions_json,
                 ) = parse_ocr_with_regions(ocr_result)
 
             except (
@@ -969,6 +995,7 @@ def analyze_one_image(
             ocr_region_count=ocr_region_count,
             ocr_character_count=ocr_character_count,
             ocr_text=ocr_text,
+            ocr_regions_json=ocr_regions_json,
             likely_screenshot_or_ui=likely_screenshot_or_ui,
             candidate_recommendation=candidate_recommendation,
             recommendation_reason=recommendation_reason,
@@ -1012,6 +1039,7 @@ def analyze_one_image(
             ocr_region_count=None,
             ocr_character_count=None,
             ocr_text="",
+            ocr_regions_json="[]",
             likely_screenshot_or_ui="not_evaluated",
             candidate_recommendation="review",
             recommendation_reason="image analysis failed",
@@ -1055,6 +1083,7 @@ def result_from_stored_analysis(
         ocr_region_count=stored["ocr_region_count"],
         ocr_character_count=stored["ocr_character_count"],
         ocr_text=str(stored["ocr_text"]),
+        ocr_regions_json=str(stored["ocr_regions_json"] or "[]"),
         likely_screenshot_or_ui=str(
             stored["likely_screenshot_or_ui"]
         ),
@@ -1088,6 +1117,7 @@ def analyze_folder(
     allow_model_download: bool = False,
     progress_callback: ProgressCallback | None = None,
     status_callback: StatusCallback | None = None,
+    catalog_ready_callback: Callable[[Path], None] | None = None,
     cancel_event: Event | None = None,
     pause_event: Event | None = None,
 ) -> BatchAnalysisSummary:
@@ -1228,6 +1258,10 @@ def analyze_folder(
                 status_callback,
                 "Catalog registration complete.",
             )
+            if catalog_ready_callback is not None:
+                wait_if_paused(pause_event, cancel_event)
+                catalog_ready_callback(catalog_database)
+                wait_if_paused(pause_event, cancel_event)
             emit_status(
                 status_callback,
                 f"Stored analyses reusable: "

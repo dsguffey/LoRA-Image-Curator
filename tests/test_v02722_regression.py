@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import json
 
 from pathlib import Path
 from types import ModuleType
@@ -37,9 +38,9 @@ def _load_florence_module():
 
 def test_release_identity_and_checkpoint_are_synchronized() -> None:
     """Require the corrected native checkpoint throughout the release."""
-    assert APP_VERSION == "0.28.2"
-    assert "Version 0.28.2" in _project("VERSION.txt")
-    assert 'version = "0.28.2"' in _project("pyproject.toml")
+    assert APP_VERSION == "0.28.4"
+    assert "Version 0.28.4" in _project("VERSION.txt")
+    assert 'version = "0.28.4"' in _project("pyproject.toml")
     source = _project("florence_analyzer.py")
     assert f'MODEL_NAME = "{MODEL_NAME}"' in source
     assert f'MODEL_REVISION = "{MODEL_REVISION}"' in source
@@ -49,7 +50,7 @@ def test_release_identity_and_checkpoint_are_synchronized() -> None:
 
 
 def test_exact_legacy_identities_resume_before_new_inference() -> None:
-    """Preserve reviewed 4.49/v0.27.21 results without broad wildcard reuse."""
+    """Reuse legacy captions while refreshing triage rows for OCR geometry."""
     florence = _load_florence_module()
 
     class RecordingCatalog:
@@ -75,14 +76,20 @@ def test_exact_legacy_identities_resume_before_new_inference() -> None:
         image_id=8079,
         requested_triage=True,
     )
-    assert result == {"caption": "stored and reusable"}
+    assert result is None
     assert catalog.calls == [
-        ((MODEL_NAME, TRANSFORMERS_VERSION, 1), True),
-        (("microsoft/Florence-2-large-ft", "4.56.2", 1), True),
-        (legacy_449, True),
+        ((MODEL_NAME, TRANSFORMERS_VERSION, 2), True),
     ]
 
-    current = (MODEL_NAME, TRANSFORMERS_VERSION, 1)
+    caption_catalog = RecordingCatalog(legacy_449)
+    assert florence.get_reusable_florence_analysis(
+        caption_catalog,
+        image_id=8079,
+        requested_triage=False,
+    ) == {"caption": "stored and reusable"}
+    assert caption_catalog.calls[-1] == (legacy_449, False)
+
+    current = (MODEL_NAME, TRANSFORMERS_VERSION, 2)
     current_catalog = RecordingCatalog(current)
     assert florence.get_reusable_florence_analysis(
         current_catalog,
@@ -90,6 +97,27 @@ def test_exact_legacy_identities_resume_before_new_inference() -> None:
         requested_triage=False,
     ) is not None
     assert current_catalog.calls == [(current, False)]
+
+
+def test_ocr_regions_keep_their_original_label_box_pairing() -> None:
+    """Blank OCR labels must not shift later rectangles onto the wrong text."""
+    florence = _load_florence_module()
+    count, characters, text, regions_json = florence.parse_ocr_with_regions(
+        {
+            "labels": ["first", "", "second label"],
+            "quad_boxes": [
+                [0, 0, 10, 0, 10, 10, 0, 10],
+                [20, 20, 30, 20, 30, 30, 20, 30],
+                [40, 40, 70, 40, 70, 60, 40, 60],
+            ],
+        }
+    )
+    assert count == 2
+    assert characters == len("first") + len("second label")
+    assert text == "first | second label"
+    regions = json.loads(regions_json)
+    assert [region["text"] for region in regions] == ["first", "second label"]
+    assert regions[1]["x1"] == 40.0
 
 
 def test_preflight_covers_every_live_task_before_catalog_inference() -> None:
@@ -116,13 +144,14 @@ def test_release_gates_include_the_recovery_endpoint() -> None:
     assert '"tests/test_v02722_regression.py"' in regressions
     assert '"tests/test_v02722_regression.py"' in builder
     assert '"tests/test_v02722_gui.py"' in builder
-    assert "tests.test_v0282_regression" in workflow
-    assert 'GUI_ENTRYPOINT = "tests/test_v0282_gui.py"' in golden
+    assert "tests.test_v0284_regression" in workflow
+    assert 'GUI_ENTRYPOINT = "tests/test_v0284_gui.py"' in golden
 
 
 if __name__ == "__main__":
     test_release_identity_and_checkpoint_are_synchronized()
     test_exact_legacy_identities_resume_before_new_inference()
+    test_ocr_regions_keep_their_original_label_box_pairing()
     test_preflight_covers_every_live_task_before_catalog_inference()
     test_release_gates_include_the_recovery_endpoint()
     print(

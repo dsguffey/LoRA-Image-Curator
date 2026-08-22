@@ -34,7 +34,7 @@ from tools.golden_fixture import create_golden_fixture
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TEST_ROOT = Path(__file__).resolve().parent
-GUI_ENTRYPOINT = "tests/test_v0282_gui.py"
+GUI_ENTRYPOINT = "tests/test_v0284_gui.py"
 
 
 def _verify_and_report_runtime_paths() -> None:

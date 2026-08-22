@@ -27,10 +27,10 @@ def _portable_policy() -> dict[str, object]:
 
 
 def test_release_identity_is_synchronized() -> None:
-    assert APP_VERSION == "0.28.2"
-    assert "Version 0.28.2" in _project("VERSION.txt")
-    assert 'version = "0.28.2"' in _project("pyproject.toml")
-    assert '"version": "0.28.2"' in _project("provider_registry.json")
+    assert APP_VERSION == "0.28.4"
+    assert "Version 0.28.4" in _project("VERSION.txt")
+    assert 'version = "0.28.4"' in _project("pyproject.toml")
+    assert '"version": "0.28.4"' in _project("provider_registry.json")
     assert "v0.28.2" in _project("README.md")
     assert "v0.28.2" in _project("README.txt")
 
@@ -123,8 +123,8 @@ def test_release_gates_include_v0282_and_both_archive_types() -> None:
     assert '"tests/test_v0282_gui.py"' in source_builder
     assert "tools/build_portable_source.py" in source_builder
     assert "build_portable_source.py" in golden
-    assert 'GUI_ENTRYPOINT = "tests/test_v0282_gui.py"' in golden
-    assert "tests.test_v0282_regression" in workflow
+    assert 'GUI_ENTRYPOINT = "tests/test_v0284_gui.py"' in golden
+    assert "tests.test_v0284_regression" in workflow
 
 
 if __name__ == "__main__":

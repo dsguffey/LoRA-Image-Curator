@@ -64,7 +64,8 @@ def run() -> None:
         _insert_catalog_images(database)
 
         with closing(sqlite3.connect(database)) as connection, connection:
-            assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 12
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+            assert SCHEMA_VERSION >= 12
             assert connection.execute(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='image_sets'"
             ).fetchone()[0] == 1
@@ -122,11 +123,17 @@ def run() -> None:
         with closing(sqlite3.connect(database)) as connection, connection:
             connection.execute("DROP TABLE image_set_members")
             connection.execute("DROP TABLE image_sets")
+            connection.execute(
+                "ALTER TABLE analysis_results DROP COLUMN ocr_regions_json"
+            )
+            connection.execute(
+                "ALTER TABLE image_quality_results DROP COLUMN overlay_regions_json"
+            )
             connection.execute("PRAGMA user_version = 8")
         with Catalog(database):
             pass
         with closing(sqlite3.connect(database)) as connection, connection:
-            assert connection.execute("PRAGMA user_version").fetchone()[0] == 12
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
             assert connection.execute("SELECT COUNT(*) FROM images").fetchone()[0] == 3
             assert connection.execute(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='image_sets'"

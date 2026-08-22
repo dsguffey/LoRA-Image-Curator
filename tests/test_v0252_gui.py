@@ -71,7 +71,20 @@ def _verify_v0252_widgets() -> None:
             keyword_dialog = None
             gc.collect()
 
-            assert len(READINESS_ISSUE_LABELS) == 11
+            historical_readiness_labels = {
+                "Missing Files",
+                "Missing Trigger Keyword",
+                "Unreviewed",
+                "Low Resolution",
+                "No Training Text",
+                "Identity Unconfirmed",
+                "Multiple Faces",
+                "Repeated Training Text",
+                "Quality Not Analyzed",
+                "Blur",
+                "Possible Duplicates",
+            }
+            assert historical_readiness_labels <= set(READINESS_ISSUE_LABELS)
             application._finish_close()
             root = None
         finally:

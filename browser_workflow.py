@@ -18,8 +18,11 @@ from typing import Iterable
 
 from dataset_readiness import (
     DEFAULT_READINESS_PROFILE_KEY,
+    DEFAULT_OVERLAY_COVERAGE_PERCENT,
+    DEFAULT_OVERLAY_SPATIAL_MODE,
     DatasetReadinessReport,
     build_readiness_report,
+    normalize_overlay_spatial_mode,
 )
 from quality_analysis import (
     DEFAULT_BLUR_THRESHOLD,
@@ -70,6 +73,7 @@ READINESS_ISSUE_LABELS = (
     "Identity Unconfirmed",
     "Multiple Faces",
     "Repeated Training Text",
+    "Prominent Overlay",
     "Quality Not Analyzed",
     "Blur",
     "Possible Duplicates",
@@ -96,6 +100,8 @@ class BrowserFilterState:
     profile_key: str = DEFAULT_READINESS_PROFILE_KEY
     blur_threshold: float = DEFAULT_BLUR_THRESHOLD
     duplicate_similarity_percent: int = DEFAULT_DUPLICATE_SIMILARITY_PERCENT
+    overlay_coverage_threshold_percent: int = DEFAULT_OVERLAY_COVERAGE_PERCENT
+    overlay_spatial_mode: str = DEFAULT_OVERLAY_SPATIAL_MODE
 
     def normalized(self) -> "BrowserFilterState":
         """Return a defensive, bounded state suitable for evaluation."""
@@ -151,6 +157,13 @@ class BrowserFilterState:
             duplicate_similarity_percent=max(
                 96,
                 min(100, int(self.duplicate_similarity_percent)),
+            ),
+            overlay_coverage_threshold_percent=max(
+                1,
+                min(30, int(self.overlay_coverage_threshold_percent)),
+            ),
+            overlay_spatial_mode=normalize_overlay_spatial_mode(
+                self.overlay_spatial_mode
             ),
         )
 
@@ -222,6 +235,8 @@ def apply_browser_filter_state(
         profile_key=normalized.profile_key,
         blur_threshold=normalized.blur_threshold,
         duplicate_similarity_percent=normalized.duplicate_similarity_percent,
+        overlay_coverage_threshold_percent=normalized.overlay_coverage_threshold_percent,
+        overlay_spatial_mode=normalized.overlay_spatial_mode,
     )
     issue_image_ids = {
         issue.label: frozenset(issue.image_ids)

@@ -133,7 +133,7 @@ def test_help_icon_coverage() -> None:
 
     source = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
     assert 'help_attribute="face_reference_folder_help"' in source
-    assert "Reference folder:" in source
+    assert "Reference folder (optional):" in source
     assert "HelpIcon" in source
     help_icon_source = inspect.getsource(HelpIcon)
     assert "class HelpIcon" in help_icon_source

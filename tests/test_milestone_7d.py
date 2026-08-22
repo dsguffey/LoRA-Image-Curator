@@ -188,7 +188,8 @@ def run() -> None:
         records = repository.fetch_records(image_ids)
 
         with closing(sqlite3.connect(database)) as connection, connection:
-            assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION == 12
+            assert connection.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
+            assert SCHEMA_VERSION >= 12
             assert connection.execute(
                 "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='export_runs'"
             ).fetchone()[0] == 1

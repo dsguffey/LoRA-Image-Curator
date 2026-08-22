@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-echo LoRA Image Curator v0.28.2 - Body Analysis Dependency Installer
+echo LoRA Image Curator v0.28.4 - Body Analysis Dependency Installer
 echo.
 if not exist "venv\Scripts\python.exe" (
   echo ERROR: Required app setup has not been completed.

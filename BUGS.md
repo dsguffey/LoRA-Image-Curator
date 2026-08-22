@@ -3,6 +3,51 @@
 This file contains defects and unresolved technical problems. Planned features
 and speculative enhancements belong in `ROADMAP.md` or `WISHLIST.md`.
 
+## Fixed in v0.28.4
+
+### The first spatial-overlay source archive omitted an imported helper module
+
+The initial `v0.28.4.3` mini-revision introduced a provider-independent OCR
+helper, but the deterministic archive intentionally includes only files already
+listed in its signed inventory. The helper was absent from the installed source
+archive, causing Florence to fail with `ModuleNotFoundError: ocr_geometry`.
+The parser now lives in the existing Florence module, and the corrected
+`v0.28.4.4` archive has an explicit archive-member check for that module.
+
+### Heavy Text Overlay used character count instead of visible obstruction
+
+The original check used recognized-character count. A short but visually large
+word such as DRAFT could therefore be missed, while many tiny background words
+could be flagged. The replacement **Prominent Overlay** finding unions Florence
+OCR rectangles with conservative Quality Analysis bar/banner rectangles and
+measures their visible coverage of the chosen image, face, body, either, or
+both. The coverage and region settings are global and synchronized between
+Settings, Browser Filter Settings, and Finalize readiness.
+
+### OCR evidence was visible in details but absent from ordinary search
+
+OCR remained stored and visible in Image Details, but ordinary unqualified
+search considered only curated tags and the Trigger Keyword. OCR text is now
+searchable through both ordinary terms and the explicit `ocr:` field. It remains
+evidence only and is not automatically promoted into tags or training text.
+
+## Fixed in v0.28.3
+
+### An unusable identity reference aborted all InsightFace detection
+
+Face Analysis built the reference identity profile before it registered or
+scanned any catalog image. If InsightFace found no usable face in the reference
+folder, the provider raised an error and performed no general face detection,
+even though detection records do not logically require an identity profile.
+
+Face detection and identity matching are now separate layers. Reference and
+Trigger Keyword fields are optional for a plain face scan. InsightFace
+continues scanning catalog images and stores face counts, bounding boxes,
+landmarks, and embeddings when the reference profile is unavailable. In that
+fallback it creates no identity matches or trigger-word suggestions and shows a
+visible completion warning. A later valid reference can reuse the stored
+detections and add only reviewable identity suggestions.
+
 ## Fixed in v0.28.1
 
 ### Florence could silently begin a large model download from Run / Restart

@@ -205,8 +205,8 @@ def test_smart_launcher_and_release_gates_cover_the_foundation() -> None:
     assert '"tests/test_v0280_regression.py"' in regressions
     assert '"tests/test_v0280_regression.py"' in builder
     assert '"tests/test_v0280_gui.py"' in builder
-    assert "tests.test_v0282_regression" in workflow
-    assert 'GUI_ENTRYPOINT = "tests/test_v0282_gui.py"' in golden
+    assert "tests.test_v0284_regression" in workflow
+    assert 'GUI_ENTRYPOINT = "tests/test_v0284_gui.py"' in golden
 
 
 if __name__ == "__main__":

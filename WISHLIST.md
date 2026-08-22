@@ -27,6 +27,10 @@ The guiding rule is:
 - lighting classification and clustering
 - visual-style clustering
 - automatic clothing classification
+- specialized real-world occlusion detection for hands, hair, microphones,
+  foreground objects, and other non-synthetic subject obstructions; this needs
+  a vetted segmentation/occlusion model rather than the conservative overlay
+  geometry used for text and bars
 - character-versus-actor recognition assistance
 - dataset variety and balance analysis
 - dataset planning and curation support for styles, concepts, and multiple
@@ -47,6 +51,10 @@ The guiding rule is:
 - ZIP archive export after directory-based training workflows are proven
 - configurable subfolder templates and filename numbering rules
 - optional image conversion, resizing, or format normalization
+- add an explicit Custom export option for OCR/visible-text output if real use
+  shows it is useful; keep it off by default for LoRA sidecars because OCR often
+  describes text overlays that should be reviewed as contamination rather than
+  silently added to training text
 - deterministic shuffle/seed controls for trainers that benefit from numbered data
 - checks for trainer-specific folder conventions
 - export-history browser and repeat-export action
@@ -204,8 +212,9 @@ phase unless a related workflow is being actively changed.
 
 - broader repeated testing of workflows that passed in prior releases
 - extended Windows GUI passes across every tab after UI layout settles
-- stress testing large catalogs, very large image sets, and long-running video
-  extraction jobs
+- deeper stress testing of catalogs beyond the current roughly 14,000–17,000
+  image validation range, including very large image sets and long-running video
+  extraction jobs, if real-world use exposes a need
 - systematic testing of cancellation, interrupted runs, and locked files across
   provider analysis, video extraction, catalog import, and export
 - change filters, sorting, page size, and first/last/±10 navigation while

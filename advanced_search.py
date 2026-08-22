@@ -42,6 +42,8 @@ FIELD_ALIASES = {
     "image_set": "set",
     "dataset": "set",
     "image_id": "id",
+    "visible_text": "ocr",
+    "text_overlay": "ocr",
 }
 
 KNOWN_FIELDS = {
@@ -55,6 +57,7 @@ KNOWN_FIELDS = {
     "identity",
     "file",
     "caption",
+    "ocr",
     "filename",
     "resolution",
     "quality",
@@ -404,6 +407,7 @@ def _matches_predicate(record: Any, token: str) -> bool:
         "excluded": str(record.ai_tags_excluded),
         "trigger": str(record.manual_keyword),
         "caption": str(record.caption),
+        "ocr": str(getattr(record, "ocr_text", "") or ""),
         "filename": "\n".join((record.filename, record.relative_path, record.absolute_path)),
         "set": str(getattr(record, "image_set_names", "") or "").replace("\x1f", "\n"),
     }

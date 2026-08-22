@@ -114,6 +114,9 @@ class AppSettings:
     readiness_profile_key: str = "flux_character_lora"
     quality_blur_threshold: float = 100.0
     quality_duplicate_similarity_percent: int = 96
+    overlay_coverage_threshold_percent: int = 5
+    overlay_spatial_mode: str = "either"
+    run_quality_analysis: bool = True
 
     # Dataset export preferences are local workflow conveniences. They never
     # contain catalog records, provider output, or a copy of training data.
@@ -347,6 +350,32 @@ def load_settings() -> AppSettings:
                     100,
                     int(raw_data.get("quality_duplicate_similarity_percent", 96)),
                 ),
+            ),
+            overlay_coverage_threshold_percent=max(
+                1,
+                min(
+                    30,
+                    int(raw_data.get("overlay_coverage_threshold_percent", 5)),
+                ),
+            ),
+            overlay_spatial_mode=(
+                str(
+                    raw_data.get(
+                        "overlay_spatial_mode",
+                        raw_data.get("text_overlay_spatial_mode", "either"),
+                    )
+                )
+                if str(
+                    raw_data.get(
+                        "overlay_spatial_mode",
+                        raw_data.get("text_overlay_spatial_mode", "either"),
+                    )
+                )
+                in {"none", "face", "body", "either", "both"}
+                else "either"
+            ),
+            run_quality_analysis=bool(
+                raw_data.get("run_quality_analysis", True)
             ),
             export_last_directory=str(raw_data.get("export_last_directory", "")),
             export_profile_key=str(raw_data.get("export_profile_key", "flux_lora")),

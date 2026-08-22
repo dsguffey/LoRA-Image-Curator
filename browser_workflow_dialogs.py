@@ -17,7 +17,15 @@ from browser_workflow import (
     BrowserFilterState,
     parse_keyword_terms,
 )
-from dataset_readiness import READINESS_PROFILES, READINESS_PROFILES_BY_KEY
+from dataset_readiness import (
+    DEFAULT_OVERLAY_COVERAGE_PERCENT,
+    MAX_OVERLAY_COVERAGE_PERCENT,
+    MIN_OVERLAY_COVERAGE_PERCENT,
+    READINESS_PROFILES,
+    READINESS_PROFILES_BY_KEY,
+    OVERLAY_SPATIAL_MODE_LABELS,
+    normalize_overlay_spatial_mode,
+)
 from image_sets import ImageSetSummary
 from quality_analysis import duplicate_similarity_description
 from ui_fonts import get_ui_font
@@ -26,6 +34,9 @@ from ui_fonts import get_ui_font
 PROFILE_LABEL_TO_KEY = {
     profile.label: profile.key
     for profile in READINESS_PROFILES
+}
+OVERLAY_SPATIAL_LABEL_TO_KEY = {
+    label: key for key, label in OVERLAY_SPATIAL_MODE_LABELS.items()
 }
 
 
@@ -90,11 +101,25 @@ class BrowserFiltersDialog(tk.Toplevel):
             )
         )
         self.profile_var = tk.StringVar(value=profile.label)
-        self.blur_threshold = normalized.blur_threshold
-        self.duplicate_var = tk.StringVar(
+        self.blur_threshold_var = tk.StringVar(
+            value=f"{normalized.blur_threshold:g}"
+        )
+        self.duplicate_similarity_var = tk.IntVar(
+            value=normalized.duplicate_similarity_percent
+        )
+        self.duplicate_description_var = tk.StringVar(
             value=duplicate_similarity_description(
                 normalized.duplicate_similarity_percent
             )
+        )
+        self.overlay_coverage_var = tk.IntVar(
+            value=normalized.overlay_coverage_threshold_percent
+        )
+        self.overlay_description_var = tk.StringVar()
+        self.overlay_spatial_mode_var = tk.StringVar(
+            value=OVERLAY_SPATIAL_MODE_LABELS[
+                normalized.overlay_spatial_mode
+            ]
         )
         self.issue_vars = {
             label: tk.BooleanVar(value=label in normalized.readiness_issues)
@@ -224,9 +249,9 @@ class BrowserFiltersDialog(tk.Toplevel):
         ttk.Label(
             filter_settings,
             text=(
-                "The values below explain the current rules; they do not turn "
-                "filters on. Change them under Settings > Filter Settings. "
-                "On/off readiness checkboxes stay on the Readiness tab here."
+                "These global values define the current rules; they do not turn "
+                "filters on. Changes made here are also reflected under "
+                "Settings > Filter Settings and in Finalize & Export."
             ),
             wraplength=680,
             justify="left",
@@ -234,24 +259,83 @@ class BrowserFiltersDialog(tk.Toplevel):
         ttk.Label(filter_settings, text="Target:").grid(
             row=2, column=0, sticky="w"
         )
-        ttk.Label(
+        ttk.Combobox(
             filter_settings,
             textvariable=self.profile_var,
+            values=tuple(profile.label for profile in READINESS_PROFILES),
+            state="readonly",
+            width=30,
         ).grid(row=2, column=1, sticky="w", padx=(8, 0))
         ttk.Label(filter_settings, text="Blur below:").grid(
             row=3, column=0, sticky="w", pady=(10, 0)
         )
-        ttk.Label(
+        ttk.Spinbox(
             filter_settings,
-            text=f"{self.blur_threshold:g}  (Settings > Filter Settings)",
+            from_=0,
+            to=10000,
+            increment=1,
+            width=10,
+            textvariable=self.blur_threshold_var,
         ).grid(row=3, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
         ttk.Label(filter_settings, text="Duplicate similarity:").grid(
             row=4, column=0, sticky="w", pady=(10, 0)
         )
+        duplicate_row = ttk.Frame(filter_settings)
+        duplicate_row.grid(row=4, column=1, sticky="ew", padx=(8, 0), pady=(10, 0))
+        ttk.Spinbox(
+            duplicate_row,
+            from_=96,
+            to=100,
+            increment=1,
+            width=5,
+            textvariable=self.duplicate_similarity_var,
+            command=self._update_duplicate_description,
+        ).pack(side="left")
+        ttk.Label(
+            duplicate_row,
+            textvariable=self.duplicate_description_var,
+        ).pack(side="left", padx=(8, 0))
+        self.duplicate_similarity_var.trace_add(
+            "write", lambda *_args: self._update_duplicate_description()
+        )
+        ttk.Label(filter_settings, text="Minimum overlay coverage:").grid(
+            row=5, column=0, sticky="w", pady=(10, 0)
+        )
+        overlay_row = ttk.Frame(filter_settings)
+        overlay_row.grid(row=5, column=1, sticky="ew", padx=(8, 0), pady=(10, 0))
+        ttk.Scale(
+            overlay_row,
+            from_=MIN_OVERLAY_COVERAGE_PERCENT,
+            to=MAX_OVERLAY_COVERAGE_PERCENT,
+            variable=self.overlay_coverage_var,
+            command=self._update_overlay_description,
+        ).pack(side="left", fill="x", expand=True)
+        ttk.Label(
+            overlay_row,
+            textvariable=self.overlay_coverage_var,
+            width=4,
+        ).pack(side="left", padx=(8, 0))
+        ttk.Label(filter_settings, text="Relevant region:").grid(
+            row=6, column=0, sticky="w", pady=(10, 0)
+        )
+        ttk.Combobox(
+            filter_settings,
+            textvariable=self.overlay_spatial_mode_var,
+            values=tuple(OVERLAY_SPATIAL_MODE_LABELS.values()),
+            state="readonly",
+            width=28,
+        ).grid(row=6, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
         ttk.Label(
             filter_settings,
-            textvariable=self.duplicate_var,
-        ).grid(row=4, column=1, sticky="w", padx=(8, 0), pady=(10, 0))
+            textvariable=self.overlay_description_var,
+            foreground="#5F5F5F",
+            wraplength=680,
+            justify="left",
+        ).grid(row=7, column=0, columnspan=2, sticky="w", pady=(5, 0))
+        self.overlay_coverage_var.trace_add(
+            "write", lambda *_args: self._update_overlay_description()
+        )
+        self._update_overlay_description()
         ttk.Label(
             filter_settings,
             text=(
@@ -262,7 +346,7 @@ class BrowserFiltersDialog(tk.Toplevel):
             foreground="#5F5F5F",
             wraplength=680,
             justify="left",
-        ).grid(row=5, column=0, columnspan=2, sticky="w", pady=(16, 0))
+        ).grid(row=8, column=0, columnspan=2, sticky="w", pady=(16, 0))
 
         readiness.columnconfigure((0, 1), weight=1)
         ttk.Label(
@@ -277,7 +361,7 @@ class BrowserFiltersDialog(tk.Toplevel):
         for index, label in enumerate(READINESS_ISSUE_LABELS):
             visible_label = (
                 "Possible Duplicates "
-                f"(uses {self.duplicate_var.get().split('%', 1)[0]}% setting)"
+                f"(uses {self.duplicate_similarity_var.get()}% setting)"
                 if label == "Possible Duplicates"
                 else label
             )
@@ -373,6 +457,30 @@ class BrowserFiltersDialog(tk.Toplevel):
         for variable in self.issue_vars.values():
             variable.set(selected)
 
+    def _update_duplicate_description(self) -> None:
+        try:
+            percentage = int(self.duplicate_similarity_var.get())
+        except (tk.TclError, ValueError):
+            return
+        self.duplicate_description_var.set(
+            duplicate_similarity_description(percentage)
+        )
+
+    def _update_overlay_description(self, _value: str | None = None) -> None:
+        """Snap the global coverage threshold to whole percentage points."""
+        try:
+            value = int(round(float(self.overlay_coverage_var.get())))
+        except (tk.TclError, ValueError):
+            value = DEFAULT_OVERLAY_COVERAGE_PERCENT
+        value = max(MIN_OVERLAY_COVERAGE_PERCENT, min(MAX_OVERLAY_COVERAGE_PERCENT, value))
+        if self.overlay_coverage_var.get() != value:
+            self.overlay_coverage_var.set(value)
+        self.overlay_description_var.set(
+            f"Flags recognized text or an obvious bar/banner covering at least {value}% "
+            "of the selected image or subject region. Quality Analysis finds bars; "
+            "Florence OCR finds text."
+        )
+
     def _clear_controls(self) -> None:
         """Reset visibility constraints while retaining interpretation settings."""
         self.image_set_var.set(ALL_IMAGE_SETS_LABEL)
@@ -401,13 +509,20 @@ class BrowserFiltersDialog(tk.Toplevel):
 
     def _apply(self) -> None:
         try:
-            duplicate_similarity = int(
-                self.duplicate_var.get().split("%", 1)[0]
-            )
-        except (ValueError, IndexError):
+            blur_threshold = float(self.blur_threshold_var.get())
+            duplicate_similarity = int(self.duplicate_similarity_var.get())
+            overlay_coverage = int(self.overlay_coverage_var.get())
+        except (tk.TclError, ValueError):
             messagebox.showerror(
                 "Invalid filter threshold",
-                "Duplicate similarity must be a whole percentage.",
+                "Blur, duplicate similarity, and overlay thresholds must be numbers.",
+                parent=self,
+            )
+            return
+        if not 0 <= blur_threshold <= 10000:
+            messagebox.showerror(
+                "Invalid blur threshold",
+                "Blur threshold must be between 0 and 10,000.",
                 parent=self,
             )
             return
@@ -415,6 +530,17 @@ class BrowserFiltersDialog(tk.Toplevel):
             messagebox.showerror(
                 "Invalid duplicate similarity",
                 "Duplicate similarity must be between 96 and 100 percent.",
+                parent=self,
+            )
+            return
+        if not (
+            MIN_OVERLAY_COVERAGE_PERCENT
+            <= overlay_coverage
+            <= MAX_OVERLAY_COVERAGE_PERCENT
+        ):
+            messagebox.showerror(
+                "Invalid overlay threshold",
+                "Overlay coverage must be between 1 and 30 percent.",
                 parent=self,
             )
             return
@@ -440,8 +566,15 @@ class BrowserFiltersDialog(tk.Toplevel):
                 self.profile_var.get(),
                 READINESS_PROFILES[0].key,
             ),
-            blur_threshold=self.blur_threshold,
+            blur_threshold=blur_threshold,
             duplicate_similarity_percent=duplicate_similarity,
+            overlay_coverage_threshold_percent=overlay_coverage,
+            overlay_spatial_mode=normalize_overlay_spatial_mode(
+                OVERLAY_SPATIAL_LABEL_TO_KEY.get(
+                    self.overlay_spatial_mode_var.get(),
+                    "either",
+                )
+            ),
         ).normalized()
         self.destroy()
 
