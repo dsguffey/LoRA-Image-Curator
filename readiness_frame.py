@@ -89,11 +89,11 @@ class Tooltip:
 
 
 class DatasetReadinessFrame(ttk.Frame):
-    """Show readiness, composition, and manually started quality analysis.
+    """Show readiness, composition, and quality-analysis handoff status.
 
-    The frame owns only transient run state. Measurements are committed to the
-    selected catalog because decoding every image is expensive; progress,
-    cancellation, and the reanalyze checkbox disappear when the app closes.
+    The frame owns only transient quality-run state. The actual run controls
+    live in Analyze & Update Catalog; this final tab reports cached status and
+    readiness consequences without offering a second launch point.
     """
 
     def __init__(
@@ -103,6 +103,7 @@ class DatasetReadinessFrame(ttk.Frame):
         show_query: Callable[[str], None],
         load_records: Callable[[], tuple[Iterable[object], str]] | None = None,
         settings: AppSettings | None = None,
+        reanalyze_all_var: tk.BooleanVar | None = None,
         on_settings_saved: Callable[[], None] | None = None,
         on_quality_running_changed: Callable[[bool], None] | None = None,
         export_scope: (
@@ -119,7 +120,7 @@ class DatasetReadinessFrame(ttk.Frame):
         self.catalog_var = tk.StringVar(value="No catalog selected")
         self.quality_status_var = tk.StringVar(value="Quality analysis has not been started.")
         self.quality_progress_var = tk.DoubleVar(value=0.0)
-        self.reanalyze_all_var = tk.BooleanVar(value=False)
+        self.reanalyze_all_var = reanalyze_all_var or tk.BooleanVar(value=False)
         self._external_quality_run_button: ttk.Button | None = None
         self._external_quality_cancel_button: ttk.Button | None = None
         self._records: list[object] = []
@@ -201,26 +202,40 @@ class DatasetReadinessFrame(ttk.Frame):
         ttk.Button(header, text="Refresh", command=self.refresh).grid(row=0, column=6)
 
     def _build_quality_controls(self) -> None:
-        controls = ttk.LabelFrame(self, text="Local Image Quality", padding=9)
+        controls = ttk.LabelFrame(self, text="Quality Analysis Status", padding=9)
         controls.grid(row=1, column=0, sticky="ew", pady=(0, 8))
-        controls.columnconfigure(5, weight=1)
+        controls.columnconfigure(2, weight=1)
+        controls.columnconfigure(3, weight=1)
 
+        # These hidden compatibility widgets keep the frame's historical
+        # internal API intact for older standalone smoke tests. They are not
+        # managed by Tk and therefore do not create a second visible launch
+        # point in Finalize & Export.
         self.run_button = ttk.Button(
             controls,
             text="Run Quality Analysis",
             command=self._start_quality_analysis,
         )
-        self.run_button.grid(row=0, column=0, rowspan=2, sticky="nsw")
         self.cancel_button = ttk.Button(
             controls,
             text="Cancel",
             command=self._cancel_quality_analysis,
             state="disabled",
         )
-        self.cancel_button.grid(row=0, column=1, rowspan=2, sticky="nsw", padx=(6, 14))
+
+        ttk.Label(
+            controls,
+            text=(
+                "Quality Analysis runs from Analyze & Update Catalog, after the "
+                "catalog update and before the model providers. This tab shows "
+                "its current status and readiness results."
+            ),
+            wraplength=950,
+            justify="left",
+        ).grid(row=0, column=0, columnspan=3, sticky="w")
 
         blur_label = ttk.Label(controls, text="Blur threshold:")
-        blur_label.grid(row=0, column=2, sticky="w")
+        blur_label.grid(row=1, column=0, sticky="w", pady=(8, 0))
         self._tooltips.append(
             Tooltip(
                 blur_label,
@@ -232,9 +247,9 @@ class DatasetReadinessFrame(ttk.Frame):
             controls,
             textvariable=self.blur_threshold_var,
             style="Accent.TLabel",
-        ).grid(row=0, column=3, sticky="w", padx=(6, 4))
+        ).grid(row=1, column=1, sticky="w", padx=(6, 4), pady=(8, 0))
         duplicate_label = ttk.Label(controls, text="Similarity match:")
-        duplicate_label.grid(row=0, column=4, sticky="w")
+        duplicate_label.grid(row=1, column=2, sticky="w", pady=(8, 0))
         self._tooltips.append(
             Tooltip(
                 duplicate_label,
@@ -247,20 +262,15 @@ class DatasetReadinessFrame(ttk.Frame):
             controls,
             textvariable=self.duplicate_percent_var,
             width=52,
-        ).grid(row=0, column=5, columnspan=2, sticky="w", padx=(6, 0))
+        ).grid(row=1, column=3, sticky="w", padx=(6, 0), pady=(8, 0))
 
-        ttk.Checkbutton(
-            controls,
-            text="Reanalyze cached images",
-            variable=self.reanalyze_all_var,
-        ).grid(row=1, column=2, columnspan=2, sticky="w", pady=(7, 0))
         self.quality_progress = ttk.Progressbar(
             controls,
             maximum=100,
             variable=self.quality_progress_var,
         )
         self.quality_progress.grid(
-            row=1, column=4, columnspan=3, sticky="ew", pady=(7, 0)
+            row=2, column=0, columnspan=4, sticky="ew", pady=(8, 0)
         )
         ttk.Label(
             controls,
@@ -268,7 +278,7 @@ class DatasetReadinessFrame(ttk.Frame):
             foreground="#5F5F5F",
             wraplength=950,
             justify="left",
-        ).grid(row=2, column=0, columnspan=7, sticky="w", pady=(7, 0))
+        ).grid(row=3, column=0, columnspan=4, sticky="w", pady=(7, 0))
 
     def _build_scrolling_content(self) -> None:
         canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
@@ -711,7 +721,7 @@ class DatasetReadinessFrame(ttk.Frame):
         else:
             message = (
                 "Open or create a LoRA Image Curator catalog to calculate readiness.\n\n"
-                "Quality analysis starts only when you click Run Quality Analysis."
+                "Run Quality Analysis from the Analyze & Update Catalog tab."
             )
         ttk.Label(
             self.content,
