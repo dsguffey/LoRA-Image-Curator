@@ -26,7 +26,7 @@ import subprocess
 import sys
 import webbrowser
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Sequence
@@ -34,6 +34,7 @@ from urllib.parse import urlparse
 
 from app_identity import APP_NAME, APP_VERSION
 from provider_registry import get_component, load_provider_registry
+from lic_dependencies.profile import PROFILE, ROOT as DEPENDENCY_ROOT
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -41,10 +42,10 @@ VENV_ROOT = PROJECT_ROOT / "venv"
 VENV_PYTHON = VENV_ROOT / "Scripts" / "python.exe"
 PYTORCH_SELECTOR_URL = "https://pytorch.org/get-started/locally/"
 NVIDIA_RUNTIME_COMPONENT = get_component("pytorch_nvidia")
-TESTED_NVIDIA_TORCH_VERSION = "2.13.0"
-TESTED_NVIDIA_TORCHVISION_VERSION = "0.28.0"
+TESTED_NVIDIA_TORCH_VERSION = PROFILE["torch"].split("+")[0]
+TESTED_NVIDIA_TORCHVISION_VERSION = PROFILE["torchvision"].split("+")[0]
 TESTED_NVIDIA_CUDA_VERSION = "13.0"
-TESTED_NVIDIA_INDEX_URL = str(NVIDIA_RUNTIME_COMPONENT["source_url"])
+TESTED_NVIDIA_INDEX_URL = PROFILE["torch_index"]
 # PyTorch's CUDA 13 guidance identifies this as the minimum Windows driver for
 # current Blackwell-class wheels. The comparison is intentionally local and
 # conservative: an older driver stops before pip changes the environment.
@@ -63,7 +64,7 @@ REQUIRED_EXACT_VERSIONS = {
     # Native Florence-2 support begins after the project's former 4.49 line.
     # Exact matching keeps setup readiness aligned with the loader's reviewed
     # no-remote-code execution boundary.
-    "transformers": "4.56.2",
+    "transformers": PROFILE["transformers"],
 }
 FACE_DISTRIBUTIONS = (
     ("insightface", "InsightFace"),
@@ -86,6 +87,8 @@ class SetupStatus:
     face_providers: tuple[str, ...]
     body_packages: dict[str, str]
     ffmpeg_path: str
+    dependency_issues: tuple[str, ...] = ()
+    face_runtime: dict[str, object] = field(default_factory=dict)
 
     @property
     def required_ready(self) -> bool:
@@ -312,7 +315,7 @@ print(json.dumps(providers))
         return ()
 
 
-def inspect_setup() -> SetupStatus:
+def inspect_setup(*, probe_face: bool = False) -> SetupStatus:
     """Inspect required and optional components without installing anything."""
     if not VENV_PYTHON.is_file():
         missing_required = {
@@ -334,6 +337,22 @@ def inspect_setup() -> SetupStatus:
             ffmpeg_path=shutil.which("ffmpeg") or "",
         )
 
+    from lic_dependencies.installer import target_state
+    from lic_dependencies.profile import conflicts
+    try:
+        state = target_state(str(VENV_PYTHON))
+        issues = tuple(conflicts(state["packages"], nvidia=bool(state["cuda"])))
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError) as error:
+        state = {"packages": {}}
+        issues = (f"Dependency/runtime inspection failed: {error}",)
+    face_runtime = {}
+    if probe_face and "insightface" in state["packages"] and not issues:
+        try:
+            completed = subprocess.run([str(VENV_PYTHON), "-B", "-m", "lic_dependencies.runtime_probe"],
+                                       cwd=DEPENDENCY_ROOT, capture_output=True, text=True, timeout=90, check=True)
+            face_runtime = json.loads(completed.stdout.strip().splitlines()[-1])
+        except (OSError, subprocess.SubprocessError, ValueError, IndexError) as error:
+            face_runtime = {"gpu_execution_ok": False, "errors": [str(error)]}
     return SetupStatus(
         environment_exists=True,
         required_packages=_read_package_versions(
@@ -344,6 +363,8 @@ def inspect_setup() -> SetupStatus:
         face_providers=_inspect_onnx_providers(VENV_PYTHON),
         body_packages=_read_package_versions(VENV_PYTHON, BODY_DISTRIBUTIONS),
         ffmpeg_path=shutil.which("ffmpeg") or "",
+        dependency_issues=issues,
+        face_runtime=face_runtime,
     )
 
 
@@ -360,7 +381,7 @@ def _format_package_group(
 
 def print_setup_status() -> SetupStatus:
     """Print a required/optional checklist and return the inspected facts."""
-    status = inspect_setup()
+    status = inspect_setup(probe_face=True)
     print(f"\n{APP_NAME} v{APP_VERSION} setup status")
     print("=" * 62)
     print("\nREQUIRED TO START THE SOURCE VERSION")
@@ -394,6 +415,14 @@ def print_setup_status() -> SetupStatus:
                 )
 
     print("\nOPTIONAL FEATURES")
+    for issue in status.dependency_issues:
+        print(f"  DEPENDENCY CONFLICT: {issue}. Repair requires a clean environment.")
+    if status.face_runtime:
+        print(f"  Face CUDA graph executed: {bool(status.face_runtime.get('gpu_execution_ok'))}")
+        for error in status.face_runtime.get("errors", []):
+            print(f"  Face runtime warning: {error}")
+        if status.face_runtime.get("preload_diagnostics"):
+            print(f"  DLL preload: {status.face_runtime['preload_diagnostics']}")
     print("  Face analysis:")
     for line in _format_package_group(FACE_DISTRIBUTIONS, status.face_packages):
         print(line)
@@ -473,6 +502,17 @@ def ensure_local_environment() -> None:
 
 def _pip_install(*arguments: str) -> None:
     """Run pip only inside the managed environment."""
+    from lic_dependencies.installer import target_state
+    from lic_dependencies.profile import conflicts, profile_for_cuda
+    state = target_state(str(VENV_PYTHON))
+    selected = (PROFILE["profile"] if f"torch=={PROFILE['torch']}" in arguments
+                else profile_for_cuda(state["cuda"]))
+    errors = conflicts(state["packages"], nvidia=selected != "cpu")
+    if errors:
+        raise RuntimeError("; ".join(errors) + ". Rebuild a clean environment; no automatic uninstall.")
+    if arguments and arguments[0] == "install":
+        constraint = "constraints-nvidia.txt" if selected != "cpu" else "constraints-lic.txt"
+        arguments = (*arguments, "--only-binary=:all:", "--constraint", str(DEPENDENCY_ROOT / constraint))
     _run(_venv_command("-m", "pip", *arguments))
 
 
@@ -485,7 +525,7 @@ def install_required_packages(*, offer_pytorch: bool = True) -> None:
     choice as though the user had selected it.
     """
     ensure_local_environment()
-    _pip_install("install", "--upgrade", "pip", "setuptools", "wheel")
+    _pip_install("install", *PROFILE["build_tools"])
 
     versions = _read_package_versions(VENV_PYTHON, (("torch", "PyTorch"),))
     if versions["torch"] == "not installed" and offer_pytorch:
@@ -520,11 +560,8 @@ def install_required_packages(*, offer_pytorch: bool = True) -> None:
         else:
             print(f"\nKeeping installed PyTorch {versions['torch']}.")
 
-    _pip_install(
-        "install",
-        "--requirement",
-        os.fspath(PROJECT_ROOT / "requirements.txt"),
-    )
+    from lic_dependencies.installer import install_component
+    install_component("base", python=str(VENV_PYTHON))
     print_setup_status()
 
 
@@ -669,8 +706,8 @@ def install_tested_nvidia_pytorch() -> None:
         install_arguments.extend(("--force-reinstall", "--no-deps"))
     install_arguments.extend(
         (
-            f"torch=={TESTED_NVIDIA_TORCH_VERSION}",
-            f"torchvision=={TESTED_NVIDIA_TORCHVISION_VERSION}",
+            f"torch=={PROFILE['torch']}",
+            f"torchvision=={PROFILE['torchvision']}",
             "--index-url",
             TESTED_NVIDIA_INDEX_URL,
         )
@@ -759,6 +796,7 @@ def install_face_dependencies() -> None:
 
 def check_face_dependencies() -> int:
     """Run the existing detailed face provider check."""
+    print_setup_status()
     completed = _run(
         _venv_command(os.fspath(PROJECT_ROOT / "face_setup_check.py")),
         check=False,

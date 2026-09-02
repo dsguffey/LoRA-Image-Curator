@@ -1,0 +1,76 @@
+name: InsightFace candidate maintenance
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Upstream version, or latest (candidate only)'
+        required: true
+        default: '1.0.1'
+  schedule:
+    - cron: '23 9 * * 2'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: insightface-candidate-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    # Scheduling is opt-in through a repository variable; manual runs always work.
+    if: github.event_name != 'schedule' || vars.LIC_CHECK_INSIGHTFACE == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      REQUESTED_VERSION: ${{ inputs.version || 'latest' }}
+      PYTHONDONTWRITEBYTECODE: '1'
+      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14.6'
+      - name: Install reproducible packaging tools
+        run: python -m pip install pip==26.2 setuptools==83.0.0 wheel==0.47.0 packaging==26.2
+      - name: Unit and packaging safety tests
+        run: python -m unittest tests.test_dependency_maintenance
+      - name: Discover and build candidate
+        shell: pwsh
+        run: |
+          if ($env:REQUESTED_VERSION -eq 'latest') {
+            python -m lic_dependencies.insightface_build --latest --output candidate
+          } else {
+            python -m lic_dependencies.insightface_build --version "$env:REQUESTED_VERSION" --output candidate
+          }
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify upstream build reproducibility
+        shell: pwsh
+        run: |
+          $report = Get-Content candidate/build-metadata.json | ConvertFrom-Json
+          python -m lic_dependencies.insightface_build --version "$($report.upstream_version)" --output candidate-repeat
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $repeat = Get-Content candidate-repeat/build-metadata.json | ConvertFrom-Json
+          if ($repeat.wheel_sha256 -ne $report.wheel_sha256) { throw 'Wheel build is not reproducible' }
+      - name: Disposable installation orders, imports, ownership, CPU graph and pip check
+        shell: pwsh
+        run: |
+          $report = Get-Content candidate/build-metadata.json | ConvertFrom-Json
+          python tools/test_dependency_environments.py --work "$env:RUNNER_TEMP/lic-provider-tests" --wheel "candidate/$($report.wheel)"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item "$env:RUNNER_TEMP/lic-provider-tests/*.json" candidate/
+      - name: Candidate status (not release approval)
+        if: always()
+        shell: pwsh
+        run: |
+          'Candidate only. Build/CPU evidence is in the artifacts. Real NVIDIA inference and human approval remain separate gates.' >> $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: insightface-candidate-${{ github.run_id }}
+          path: |
+            candidate/*.whl
+            candidate/*.json
+          retention-days: 30
+          if-no-files-found: warn

@@ -33,18 +33,9 @@ def ask(prompt: str) -> bool:
 
 
 def install_packages() -> None:
-    requirements = Path(__file__).with_name("requirements-body.txt")
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--requirement",
-            str(requirements),
-        ],
-        check=True,
-    )
+    """Install the shared reviewed body profile without downloading models."""
+    from lic_dependencies.installer import install_component
+    install_component("body")
 
 
 def download_model(destination: Path) -> None:

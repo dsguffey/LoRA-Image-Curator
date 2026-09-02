@@ -3,6 +3,8 @@
 # this order can silently select CPU-only PyTorch on an NVIDIA workstation.
 # PyTorch remains outside this static file because its correct official wheel
 # depends on the workstation's accelerator and driver stack.
+# Setup applies constraints-lic.txt (and constraints-nvidia.txt for CUDA 13).
+# Do not install broad provider extras outside the reviewed setup profile.
 
 numpy>=1.26,<3
 Pillow>=10,<13

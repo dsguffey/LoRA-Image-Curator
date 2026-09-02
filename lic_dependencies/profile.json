@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "profile": "windows-nvidia-cu130",
+  "torch": "2.13.0+cu130",
+  "torchvision": "0.28.0+cu130",
+  "torch_index": "https://download.pytorch.org/whl/cu130",
+  "onnxruntime-gpu": "1.28.0",
+  "opencv-contrib-python": "5.0.0.93",
+  "mediapipe": "0.10.35",
+  "transformers": "4.56.2",
+  "upstream_version": "1.0.1",
+  "upstream_url": "https://files.pythonhosted.org/packages/42/ce/33989427a7fae952e1606d0edee4191f965630f3c74f2166fa776fafd271/insightface-1.0.1-py3-none-any.whl",
+  "upstream_sha256": "5f373f6fedbdda5cbc59a34ca386a75a2995cdaf6899402590ae9eb4308fc2e8",
+  "downstream_suffix": "lic.cuda13.1",
+  "forbidden": ["onnxruntime", "opencv-python", "opencv-python-headless", "opencv-contrib-python-headless"],
+  "build_tools": ["pip==26.2", "setuptools==83.0.0", "wheel==0.47.0", "packaging==26.2"]
+}

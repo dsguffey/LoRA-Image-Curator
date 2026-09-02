@@ -1,3 +1,4 @@
 # Optional local body/pose analysis.
 # MediaPipe supports the vetted Pose Landmarker .task bundles.
-mediapipe>=0.10,<1
+mediapipe==0.10.35
+opencv-contrib-python==5.0.0.93

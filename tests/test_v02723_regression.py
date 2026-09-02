@@ -49,7 +49,7 @@ def test_pytorch_is_selected_before_timm_can_resolve_cpu_torch() -> None:
     """Prevent recurrence of the clean-install dependency-order bug."""
     source = inspect.getsource(install_required_packages)
     menu_call = source.index("pytorch_install_menu()")
-    requirements_install = source.index('"requirements.txt"')
+    requirements_install = source.index('install_component("base"')
     assert menu_call < requirements_install
     requirements = _project("requirements.txt")
     assert "timm depends on those packages" in requirements

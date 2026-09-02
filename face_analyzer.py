@@ -587,8 +587,8 @@ class InsightFaceProvider:
         # installation.  This avoids requiring a second system-wide CUDA setup.
         try:
             import torch  # noqa: F401
-        except Exception:
-            pass
+        except Exception as error:
+            emit_status(status_callback, f"PyTorch DLL preload failed: {error}; attempting the existing ORT/CPU fallback.")
 
         try:
             import onnxruntime as ort  # type: ignore[import-not-found]
@@ -596,9 +596,8 @@ class InsightFaceProvider:
             if hasattr(ort, "preload_dlls"):
                 try:
                     ort.preload_dlls()
-                except Exception:
-                    # Provider selection below supplies the actionable result.
-                    pass
+                except Exception as error:
+                    emit_status(status_callback, f"ORT DLL preload failed: {error}; session validation will determine fallback.")
 
             available_providers = tuple(ort.get_available_providers())
         except Exception as error:
@@ -667,6 +666,18 @@ class InsightFaceProvider:
         self.embedding_dimension = _insightface_embedding_dimension(
             self._application
         )
+
+        self.session_providers = {
+            name: tuple(model.session.get_providers())
+            for name, model in getattr(self._application, "models", {}).items()
+            if getattr(model, "session", None) is not None
+        }
+        if self.session_providers and not all(
+            "CUDAExecutionProvider" in providers for providers in self.session_providers.values()
+        ):
+            self.execution_provider = "CPUExecutionProvider"
+            emit_status(status_callback, "Face sessions are using CPU fallback for one or more models. Run Setup & Repair for the CUDA execution diagnostic.")
+        emit_status(status_callback, f"Loaded face session providers: {self.session_providers}")
 
         model_path = get_model_path(self.model_name, self.model_root)
         self.model_fingerprint = calculate_model_fingerprint(model_path)

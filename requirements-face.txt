@@ -1,7 +1,9 @@
-# InsightFace itself is pinned to the version used for LoRA Image Curator v0.6.
-insightface==1.0.1
+# Approved upstream runtime with explicitly identified LIC dependency metadata.
+insightface==1.0.1+lic.cuda13.1
+onnxruntime-gpu==1.28.0
+opencv-contrib-python==5.0.0.93
 
-# Do not install ONNX Runtime from this static file.
-# Run Install Face Analysis Dependencies.bat instead. The installer selects a
-# CUDA 12, CUDA 13, legacy CUDA 11, or CPU package based on the existing
-# PyTorch environment.
+# Windows/NVIDIA profile only. Run the face installer to build the verified
+# downstream wheel first, or provide its directory using pip --find-links.
+# This local version is not an upstream PyPI release. CPU face packaging is
+# a separate, not-yet-qualified profile; never substitute this on CPU systems.

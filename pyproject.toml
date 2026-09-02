@@ -27,7 +27,15 @@ dependencies = [
 
 [project.optional-dependencies]
 body = [
-    "mediapipe>=0.10,<1",
+    "mediapipe==0.10.35",
+    "opencv-contrib-python==5.0.0.93",
+]
+
+# Local wheel supplied by the reviewed LIC packaging build, not PyPI.
+face-nvidia = [
+    "insightface==1.0.1+lic.cuda13.1",
+    "onnxruntime-gpu==1.28.0",
+    "opencv-contrib-python==5.0.0.93",
 ]
 
 [project.urls]
