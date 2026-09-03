@@ -272,6 +272,14 @@ def verify_archive(archive_path: Path) -> tuple[int, str]:
 
 def build_archive(output_path: Path) -> tuple[int, str]:
     """Audit the tree, write the deterministic archive, then verify it."""
+    try:
+        from tools.check_release import check_release
+    except ModuleNotFoundError as error:
+        if error.name != "tools":
+            raise
+        from check_release import check_release
+    # Coverage must pass before the legacy builder refreshes any hashes.
+    check_release(PROJECT_ROOT, check_hashes=False)
     subprocess.run(
         [sys.executable, str(PROJECT_ROOT / "tools" / "audit_project.py"), "--quiet"],
         cwd=PROJECT_ROOT,

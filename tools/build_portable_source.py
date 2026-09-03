@@ -88,11 +88,9 @@ def _owned_source_files() -> dict[str, Path]:
 def portable_source_members() -> list[tuple[str, Path]]:
     """Return deterministic ``(archive name, source path)`` package members.
 
-    Runtime Python selection intentionally follows a narrow structural rule:
-    every top-level Python module in the signed source release is application
-    or setup code. Repository tests and build tools live in their own excluded
-    directories. This rule automatically carries a new runtime module into the
-    end-user package without allowing an unmanifested local file to enter it.
+    Top-level Python modules are application/setup code. Nested runtime inputs
+    are named individually by policy; package directories are never scanned.
+    Repository tests and build tools remain outside the end-user package.
     """
     policy = load_policy()
     owned = _owned_source_files()
@@ -189,6 +187,13 @@ def verify_archive(archive_path: Path) -> tuple[int, str]:
 
 def build_archive(output_path: Path) -> tuple[int, str]:
     """Audit the source boundary, build deterministically, and verify output."""
+    try:
+        from tools.check_release import check_release
+    except ModuleNotFoundError as error:
+        if error.name != "tools":
+            raise
+        from check_release import check_release
+    check_release(PROJECT_ROOT)
     subprocess.run(
         [sys.executable, str(PROJECT_ROOT / "tools" / "audit_project.py"), "--quiet"],
         cwd=PROJECT_ROOT,

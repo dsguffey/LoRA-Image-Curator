@@ -58,7 +58,11 @@ def test_portable_selection_covers_every_runtime_module_only_from_manifest() -> 
     }
     selected = {name for name, _path in portable_source_members()}
     assert signed_root_python <= selected
-    assert all("/" not in name for name in selected)
+    nested = {name for name in selected if "/" in name}
+    assert nested == {
+        name for name in _portable_policy()["included_files"] if "/" in name
+    }
+    assert all(name.startswith("lic_dependencies/") for name in nested)
     for required in _portable_policy()["required_archive_files"]:
         if required != "RELEASE_MANIFEST.sha256":
             assert required in selected
@@ -79,7 +83,8 @@ def test_real_portable_build_is_deterministic_slim_and_self_verifying() -> None:
             names = archive.namelist()
             assert "RELEASE_MANIFEST.sha256" in names
             assert len(names) < 100
-            assert not any("/" in name for name in names)
+            assert all("/" not in name or name.startswith("lic_dependencies/") for name in names)
+            assert not any("__pycache__" in name for name in names)
             assert not set(policy["excluded_repository_files"]) & set(names)
             assert not any(name.startswith(("tests/", "tools/", "docs/")) for name in names)
             assert not any(name.casefold().endswith(".zip") for name in names)

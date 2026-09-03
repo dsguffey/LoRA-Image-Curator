@@ -15,7 +15,17 @@
     "Run LoRA Image Curator - Diagnostic.bat",
     "Setup and Launch LoRA Image Curator.bat",
     "requirements.txt",
-    "requirements-body.txt"
+    "requirements-body.txt",
+    "constraints-lic.txt",
+    "constraints-nvidia.txt",
+    "lic_dependencies/__init__.py",
+    "lic_dependencies/profile.py",
+    "lic_dependencies/profile.json",
+    "lic_dependencies/installer.py",
+    "lic_dependencies/insightface_build.py",
+    "lic_dependencies/upstream.py",
+    "lic_dependencies/runtime_probe.py",
+    "lic_dependencies/validation.py"
   ],
   "archive_name_overrides": {
     "PORTABLE_README.txt": "README.txt"
@@ -35,7 +45,17 @@
     "requirements.txt",
     "requirements-body.txt",
     "app.py",
-    "setup_assistant.py"
+    "setup_assistant.py",
+    "constraints-lic.txt",
+    "constraints-nvidia.txt",
+    "lic_dependencies/__init__.py",
+    "lic_dependencies/profile.py",
+    "lic_dependencies/profile.json",
+    "lic_dependencies/installer.py",
+    "lic_dependencies/insightface_build.py",
+    "lic_dependencies/upstream.py",
+    "lic_dependencies/runtime_probe.py",
+    "lic_dependencies/validation.py"
   ],
   "excluded_directories": [
     ".git",
