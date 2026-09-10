@@ -13,6 +13,9 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
+import uuid
+from contextlib import contextmanager
 
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -23,6 +26,7 @@ from ui_theme import DEFAULT_THEME_KEY, normalize_theme_key
 
 APPLICATION_FOLDER_NAME = APP_DATA_DIRECTORY_NAME
 SETTINGS_FILENAME = "settings.json"
+SETTINGS_LOCK_FILENAME = "settings.lock"
 
 
 @dataclass(slots=True)
@@ -148,6 +152,47 @@ def get_settings_directory() -> Path:
 def get_settings_path() -> Path:
     """Return the complete settings-file path."""
     return get_settings_directory() / SETTINGS_FILENAME
+
+
+@contextmanager
+def settings_write_lock():
+    """Serialize LIC and Manager writes to the shared settings document."""
+    directory = get_settings_directory()
+    directory.mkdir(parents=True, exist_ok=True)
+    lock_path = directory / SETTINGS_LOCK_FILENAME
+    with lock_path.open("a+b") as lock_file:
+        if os.name == "nt":
+            import msvcrt
+            lock_file.seek(0)
+            lock_file.write(b"0")
+            lock_file.flush()
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+        try:
+            yield
+        finally:
+            # Closing the handle releases its Windows byte-range lock.  Avoid
+            # a second explicit unlock call, which is not reliable for this
+            # append-opened coordination file on all Windows Python builds.
+            pass
+
+
+def set_face_model_root(model_root: str) -> None:
+    """Commit the one shared Face Analysis location without changing other keys."""
+    settings_path = get_settings_path()
+    with settings_write_lock():
+        raw: dict[str, object] = {}
+        if settings_path.is_file():
+            with settings_path.open("r", encoding="utf-8") as settings_file:
+                candidate = json.load(settings_file)
+            if not isinstance(candidate, dict):
+                raise ValueError("LIC settings document is not an object")
+            raw = candidate
+        raw["face_model_root"] = str(model_root)
+        temporary = settings_path.with_name(settings_path.name + f".{uuid.uuid4().hex}.tmp")
+        with temporary.open("w", encoding="utf-8") as settings_file:
+            json.dump(raw, settings_file, indent=4, ensure_ascii=False)
+            settings_file.write("\n")
+        os.replace(temporary, settings_path)
 
 
 def get_default_quarantine_directory() -> Path:
@@ -410,18 +455,10 @@ def load_settings() -> AppSettings:
 def save_settings(settings: AppSettings) -> None:
     """Save settings atomically."""
     settings_directory = get_settings_directory()
-    settings_directory.mkdir(parents=True, exist_ok=True)
-
-    settings_path = get_settings_path()
-    temporary_path = settings_path.with_suffix(".json.tmp")
-
-    with temporary_path.open("w", encoding="utf-8") as settings_file:
-        json.dump(
-            asdict(settings),
-            settings_file,
-            indent=4,
-            ensure_ascii=False,
-        )
-        settings_file.write("\n")
-
-    temporary_path.replace(settings_path)
+    with settings_write_lock():
+        settings_path = get_settings_path()
+        temporary_path = settings_path.with_name(settings_path.name + f".{uuid.uuid4().hex}.tmp")
+        with temporary_path.open("w", encoding="utf-8") as settings_file:
+            json.dump(asdict(settings), settings_file, indent=4, ensure_ascii=False)
+            settings_file.write("\n")
+        os.replace(temporary_path, settings_path)

@@ -350,10 +350,18 @@ def get_face_model_folder(model_root: str | Path) -> Path:
     directory is not created by this helper: missing files remain a clear
     not-ready condition until a manager or user supplies the qualified pair.
     """
-    if str(model_root).strip():
-        return Path(model_root).expanduser().resolve()
+    configured = str(model_root).strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
 
-    from settings_manager import get_settings_directory
+    from settings_manager import get_settings_directory, load_settings
+
+    # ``face_model_root`` is the one persistent shared location preference.
+    # Empty options therefore mean "use LIC's committed setting", then the
+    # normal per-user default only when that setting is genuinely unset.
+    configured = load_settings().face_model_root.strip()
+    if configured:
+        return Path(configured).expanduser().resolve()
 
     return (get_settings_directory() / "models" / "face").resolve()
 
