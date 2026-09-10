@@ -14,8 +14,8 @@ def main() -> int:
     print("LoRA Image Curator — Face Analysis Setup Check")
     print("=" * 48)
     print(f"Python: {sys.executable}")
-    print(f"InsightFace: {status.insightface_version}")
-    print(f"ONNX Runtime: {status.onnxruntime_version}")
+    print("Provider: OpenCV YuNet + SFace")
+    print(f"OpenCV contrib: {status.opencv_version}")
     print("Execution providers:")
 
     if status.available_execution_providers:
@@ -25,8 +25,8 @@ def main() -> int:
         print("  - none")
 
     print(f"Recommended: {status.recommended_execution_provider}")
-    print(f"Model path: {status.model_path}")
-    print(f"Model installed: {'yes' if status.model_installed else 'no'}")
+    print(f"Model folder: {status.model_path}")
+    print(f"Qualified pair ready: {'yes' if status.model_installed else 'no'}")
     print("Notes:")
 
     if status.notes:
@@ -35,9 +35,7 @@ def main() -> int:
     else:
         print("  - No warnings")
 
-    return 0 if (
-        status.insightface_installed and status.onnxruntime_installed
-    ) else 1
+    return 0 if status.opencv_installed and status.model_installed else 1
 
 
 if __name__ == "__main__":

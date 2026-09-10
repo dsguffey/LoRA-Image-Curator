@@ -89,9 +89,9 @@ class AppSettings:
     run_face_analysis: bool = False
     face_identity_name: str = ""
     face_reference_folder: str = ""
-    face_model_name: str = "buffalo_l"
+    face_model_name: str = "opencv-yunet-sface"
     face_model_root: str = ""
-    face_similarity_threshold: float = 0.48
+    face_similarity_threshold: float = 0.50
     face_detection_threshold: float = 0.50
 
     # Catalog Browser preferences are intentionally compact and local-only.
@@ -314,13 +314,13 @@ def load_settings() -> AppSettings:
                 raw_data.get("face_reference_folder", "")
             ),
             face_model_name=str(
-                raw_data.get("face_model_name", "buffalo_l")
+                raw_data.get("face_model_name", "opencv-yunet-sface")
             ),
             face_model_root=str(
                 raw_data.get("face_model_root", "")
             ),
             face_similarity_threshold=float(
-                raw_data.get("face_similarity_threshold", 0.48)
+                raw_data.get("face_similarity_threshold", 0.50)
             ),
             face_detection_threshold=float(
                 raw_data.get("face_detection_threshold", 0.50)

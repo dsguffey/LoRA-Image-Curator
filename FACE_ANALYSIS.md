@@ -4,7 +4,23 @@
 
 Version 0.5 introduced a provider boundary before adding a large amount of
 identity-specific GUI logic. The database and workflow consume structured face
-records rather than depending directly on InsightFace objects.
+records rather than depending directly on a particular provider object.
+
+## Active provider
+
+LIC's active face provider is OpenCV YuNet + SFace.  It runs through OpenCV
+DNN on CPU and requires one selected model folder containing exactly these
+qualified artifacts:
+
+- `face_detection_yunet_2026may.onnx` (YuNet, MIT)
+- `face_recognition_sface_2021dec.onnx` (SFace, Apache-2.0)
+
+Both hashes are checked before the provider loads.  SFace embeddings have 128
+dimensions, and the default identity-suggestion threshold is 0.50.  LIC never
+downloads these models itself and does not fall back to InsightFace.  Historical
+InsightFace source and its stored results remain dormant legacy material;
+provider key, model fingerprint, and embedding dimension prevent their reuse
+as YuNet/SFace results.
 
 ## Provider contract
 
@@ -28,9 +44,9 @@ state. Those remain LoRA Image Curator responsibilities.
 
 It allows later support for:
 
-- a user-supplied InsightFace-compatible ONNX pack
+- a user-supplied alternate face-provider model pack
 - a commercially licensed model
-- OpenCV SFace or another permissively licensed backend
+- another permissively licensed backend
 - a future model with a different embedding size
 - testing with a deterministic fake provider
 

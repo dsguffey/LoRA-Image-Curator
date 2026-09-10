@@ -3,7 +3,7 @@ analysis_pipeline.py
 
 Thin orchestration layer for LoRA Image Curator analysis providers.
 
-The GUI talks to this module rather than directly to Florence or InsightFace.
+The GUI talks to this module rather than directly to Florence or a face provider.
 That boundary is intentionally modest in version 0.5, but it prevents the GUI
 from becoming the place where provider-specific logic accumulates.  Future
 caption, embedding, quality, or export providers can be added here (and later

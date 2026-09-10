@@ -7,9 +7,9 @@ Design goals
 ------------
 This module deliberately keeps the LoRA Image Curator catalog independent from one
 vendor-specific Python package.  The batch workflow consumes the small
-``FaceProvider`` interface defined below.  ``InsightFaceProvider`` is the first
-implementation, while tests and future releases can supply another provider
-without changing the database or GUI workflow.
+``FaceProvider`` interface defined below.  ``OpenCvYuNetSFaceProvider`` is the
+active implementation.  The historical InsightFace adapter remains below as
+dormant legacy code; it is not selected by the normal workflow.
 
 The provider is responsible only for turning an image into structured face
 records:
@@ -30,22 +30,12 @@ embeddings, or identity names.  This release intentionally does *not* request
 age, gender, emotion, or face-swap modules because those outputs are unrelated
 to dataset curation and would add unnecessary dependencies and sensitive data.
 
-Model licensing
----------------
-InsightFace's Python code is MIT licensed, but the pretrained model packs that
-InsightFace distributes (including ``buffalo_l``) are restricted to
-non-commercial research use unless the user obtains another license.  The GUI
-shows that distinction before allowing an automatic model download.  A future
-model manager can point this provider at a separately licensed/user-supplied
-model pack through ``model_name`` and ``model_root``.
-
 Model location contract
 -----------------------
-InsightFace resolves a pack as ``<root>/models/<name>``. Public helpers in this
-module validate that ``name`` is one safe path component and translate a folder
-selected in the GUI back into that root/name pair. This both provides a usable
-Browse workflow and prevents a typed model name from escaping the intended
-``models`` directory.
+The active provider consumes one folder containing exactly the qualified YuNet
+and SFace ONNX files.  It never downloads models or falls back to InsightFace.
+The legacy InsightFace folder helpers remain only so historical source can be
+inspected without being treated as an active selection path.
 """
 
 from __future__ import annotations
@@ -79,11 +69,16 @@ from image_discovery import (
 )
 
 
-PROVIDER_KEY = "insightface"
-DEFAULT_MODEL_NAME = "buffalo_l"
-DEFAULT_SIMILARITY_THRESHOLD = 0.48
+PROVIDER_KEY = "opencv-yunet-sface"
+DEFAULT_MODEL_NAME = "opencv-yunet-sface"
+DEFAULT_SIMILARITY_THRESHOLD = 0.50
 DEFAULT_DETECTION_THRESHOLD = 0.50
-MODEL_LICENSE_LABEL = "InsightFace pretrained model: non-commercial research only"
+YUNET_MODEL_FILENAME = "face_detection_yunet_2026may.onnx"
+SFACE_MODEL_FILENAME = "face_recognition_sface_2021dec.onnx"
+YUNET_MODEL_SHA256 = "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"
+SFACE_MODEL_SHA256 = "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79"
+OPENCV_MODEL_LICENSE_LABEL = "YuNet: MIT; SFace: Apache-2.0"
+INSIGHTFACE_MODEL_LICENSE_LABEL = "InsightFace pretrained model: non-commercial research only"
 
 SUPPORTED_EXTENSIONS = SUPPORTED_IMAGE_EXTENSIONS
 REPORT_FLUSH_INTERVAL = 25
@@ -120,15 +115,32 @@ class FaceAnalysisOptions:
 class FaceSetupStatus:
     """Dependency/model information suitable for a GUI diagnostic dialog."""
 
-    insightface_installed: bool
-    insightface_version: str
-    onnxruntime_installed: bool
-    onnxruntime_version: str
+    opencv_installed: bool
+    opencv_version: str
     available_execution_providers: tuple[str, ...]
     model_path: Path
     model_installed: bool
     recommended_execution_provider: str
     notes: tuple[str, ...]
+
+    # InsightFace remains dormant legacy source.  These adapters keep a direct
+    # legacy invocation from failing with AttributeError while ensuring it
+    # reports unavailable rather than becoming a normal fallback path.
+    @property
+    def insightface_installed(self) -> bool:
+        return False
+
+    @property
+    def insightface_version(self) -> str:
+        return "dormant legacy"
+
+    @property
+    def onnxruntime_installed(self) -> bool:
+        return False
+
+    @property
+    def onnxruntime_version(self) -> str:
+        return "dormant legacy"
 
 
 @dataclass(slots=True)
@@ -331,6 +343,29 @@ def model_selection_from_pack_folder(
     return model_name, model_root
 
 
+def get_face_model_folder(model_root: str | Path) -> Path:
+    """Return the active provider's complete YuNet/SFace model folder.
+
+    A blank setting deliberately resolves to LIC's per-user model area.  The
+    directory is not created by this helper: missing files remain a clear
+    not-ready condition until a manager or user supplies the qualified pair.
+    """
+    if str(model_root).strip():
+        return Path(model_root).expanduser().resolve()
+
+    from settings_manager import get_settings_directory
+
+    return (get_settings_directory() / "models" / "face").resolve()
+
+
+def model_selection_from_model_folder(selected_folder: str | Path) -> tuple[str, Path]:
+    """Validate a browsed active-provider folder without copying its models."""
+    folder = Path(selected_folder).expanduser().resolve()
+    if not folder.exists() or not folder.is_dir():
+        raise ValueError("The selected Face Analysis model folder is not valid.")
+    return DEFAULT_MODEL_NAME, folder
+
+
 def find_image_files(
     folder: Path,
     *,
@@ -409,6 +444,32 @@ def calculate_model_fingerprint(model_path: Path) -> str:
     return digest.hexdigest()
 
 
+def _sha256_file(path: Path) -> str:
+    with path.open("rb") as source:
+        return hashlib.file_digest(source, "sha256").hexdigest()
+
+
+def calculate_yunet_sface_fingerprint(model_folder: Path) -> str:
+    """Hash both qualified model identities into one reusable-result identity."""
+    identities = (
+        (YUNET_MODEL_FILENAME, YUNET_MODEL_SHA256),
+        (SFACE_MODEL_FILENAME, SFACE_MODEL_SHA256),
+    )
+    digest = hashlib.sha256()
+    for filename, expected_hash in identities:
+        path = model_folder / filename
+        if not path.is_file():
+            raise FileNotFoundError(f"Required Face Analysis model is missing: {path}")
+        actual_hash = _sha256_file(path)
+        if actual_hash != expected_hash:
+            raise ValueError(
+                "Face Analysis model bytes do not match the qualified artifact: "
+                f"{filename}"
+            )
+        digest.update(f"{filename}:{actual_hash}\n".encode("utf-8"))
+    return digest.hexdigest()
+
+
 def embedding_from_blob(blob: bytes, expected_dimension: int) -> np.ndarray:
     """Rehydrate one float32 embedding stored by SQLite."""
     vector = np.frombuffer(blob, dtype=np.float32).copy()
@@ -465,72 +526,50 @@ def inspect_face_setup(
     model_name: str = DEFAULT_MODEL_NAME,
     model_root: str = "",
 ) -> FaceSetupStatus:
-    """Inspect optional packages without importing the heavy face model."""
+    """Inspect the active OpenCV provider without loading its ONNX models."""
     notes: list[str] = []
 
     try:
-        insightface_version = version("insightface")
-        insightface_installed = True
+        opencv_version = version("opencv-contrib-python")
+        opencv_installed = True
     except PackageNotFoundError:
-        insightface_version = "not installed"
-        insightface_installed = False
+        opencv_version = "not installed"
+        opencv_installed = False
         notes.append(
-            "Install InsightFace with the included dependency installer."
+            "Install the approved opencv-contrib-python package before using Face Analysis."
         )
 
-    available_providers: tuple[str, ...] = ()
-
-    try:
-        onnxruntime_version = version("onnxruntime-gpu")
-        onnxruntime_installed = True
-    except PackageNotFoundError:
+    available_providers: tuple[str, ...] = ("OpenCV DNN CPU",)
+    recommended_provider = "OpenCV DNN CPU"
+    if opencv_installed:
         try:
-            onnxruntime_version = version("onnxruntime")
-            onnxruntime_installed = True
-        except PackageNotFoundError:
-            onnxruntime_version = "not installed"
-            onnxruntime_installed = False
-            notes.append(
-                "Install ONNX Runtime GPU (or CPU fallback) with the included "
-                "dependency installer."
-            )
+            import cv2  # type: ignore[import-not-found]
 
-    if onnxruntime_installed:
-        try:
-            import onnxruntime as ort  # type: ignore[import-not-found]
-
-            available_providers = tuple(ort.get_available_providers())
+            if not hasattr(cv2, "FaceDetectorYN") or not hasattr(cv2, "FaceRecognizerSF"):
+                notes.append(
+                    "The installed OpenCV build lacks FaceDetectorYN or FaceRecognizerSF."
+                )
+                recommended_provider = "unavailable"
+                available_providers = ()
         except Exception as error:
             notes.append(
-                "ONNX Runtime is installed but could not initialize: "
+                "OpenCV is installed but could not initialize: "
                 f"{type(error).__name__}: {error}"
             )
 
-    if "CUDAExecutionProvider" in available_providers:
-        recommended_provider = "CUDAExecutionProvider"
-    elif "CPUExecutionProvider" in available_providers:
-        recommended_provider = "CPUExecutionProvider"
-        notes.append(
-            "CUDAExecutionProvider is unavailable; face analysis will use the CPU."
-        )
-    else:
-        recommended_provider = "unavailable"
-
-    model_name = normalize_model_name(model_name)
-    model_path = get_model_path(model_name, model_root)
-    model_installed = model_path.exists() and any(model_path.rglob("*.onnx"))
-
-    if not model_installed:
-        notes.append(
-            "The selected model pack is not installed. LoRA Image Curator can ask "
-            "InsightFace to download it after you accept its model license."
-        )
+    model_path = get_face_model_folder(model_root)
+    model_installed = False
+    try:
+        calculate_yunet_sface_fingerprint(model_path)
+        model_installed = True
+    except FileNotFoundError as error:
+        notes.append(str(error))
+    except ValueError as error:
+        notes.append(str(error))
 
     return FaceSetupStatus(
-        insightface_installed=insightface_installed,
-        insightface_version=insightface_version,
-        onnxruntime_installed=onnxruntime_installed,
-        onnxruntime_version=onnxruntime_version,
+        opencv_installed=opencv_installed,
+        opencv_version=opencv_version,
         available_execution_providers=available_providers,
         model_path=model_path,
         model_installed=model_installed,
@@ -540,14 +579,158 @@ def inspect_face_setup(
 
 
 # =============================================================================
-# InsightFace provider implementation
+# Active OpenCV YuNet + SFace provider implementation
+# =============================================================================
+
+
+class OpenCvYuNetSFaceProvider:
+    """LIC's active local face detector and recognizer.
+
+    The provider is intentionally CPU-only in this release.  It uses the
+    approved OpenCV contrib build already shared with other LIC providers and
+    never imports ONNX Runtime, downloads a model, or falls back to InsightFace.
+    """
+
+    provider_key = PROVIDER_KEY
+    model_name = "yunet-2026may+sface-2021dec"
+    license_label = OPENCV_MODEL_LICENSE_LABEL
+    embedding_dimension = 128
+
+    def __init__(
+        self,
+        options: FaceAnalysisOptions,
+        *,
+        status_callback: StatusCallback | None = None,
+    ) -> None:
+        self.model_root = get_face_model_folder(options.model_root)
+        self._detection_threshold = float(options.detection_threshold)
+        setup = inspect_face_setup(options.model_name, str(self.model_root))
+        if not setup.opencv_installed:
+            raise FaceProviderUnavailableError(
+                "Face Analysis requires the approved opencv-contrib-python package."
+            )
+        if not setup.model_installed:
+            details = "\n".join(setup.notes) or "Required model files are unavailable."
+            raise FaceProviderUnavailableError(
+                "Face Analysis is not ready because the qualified YuNet + SFace "
+                f"model pair is unavailable:\n{setup.model_path}\n\n{details}"
+            )
+
+        try:
+            import cv2  # type: ignore[import-not-found]
+        except Exception as error:
+            raise FaceProviderUnavailableError(
+                f"OpenCV could not initialize: {type(error).__name__}: {error}"
+            ) from error
+
+        if not hasattr(cv2, "FaceDetectorYN") or not hasattr(cv2, "FaceRecognizerSF"):
+            raise FaceProviderUnavailableError(
+                "The installed OpenCV build lacks FaceDetectorYN or FaceRecognizerSF."
+            )
+
+        self._cv2 = cv2
+        self.provider_version = str(cv2.__version__)
+        self.execution_provider = "OpenCV DNN CPU"
+        self.model_fingerprint = calculate_yunet_sface_fingerprint(self.model_root)
+        detector_path = self.model_root / YUNET_MODEL_FILENAME
+        recognizer_path = self.model_root / SFACE_MODEL_FILENAME
+        try:
+            self._detector = cv2.FaceDetectorYN.create(
+                str(detector_path),
+                "",
+                (320, 320),
+                self._detection_threshold,
+                0.3,
+                5000,
+                cv2.dnn.DNN_BACKEND_OPENCV,
+                cv2.dnn.DNN_TARGET_CPU,
+            )
+            self._recognizer = cv2.FaceRecognizerSF.create(
+                str(recognizer_path),
+                "",
+                cv2.dnn.DNN_BACKEND_OPENCV,
+                cv2.dnn.DNN_TARGET_CPU,
+            )
+        except Exception as error:
+            raise FaceProviderUnavailableError(
+                "OpenCV could not load the qualified YuNet + SFace models:\n"
+                f"{type(error).__name__}: {error}"
+            ) from error
+
+        emit_status(status_callback, "Loading face provider: OpenCV YuNet + SFace")
+        emit_status(status_callback, f"Face execution provider: {self.execution_provider}")
+
+    def analyze_image(self, image_path: Path) -> list[FaceDetection]:
+        """Return spatially stable YuNet detections with normalized SFace vectors."""
+        try:
+            with Image.open(image_path) as source_image:
+                rgb_image = source_image.convert("RGB")
+                bgr_image = np.asarray(rgb_image, dtype=np.uint8)[:, :, ::-1].copy()
+        except (OSError, UnidentifiedImageError) as error:
+            raise ValueError(f"Could not open image: {error}") from error
+
+        height, width = bgr_image.shape[:2]
+        self._detector.setInputSize((width, height))
+        try:
+            _status, faces = self._detector.detect(bgr_image)
+        except Exception as error:
+            raise RuntimeError(
+                f"YuNet could not analyze {image_path.name}: {type(error).__name__}: {error}"
+            ) from error
+
+        detections: list[FaceDetection] = []
+        if faces is not None:
+            for raw_face in np.asarray(faces, dtype=np.float32):
+                values = np.asarray(raw_face, dtype=np.float32).reshape(-1)
+                if values.size < 15:
+                    raise RuntimeError(
+                        f"YuNet returned an unexpected face record ({values.size} values)."
+                    )
+                x1, y1, box_width, box_height = (float(value) for value in values[:4])
+                landmarks_array = values[4:14].reshape(5, 2)
+                try:
+                    aligned = self._recognizer.alignCrop(bgr_image, values)
+                    embedding = normalize_embedding(self._recognizer.feature(aligned))
+                except Exception as error:
+                    raise RuntimeError(
+                        "SFace could not align or recognize a YuNet detection: "
+                        f"{type(error).__name__}: {error}"
+                    ) from error
+                if embedding.size != self.embedding_dimension:
+                    raise RuntimeError(
+                        "SFace returned an unexpected embedding dimension "
+                        f"({embedding.size} != {self.embedding_dimension})."
+                    )
+                detections.append(
+                    FaceDetection(
+                        bbox=(x1, y1, x1 + box_width, y1 + box_height),
+                        detection_score=float(values[14]),
+                        landmarks=tuple(
+                            (float(point[0]), float(point[1]))
+                            for point in landmarks_array
+                        ),
+                        embedding=embedding,
+                    )
+                )
+
+        detections.sort(
+            key=lambda detection: (
+                round(detection.bbox[1], 3),
+                round(detection.bbox[0], 3),
+            )
+        )
+        return detections
+
+
+# =============================================================================
+# Dormant InsightFace legacy implementation
 # =============================================================================
 
 class InsightFaceProvider:
     """InsightFace implementation of the provider-neutral face interface."""
 
-    provider_key = PROVIDER_KEY
-    license_label = MODEL_LICENSE_LABEL
+    provider_key = "insightface"
+    license_label = INSIGHTFACE_MODEL_LICENSE_LABEL
 
     def __init__(
         self,
@@ -873,9 +1056,9 @@ def analyze_faces(
     """
     Detect and store faces, then optionally compare them to an identity profile.
 
-    ``provider`` is injectable for tests and future backends.  Production calls
-    normally leave it as ``None``, which selects ``InsightFaceProvider``. A
-    Trigger Keyword and valid reference folder enable identity matching; face
+    ``provider`` is injectable for tests and future backends. Production calls
+    normally leave it as ``None``, which selects ``OpenCvYuNetSFaceProvider``.
+    A Trigger Keyword and valid reference folder enable identity matching; face
     detection remains available without either one.
     """
     batch_start = time.perf_counter()
@@ -947,9 +1130,8 @@ def analyze_faces(
 
     if provider is None:
         wait_if_paused(pause_event, cancel_event)
-        provider = InsightFaceProvider(
+        provider = OpenCvYuNetSFaceProvider(
             options,
-            allow_model_download=allow_model_download,
             status_callback=status_callback,
         )
 

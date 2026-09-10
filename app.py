@@ -60,10 +60,9 @@ from face_analyzer import (
     DEFAULT_SIMILARITY_THRESHOLD,
     FaceAnalysisOptions,
     FaceSetupStatus,
-    get_model_path,
+    get_face_model_folder,
     inspect_face_setup,
-    model_selection_from_pack_folder,
-    normalize_model_name,
+    model_selection_from_model_folder,
     analyze_faces,
 )
 from provider_coverage import read_catalog_provider_coverage
@@ -1818,7 +1817,7 @@ class DatasetToolsApp:
         self.face_setup_button.pack(side="left", padx=(8, 0))
         self.face_setup_help = HelpIcon(
             setup_row,
-            "Check the installed InsightFace package, model files, and available execution providers.",
+            "Check the approved OpenCV build and the complete local YuNet + SFace model pair.",
         )
         self.face_setup_help.pack(side="left", padx=(4, 0))
         self.face_running_label = ttk.Label(
@@ -1881,25 +1880,17 @@ class DatasetToolsApp:
         )
         row += 1
 
-        model_entry = ttk.Entry(
-            frame,
-            textvariable=self.face_model_name_var,
-            width=18,
-        )
-        model_button = ttk.Button(
-            frame,
-            text="Browse...",
-            command=self._choose_face_model_pack,
-        )
+        model_entry = ttk.Entry(frame, width=38)
+        model_entry.insert(0, "OpenCV YuNet + SFace")
+        model_entry.configure(state="readonly")
         self._add_face_setting_row(
             frame,
             row,
-            "Model pack:",
+            "Provider:",
             model_entry,
-            model_button,
             help_text=(
-                "Browse lets you choose a different compatible local InsightFace "
-                "model pack. Leave the default unless you intentionally use another."
+                "Face Analysis uses the qualified OpenCV YuNet detector and SFace "
+                "recognizer. No alternate provider is selected automatically."
             ),
             help_attribute="face_model_pack_help",
         )
@@ -1917,12 +1908,13 @@ class DatasetToolsApp:
         self._add_face_setting_row(
             frame,
             row,
-            "Model home:",
+            "Model folder:",
             model_root_entry,
             model_root_button,
             help_text=(
-                "Optional folder containing InsightFace model packs. Leave blank "
-                "to use the normal InsightFace location."
+                "Choose the folder containing face_detection_yunet_2026may.onnx "
+                "and face_recognition_sface_2021dec.onnx. Leave blank to use LIC's "
+                "per-user Face Analysis model location."
             ),
         )
         row += 1
@@ -1982,8 +1974,8 @@ class DatasetToolsApp:
         ttk.Label(
             frame,
             text=(
-                "Default InsightFace weights: non-commercial research only. "
-                "Files changed: none. Processing: local."
+                "YuNet is MIT; SFace is Apache-2.0. Files changed: none. "
+                "Processing: local OpenCV DNN CPU."
             ),
             foreground="#555555",
             wraplength=500,
@@ -2428,7 +2420,7 @@ class DatasetToolsApp:
     def _choose_face_model_root(self) -> None:
         selected = filedialog.askdirectory(
             parent=self.root,
-            title="Choose the InsightFace home folder (contains models)",
+            title="Choose the Face Analysis model folder",
             initialdir=self._existing_directory_or_none(
                 self.face_model_root_var.get()
             ),
@@ -2439,17 +2431,8 @@ class DatasetToolsApp:
             self._save_current_settings()
 
     def _choose_face_model_pack(self) -> None:
-        """Select an installed pack and derive InsightFace's root/name pair."""
-        current_name = (
-            self.face_model_name_var.get().strip() or DEFAULT_MODEL_NAME
-        )
-        try:
-            current_path = get_model_path(
-                current_name,
-                self.face_model_root_var.get().strip(),
-            )
-        except ValueError:
-            current_path = get_model_path(DEFAULT_MODEL_NAME, "")
+        """Select the complete YuNet/SFace model folder without copying it."""
+        current_path = get_face_model_folder(self.face_model_root_var.get().strip())
 
         initial_directory = (
             str(current_path)
@@ -2460,7 +2443,7 @@ class DatasetToolsApp:
         )
         selected = filedialog.askdirectory(
             parent=self.root,
-            title="Choose an installed InsightFace model-pack folder",
+            title="Choose the folder containing YuNet and SFace ONNX files",
             initialdir=initial_directory,
             mustexist=True,
         )
@@ -2468,10 +2451,10 @@ class DatasetToolsApp:
             return
 
         try:
-            model_name, model_root = model_selection_from_pack_folder(selected)
+            model_name, model_root = model_selection_from_model_folder(selected)
         except ValueError as error:
             messagebox.showerror(
-                "Invalid InsightFace model pack",
+                "Invalid Face Analysis model folder",
                 str(error),
                 parent=self.root,
             )
@@ -2480,24 +2463,20 @@ class DatasetToolsApp:
         self.face_model_name_var.set(model_name)
         self.face_model_root_var.set(str(model_root))
         self._save_current_settings()
-        self.status_var.set(f"Selected InsightFace model pack: {model_name}")
+        self.status_var.set("Selected Face Analysis model folder")
 
     def _face_model_selection(self) -> tuple[str, str] | None:
         """Validate typed model settings before diagnostics or provider work."""
         try:
-            model_name = normalize_model_name(
-                self.face_model_name_var.get().strip() or DEFAULT_MODEL_NAME
-            )
-            model_root = self.face_model_root_var.get().strip()
-            get_model_path(model_name, model_root)
+            model_root = str(get_face_model_folder(self.face_model_root_var.get().strip()))
         except (OSError, ValueError) as error:
             messagebox.showerror(
-                "Invalid InsightFace model selection",
+                "Invalid Face Analysis model folder",
                 str(error),
                 parent=self.root,
             )
             return None
-        return model_name, model_root
+        return DEFAULT_MODEL_NAME, model_root
 
     def _catalog_path_from_output_folder(self) -> Path | None:
         """Return the catalog implied by the analysis output folder."""
@@ -2817,7 +2796,7 @@ class DatasetToolsApp:
             face_identity_name=self.face_identity_name_var.get().strip(),
             face_reference_folder=self.face_reference_folder_var.get().strip(),
             face_model_name=(
-                self.face_model_name_var.get().strip() or DEFAULT_MODEL_NAME
+                DEFAULT_MODEL_NAME
             ),
             face_model_root=self.face_model_root_var.get().strip(),
             face_similarity_threshold=(
@@ -3133,11 +3112,8 @@ class DatasetToolsApp:
         selection = self._face_model_selection()
         if selection is None:
             return
-        model_name, model_root = selection
-        default_model_path = get_model_path(
-            model_name,
-            model_root,
-        )
+        _model_name, model_root = selection
+        model_folder = get_face_model_folder(model_root)
         messagebox.showinfo(
             "Face Provider Help",
             (
@@ -3153,15 +3129,16 @@ class DatasetToolsApp:
                 "version uses the largest face and records that choice.\n\n"
                 "Thresholds\n\n"
                 "A higher identity threshold creates fewer, more conservative "
-                "matches. 0.48 is a starting point, not a universal truth. "
+                "matches. YuNet + SFace uses 0.50 as its starting point; it is "
+                "provider-specific, not a universal biometric threshold. "
                 "Detection threshold controls whether weak face detections are "
                 "kept.\n\n"
-                "Model home\n\n"
-                "Leave blank for the normal InsightFace location:\n"
-                f"{default_model_path.parent.parent}\n\n"
-                "Model pack Browse selects an installed compatible pack folder "
-                "inside an InsightFace models directory and updates both the "
-                "pack name and model home. Model weights are not bundled.\n\n"
+                "Model folder\n\n"
+                "The folder must contain both qualified files:\n"
+                "• face_detection_yunet_2026may.onnx\n"
+                "• face_recognition_sface_2021dec.onnx\n\n"
+                f"Current/default folder:\n{model_folder}\n\n"
+                "Models are not downloaded automatically.\n\n"
                 "See Help > Licensing for code, dependency, and model-weight "
                 "license boundaries."
             ),
@@ -3517,12 +3494,12 @@ class DatasetToolsApp:
         messagebox.showinfo(
             "Face Analysis Setup",
             (
-                f"InsightFace: {status.insightface_version}\n"
-                f"ONNX Runtime: {status.onnxruntime_version}\n"
+                "Provider: OpenCV YuNet + SFace\n"
+                f"OpenCV contrib: {status.opencv_version}\n"
                 f"Execution providers: {providers}\n"
                 f"Recommended provider: {status.recommended_execution_provider}\n\n"
-                f"Model path:\n{status.model_path}\n"
-                f"Model installed: {'yes' if status.model_installed else 'no'}\n\n"
+                f"Model folder:\n{status.model_path}\n"
+                f"Qualified pair ready: {'yes' if status.model_installed else 'no'}\n\n"
                 f"Notes\n{notes}"
             ),
             parent=self.root,
@@ -3551,52 +3528,31 @@ class DatasetToolsApp:
         )
         return True if approved else None
 
-    def _confirm_face_model_download(
-        self,
-        setup: FaceSetupStatus,
-        model_name: str,
-    ) -> bool | None:
-        """Ask before InsightFace acquires restricted pretrained weights."""
-        if setup.model_installed:
-            return False
-        if model_name != DEFAULT_MODEL_NAME:
-            messagebox.showerror(
-                "Selected face model is missing",
-                (
-                    f"The selected model pack is not installed:\n\n{setup.model_path}"
-                    "\n\nAutomatic download is available only for the reviewed "
-                    f"{DEFAULT_MODEL_NAME} pack. Choose an installed/licensed "
-                    "pack in Settings, or select the default pack and try again."
-                ),
-                parent=self.root,
-            )
-            return None
-
-        component = get_component("insightface_buffalo_l")
-        approved = messagebox.askyesno(
-            "Download InsightFace buffalo_l?",
+    def _require_face_setup(self, setup: FaceSetupStatus) -> bool:
+        """Fail clearly when the active provider is incomplete; never download/fallback."""
+        if setup.opencv_installed and setup.model_installed:
+            return True
+        notes = "\n".join(f"• {note}" for note in setup.notes)
+        messagebox.showerror(
+            "Face Analysis is not ready",
             (
-                f"The selected model pack is not installed:\n\n{setup.model_path}\n\n"
-                f"Model: {component['artifact']}\n"
-                f"Publisher: {component['publisher']}\n"
-                f"Download: {format_download_size(component['approx_download_bytes'])}\n"
-                f"Source: {component['source_url']}\n"
-                f"Save to: {setup.model_path}\n\n"
-                "IMPORTANT LICENSE: InsightFace's distributed pretrained models "
-                "are restricted to non-commercial research use unless you "
-                "obtain a separate license. LoRA Image Curator does not bundle "
-                "or relicense these weights.\n\nDownload and use this model?"
+                "OpenCV YuNet + SFace is the active Face Analysis provider.\n\n"
+                f"Model folder:\n{setup.model_path}\n\n"
+                "Place the complete qualified model pair in that folder or choose "
+                "another valid model folder. LIC will not download a model or "
+                "fall back to InsightFace.\n\n"
+                f"Details\n{notes or '• Required OpenCV/model resources are unavailable.'}"
             ),
             parent=self.root,
         )
-        return True if approved else None
+        return False
 
     # =========================================================================
     # Background work
     # =========================================================================
 
     def _start_face_analysis(self) -> None:
-        """Run InsightFace alone against the active catalog and input folder."""
+        """Run the active YuNet/SFace provider against the active catalog."""
         if self.worker_thread is not None and self.worker_thread.is_alive():
             messagebox.showinfo(
                 "Analysis already running",
@@ -3665,14 +3621,9 @@ class DatasetToolsApp:
             return
         model_name, model_root = selection
         setup = inspect_face_setup(model_name, model_root)
-        if not setup.insightface_installed or not setup.onnxruntime_installed:
-            self._offer_setup_for_missing_packages("Face Analysis")
+        if not self._require_face_setup(setup):
             return
-
-        download_choice = self._confirm_face_model_download(setup, model_name)
-        if download_choice is None:
-            return
-        allow_model_download = download_choice
+        allow_model_download = False
 
         options = FaceAnalysisOptions(
             model_name=model_name,
@@ -3867,14 +3818,9 @@ class DatasetToolsApp:
             model_name, model_root = selection
             setup = inspect_face_setup(model_name, model_root)
 
-            if not setup.insightface_installed or not setup.onnxruntime_installed:
-                self._offer_setup_for_missing_packages("Face Analysis")
+            if not self._require_face_setup(setup):
                 return
-
-            download_choice = self._confirm_face_model_download(setup, model_name)
-            if download_choice is None:
-                return
-            allow_model_download = download_choice
+            allow_model_download = False
 
             face_options = FaceAnalysisOptions(
                 model_name=model_name,
@@ -4209,9 +4155,6 @@ class DatasetToolsApp:
             "Downloading the approved Florence-2 model and loading it...": (
                 "Downloading the approved Florence-2 model…"
             ),
-            "Downloading the approved InsightFace model pack...": (
-                "Downloading the approved InsightFace model pack…"
-            ),
             "Florence-2 loaded successfully.": (
                 "Florence-2 loaded; starting image analysis…"
             ),
@@ -4240,7 +4183,7 @@ class DatasetToolsApp:
             "catalog": "Current work: Update Catalog / file registration",
             "quality": "Current work: Quality Analysis / local image measurements",
             "florence": "Current work: Image Captioning / Florence-2",
-            "face": "Current work: Face Scanning / InsightFace",
+            "face": "Current work: Face Scanning / OpenCV YuNet + SFace",
             "body": "Current work: Body / Pose Scanning / MediaPipe",
         }
         active_label = labels.get(provider or "")

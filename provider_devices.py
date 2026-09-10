@@ -28,7 +28,7 @@ def inspect_provider_devices(
     face_model_name: str,
     face_model_root: str,
 ) -> ProviderDeviceStatus:
-    """Inspect PyTorch and ONNX Runtime without loading analysis models."""
+    """Inspect local providers without loading their analysis models."""
     try:
         import torch
 
@@ -48,13 +48,8 @@ def inspect_provider_devices(
             model_root=face_model_root,
         )
         provider = face_setup.recommended_execution_provider
-        if provider == "CUDAExecutionProvider":
-            face = "Device: GPU via ONNX Runtime CUDAExecutionProvider"
-        elif provider == "CPUExecutionProvider":
-            face = (
-                "Device: CPU via ONNX Runtime — CUDAExecutionProvider "
-                "is unavailable"
-            )
+        if provider == "OpenCV DNN CPU":
+            face = "Device: CPU via approved OpenCV DNN backend"
         else:
             face = "Device: unavailable — run Check Setup for details"
     except Exception as error:
