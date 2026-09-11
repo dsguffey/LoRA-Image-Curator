@@ -101,10 +101,10 @@
       "required_for_readiness": false,
       "provider": "OpenCV YuNet + SFace",
       "publisher": "OpenCV / OpenCV Zoo",
-      "source_name": "OpenCV Zoo immutable revision",
+      "source_name": "PyPI and OpenCV Zoo immutable revision",
       "source_url": "https://github.com/opencv/opencv_zoo/tree/47534e27c9851bb1128ccc0102f1145e27f23f98",
       "third_party": true,
-      "estimated_bytes": 38926091,
+      "estimated_bytes": 92748670,
       "storage_policy": "manager-owned YuNet/SFace model folder by default; an exact compatible existing folder remains external",
       "selector_type": "directory",
       "identity": {

@@ -21,7 +21,7 @@
     },
     "face-analysis": {
       "path": "opencv-yunet-sface-windows-x64-v1.json",
-      "sha256": "adfd81f4bbb19062c15517612cd15ca6d4f3c95deae28bbc9b1fe62c1bcd3820"
+      "sha256": "50ecf3b5ac11e3af389c39f045dc4213c29cbd63313d8111b3312cc61267ac9e"
     },
     "mediapipe": {
       "path": "mediapipe-windows-x64-base-v2.json",

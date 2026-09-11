@@ -9,9 +9,25 @@
   "native_version": "YuNet 2026may + SFace 2021dec",
   "python_version": "3.14.6",
   "platform": "win_amd64",
-  "approved_sources": ["raw.githubusercontent.com/opencv/opencv_zoo@47534e27c9851bb1128ccc0102f1145e27f23f98"],
+  "approved_sources": ["files.pythonhosted.org", "raw.githubusercontent.com/opencv/opencv_zoo@47534e27c9851bb1128ccc0102f1145e27f23f98"],
   "dependency_lock": null,
-  "packages": [],
+  "packages": [
+    {
+      "name": "opencv-contrib-python",
+      "version": "5.0.0.93",
+      "scope": "shared",
+      "artifact": {
+        "filename": "opencv_contrib_python-5.0.0.93-cp37-abi3-win_amd64.whl",
+        "sha256": "461622db95c964652d4d8fda171034961c3de270f78a6095aaad31050771774a",
+        "size": 53822579,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/09/29/6985260569ee3c7f6fcae252bc06e2a843e5b90eed665a2936bdd26fa283/opencv_contrib_python-5.0.0.93-cp37-abi3-win_amd64.whl"
+        },
+        "license_id": "Apache-2.0"
+      }
+    }
+  ],
   "resources": [
     {
       "resource_id": "yunet-detector",

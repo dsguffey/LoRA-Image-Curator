@@ -35,17 +35,22 @@ Provider results are evidence for a person to review; they do not replace human 
 
 ## Installation and downloads
 
-For ordinary Windows use, download **LIC Install Manager** from the [official GitHub Releases page](https://github.com/dsguffey/LoRA-Image-Curator/releases). It does not require a separately installed system Python.
+LIC Core is the only required download. The initial package comes from GitHub Releases. Optional dependencies are downloaded through **LIC Install Manager** (shown as **Manager** below) only when you explicitly choose a capability that needs them. Shared dependencies download once and are reused by every capability that needs them.
 
-| Component | Required? | Downloaded from | Fresh-install download | What it adds |
-| --- | --- | --- | ---: | --- |
-| LIC Install Manager + LIC Core | Yes | GitHub Releases | 72.4 MB | A working basic LIC installation, including everything required for Core. |
-| Florence captioning | Optional | LIC Install Manager | ~3.5 GB | Local image captions plus optional object and OCR triage. |
-| MediaPipe body and pose | Optional | LIC Install Manager | ~87.5 MB | Local body and pose evidence for catalog filters. |
-| Face Analysis | Optional | LIC Install Manager | See note | Local face detection and reference-identity comparison with YuNet + SFace. |
-| FFmpeg video extraction | Optional | LIC Install Manager | ~146.1 MB | Local video inspection and frame extraction. |
+| Download | Required? | Source | Size | Used by | Feature |
+| --- | --- | --- | ---: | --- | --- |
+| LIC Install Manager + LIC Core | Yes | GitHub Releases | 72.4 MB | LIC | Core application |
+| CUDA PyTorch | No | Manager | ~1.923 GB | Florence Captioning | GPU AI runtime |
+| Florence model | No | Manager | ~1.546 GB | Florence Captioning | Image captioning and understanding |
+| Florence supporting libraries | No | Manager | ~37.6 MB | Florence Captioning | Florence runtime libraries |
+| OpenCV contrib | No — shared | Manager | ~53.8 MB | Body/Pose Analysis; Face Analysis | Computer-vision runtime |
+| MediaPipe | No | Manager | ~10.9 MB | Body/Pose Analysis | Pose/body analysis runtime |
+| Matplotlib + support libraries | No | Manager | ~13.4 MB | Body/Pose Analysis | Analysis support runtime |
+| Pose Landmarker model | No | Manager | ~9.4 MB | Body/Pose Analysis | Body landmarks and pose |
+| YuNet + SFace models | No | Manager | ~38.9 MB | Face Analysis | Face detection and reference-similarity analysis |
+| FFmpeg | No | Manager | ~146.1 MB | Video extraction | Video frame extraction |
 
-The 72.4 MB release package contains LIC Install Manager, LIC, CPython 3.14.6, and the complete provider-neutral Core environment. After downloading that ZIP, **the Manager needs no additional Core dependency download**. Optional-feature sizes are fresh-install estimates. The Manager shows the current required download before installation, and the amount can be smaller when it verifies reusable existing files or cache entries.
+The 72.4 MB ZIP includes everything required to launch provider-neutral LIC Core; **the Manager needs 0 B of additional Core dependencies** after that download. From a clean Core installation, Florence Captioning needs about 3.5 GB, Body/Pose Analysis needs about 87.5 MB, and Face Analysis needs about 92.7 MB. Shared dependencies are reused, so installing one optional capability can reduce the download needed by another. LIC Install Manager shows the actual remaining download before installation.
 
 ### Install LIC Core
 
@@ -59,9 +64,7 @@ LIC Install Manager is not currently code-signed. Windows may show an Unknown Pu
 
 ## Optional capabilities
 
-Florence is the supported local image-captioning and vision-analysis option. A fresh Florence setup includes the pinned 1.923 GB CUDA PyTorch wheel, a 9.2 MB Torchvision wheel, and the pinned 1.546 GB Florence snapshot, plus smaller pinned runtime wheels. The large PyTorch wheel belongs to Florence's optional dependency closure; it is not part of LIC Core.
-
-MediaPipe's ~87.5 MB fresh-install estimate includes the 53.8 MB approved OpenCV contrib wheel, 10.9 MB MediaPipe wheel, 9.5 MB Matplotlib wheel, 9.4 MB Pose Landmarker task, and smaller locked runtime wheels. Face Analysis downloads the verified YuNet and SFace ONNX pair (38.9 MB), but a clean Core-only installation does not yet have a qualified OpenCV runtime added by the Face plan. Its complete standalone fresh-install total is therefore not established for this release; use it after the approved OpenCV runtime is present, such as through the MediaPipe profile. FFmpeg downloads the qualified 146.1 MB BtbN LGPL archive. See the Manager's Details view before installing any provider for its identity, source, terms, and restrictions.
+Florence adds local captioning and image-understanding analysis. MediaPipe adds body and pose evidence, Face Analysis adds YuNet/SFace face evidence for reference matching, and FFmpeg adds video-frame extraction. See the Manager's Details view before installing a provider for its identity, source, terms, and restrictions.
 
 ## Privacy and local-first behavior
 

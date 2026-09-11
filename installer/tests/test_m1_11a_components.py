@@ -91,7 +91,7 @@ class ProfileAndArtifactTests(unittest.TestCase):
         self.assertEqual(profiles[1].digest,
                          "2f6af3aa5186cb8db82dc7ec59059bf3130fc1173e442e92a7939bd4e157d58a")
         self.assertEqual(profiles[2].digest,
-                         "ac2da1f0e9a7d8cd606e72adfdcdb2e22abb86a5b9eb3b1815807edb80e2e443")
+                         "a8323b05accb817986162f2dd08bd1ebd73370526a9eea5eb3df0bb1c8c2c7c5")
 
     def test_mediapipe_resolution_records_authoritative_and_equivalent_hashes(self):
         manifest = recommended_profile(PROFILE_ROOT).component_by_id("body-analysis").raw

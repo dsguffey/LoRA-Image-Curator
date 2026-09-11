@@ -200,6 +200,10 @@ def component_download_disclosure(definition, plan: dict | None = None) -> tuple
         if missing == 0:
             return "Additional download", "Included — no additional download"
         return "Additional download", human_size(missing)
+    if definition.component_id == "face-analysis" and plan is not None:
+        missing = int(plan.get("download_bytes", 0))
+        return "Download required", ("None — approved files are already available" if missing == 0
+                                     else human_size(missing))
     download = (human_size(definition.estimated_bytes)
                 if definition.estimated_bytes is not None else "Size is not published reliably")
     return "Expected download", download
@@ -849,6 +853,13 @@ class ManagerShell:
         if definition.component_id == "lic-core":
             label, value = component_download_disclosure(definition, self.plan)
             metadata.append((label, value))
+        elif definition.component_id == "face-analysis":
+            try:
+                summary = operation_download_summary(self.delivery, self.root, definition.component_id)
+                label, value = component_download_disclosure(definition, summary)
+                metadata.append((label, value))
+            except (OSError, ValueError, KeyError):
+                metadata.append(("Download size", "Approximately " + human_size(definition.estimated_bytes)))
         elif definition.estimated_bytes is not None:
             if facts.verified and facts.selected_path:
                 metadata.append(("Download required", "None — compatible files already found"))
@@ -1072,8 +1083,13 @@ class ManagerShell:
         facts = self.component_facts[definition.component_id]
         storage = (self.model_path.get() if definition.component_id == "florence-captioning" else
                    self.component_paths.get(definition.component_id, tk.StringVar(value="")).get())
-        details = component_detail_contract(definition, facts, storage,
-                                            self.plan if definition.component_id == "lic-core" else None)
+        plan = self.plan if definition.component_id == "lic-core" else None
+        if definition.component_id == "face-analysis":
+            try:
+                plan = operation_download_summary(self.delivery, self.root, definition.component_id)
+            except (OSError, ValueError, KeyError):
+                pass
+        details = component_detail_contract(definition, facts, storage, plan)
         DetailsDialog(self.window, details["title"], details["summary"], details["sections"], details["advanced"])
 
     def show_help(self, anchor: str):
