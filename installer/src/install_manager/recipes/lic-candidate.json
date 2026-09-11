@@ -8,9 +8,10 @@
   "compatibility": "known-compatible",
   "profile": "windows-nvidia-cu130-base",
   "provenance": "Exact LIC Lite package qualified through M1.6; this candidate is authorized for M1.7 isolated activation and launch qualification only. No customer release approval.",
-  "application_sha256": "029dc5979fea0dcfd1057cc3e01f933754c683c9c66783fe54d8f8e905587f26",
+  "application_sha256": "0e4efd320d26e1e61ee365363eaddc649c896893d9ded0bc386f4a3cd6b1f623",
   "runtime_sha256": "75afa83f93b284d19040e24bc440ab741c09582c0d5310504d607a4e08c3dbaf",
   "model_digest": "c0089479e53418b83ad7539e589b05a5d237a5ff4d1264e6de1ed61bc4717eb8",
   "dependency_digest": "dbe55ed668466d62a72e4dcdf392e2b340d7c519febb0d911a226afccb409e6a",
   "activation_allowed": true
 }
+

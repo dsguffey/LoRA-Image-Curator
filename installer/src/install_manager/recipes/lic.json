@@ -3,9 +3,9 @@
   "application_id": "lora-image-curator",
   "display_name": "LoRA Image Curator",
   "version": "0.28.4",
-  "artifact_id": "lic-portable-source-v0.28.4",
-  "source": "accepted LIC Lite source package for the M1.7 qualification candidate; customer release approval remains pending",
-  "expected_sha256": "029dc5979fea0dcfd1057cc3e01f933754c683c9c66783fe54d8f8e905587f26",
+  "artifact_id": "lic-lite-source-v0.28.4",
+  "source": "accepted LIC staging commit c4af94e247c43f47a846480b22caf8ac38a59437; customer release approval remains pending",
+  "expected_sha256": "0e4efd320d26e1e61ee365363eaddc649c896893d9ded0bc386f4a3cd6b1f623",
   "required_archive_files": [
     "README.txt",
     "LICENSE",
@@ -46,3 +46,4 @@
   "activation_allowed": true,
   "install_execution_allowed": true
 }
+

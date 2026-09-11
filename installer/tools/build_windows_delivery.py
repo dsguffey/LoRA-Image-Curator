@@ -130,8 +130,12 @@ def main():
     lock_path = ROOT / 'tools/build-tools-windows.json'
     lock = json.loads(lock_path.read_text())
     runtime_descriptor = load_artifact_descriptor(ROOT / 'src/install_manager/recipes/python-3.14.6-windows-x64.json')
-    dependency_lock = load_dependency_lock(ROOT / 'src/install_manager/recipes/base-windows-nvidia-cu130.json')
-    certifi = next((wheel for wheel in dependency_lock.wheels if wheel.name == 'certifi'), None)
+    # Lite deliberately contains only the approved baseline Core closure.
+    # Optional provider locks (including CUDA PyTorch) belong exclusively to
+    # a future Full package and must never expand Lite's offline payload.
+    dependency_lock = load_dependency_lock(ROOT / 'src/install_manager/recipes/core-windows-x64-v2.json')
+    trust_lock = load_dependency_lock(ROOT / 'src/install_manager/recipes/base-windows-nvidia-cu130.json')
+    certifi = next((wheel for wheel in trust_lock.wheels if wheel.name == 'certifi'), None)
     if certifi is None or sha256_file(args.trust_wheel) != certifi.artifact.expected_sha256:
         raise ValueError('Trust bundle input is not the exact certifi wheel in the approved dependency lock')
     if sha256_file(args.runtime_archive) != runtime_descriptor.expected_sha256:

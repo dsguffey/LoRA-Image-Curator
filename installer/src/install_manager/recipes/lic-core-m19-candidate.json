@@ -8,10 +8,11 @@
   "compatibility": "known-compatible",
   "profile": "windows-x64-core-v2",
   "provenance": "Exact LIC Lite package with provider-neutral Core semantics for M1.9 local qualification only. No customer release approval.",
-  "application_sha256": "029dc5979fea0dcfd1057cc3e01f933754c683c9c66783fe54d8f8e905587f26",
+  "application_sha256": "0e4efd320d26e1e61ee365363eaddc649c896893d9ded0bc386f4a3cd6b1f623",
   "runtime_sha256": "75afa83f93b284d19040e24bc440ab741c09582c0d5310504d607a4e08c3dbaf",
   "dependency_digest": "9d507d457c4121e08e31089ae197c3e2b9b8b2b228cb05c9682385fe0e146fbf",
   "component_catalog_digest": "0df2a937058e33ec139849edcd1f19daba24ef966098be0f6376d325f86926e7",
   "readiness_contract": "lic-core-readiness-v2",
   "activation_allowed": true
 }
+
