@@ -8,10 +8,10 @@ Use **LIC Install Manager** from the [official GitHub Releases page](https://git
 
 | Package | Status | Best for | Includes |
 | --- | --- | --- | --- |
-| LIC Install Manager Lite | Available with version 0.7.0 | Normal Windows setup | LIC, a private CPython runtime, and verified Core artifacts |
+| LIC Install Manager Lite | Available with version 0.7.0 | Normal Windows setup | LIC Install Manager, LIC, a private CPython runtime, and verified Core artifacts |
 | LIC Install Manager Full | Planned | A future fully offline option | Not yet offered; its single-release-asset distribution decision is pending |
 
-**LIC Install Manager Lite** includes LoRA Image Curator, a private CPython runtime, and the verified artifacts needed for LIC Core. Core setup can use those bundled artifacts without downloading them. Florence captioning, MediaPipe body/pose analysis, Face Analysis, and FFmpeg remain optional, explicit choices.
+**LIC Install Manager Lite** includes LIC Install Manager, LoRA Image Curator, a private CPython runtime, and the verified artifacts needed for LIC Core. Core setup can use those bundled artifacts without downloading them. Florence captioning, MediaPipe body/pose analysis, Face Analysis, and FFmpeg remain optional, explicit choices.
 
 A Full offline package is not listed until its single-release-asset distribution decision is complete. Historical Portable packages are retired and are not a supported current installation route. Please [file an issue](https://github.com/dsguffey/LoRA-Image-Curator/issues) for installation problems or feedback.
 
