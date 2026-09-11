@@ -9,8 +9,10 @@ from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest.mock import Mock, patch
+import shutil
 
-from install_manager.bootstrap import STEPS as CORE_STEPS, disclosure, execute as execute_core
+from install_manager.bootstrap import (STEPS as CORE_STEPS, disclosure, execute as execute_core,
+                                       profile)
 from install_manager.capabilities import lic_capabilities
 from install_manager.component_catalog import (
     ComponentAction, ComponentFacts, ComponentOperationQueue, ComponentPhase,
@@ -22,7 +24,8 @@ from install_manager.florence_component import (
     inspect_recovery as inspect_florence_recovery,
 )
 from install_manager.journal import OperationJournal
-from install_manager.manager_ui import ManagerShell, active_launch_contract
+from install_manager.manager_ui import (ManagerShell, active_launch_contract,
+                                        component_detail_contract)
 from install_manager.managed_move import _source_florence_state
 from install_manager.managed_install import launch
 from install_manager.recovery import (
@@ -89,6 +92,33 @@ class CoreBoundaryTests(unittest.TestCase):
         self.assertNotIn("PyTorch", text)
         self.assertIn("Install Core", plan["summary"])
         self.assertIn("Optional AI providers are installed separately", plan["summary"])
+
+    def test_core_card_disclosure_uses_actual_bundled_or_missing_artifact_plan(self):
+        core = self.by_id["lic-core"]
+        with tempfile.TemporaryDirectory() as directory:
+            delivery = Path(directory) / "delivery"
+            shutil.copytree(RECIPES, delivery / "recipes")
+            _recipe, runtime, lock, _model, _channel = profile(delivery)
+            for artifact in (runtime, *(wheel.artifact for wheel in lock.wheels)):
+                target = (delivery / "offline-artifacts" / "verified" / artifact.artifact_id /
+                          artifact.version / artifact.filename)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"bundled fixture")
+            bundled = disclosure(delivery, Path(directory) / "LIC")
+            bundled_fields = dict(field for _heading, section in
+                                  component_detail_contract(core, ComponentFacts(), plan=bundled)["sections"]
+                                  for field in section)
+            self.assertEqual(bundled["download_bytes_without_reuse"], 0)
+            self.assertEqual(bundled_fields["Additional download"], "Included — no additional download")
+
+            (delivery / "offline-artifacts" / "verified" / runtime.artifact_id /
+             runtime.version / runtime.filename).unlink()
+            missing = disclosure(delivery, Path(directory) / "LIC")
+            missing_fields = dict(field for _heading, section in
+                                  component_detail_contract(core, ComponentFacts(), plan=missing)["sections"]
+                                  for field in section)
+            self.assertGreater(missing["download_bytes_without_reuse"], 0)
+            self.assertEqual(missing_fields["Additional download"], "100.0 MB")
 
     def test_core_readiness_and_launch_do_not_depend_on_florence(self):
         facts = {item.component_id: ComponentFacts() for item in self.components}

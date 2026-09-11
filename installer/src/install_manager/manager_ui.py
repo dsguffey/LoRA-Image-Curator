@@ -186,16 +186,35 @@ def capability_detail_contract(capability, plan: dict, application_path: Path,
     }
 
 
-def component_detail_contract(definition, facts: ComponentFacts, storage_path: str = "") -> dict:
+def component_download_disclosure(definition, plan: dict | None = None) -> tuple[str, str]:
+    """Return the customer-facing download label/value for one component.
+
+    Core has a real acquisition plan available before any work begins.  Prefer
+    that plan over the catalog's broad planning estimate so a delivery that
+    bundles its verified Core artifacts does not imply another download.
+    Optional components retain their catalog estimate until their own exact
+    operation plan has been selected.
+    """
+    if definition.component_id == "lic-core" and plan is not None:
+        missing = int(plan.get("download_bytes_without_reuse", 0))
+        if missing == 0:
+            return "Additional download", "Included — no additional download"
+        return "Additional download", human_size(missing)
     download = (human_size(definition.estimated_bytes)
                 if definition.estimated_bytes is not None else "Size is not published reliably")
+    return "Expected download", download
+
+
+def component_detail_contract(definition, facts: ComponentFacts, storage_path: str = "",
+                              plan: dict | None = None) -> dict:
+    download_label, download = component_download_disclosure(definition, plan)
     location = storage_path or facts.selected_path or definition.storage_policy
     sections = [
         ("SUMMARY", [("Capability", definition.description),
                      ("Classification", "Required core functionality" if definition.tier == "core" else "Optional feature")]),
         ("PROVIDER", [("Provider", definition.provider), ("Publisher", definition.publisher)]),
         ("SOURCE", [("Downloaded from", definition.source_name), ("Official source", definition.source_url)]),
-        ("DOWNLOAD", [("Expected download", download)]),
+        ("DOWNLOAD", [(download_label, download)]),
         ("STORAGE", [("Current location", location)]),
         ("COMPATIBILITY", [("Supported configuration", definition.compatibility),
                            ("Current status", component_status_text(definition, facts))]),
@@ -827,7 +846,10 @@ class ManagerShell:
                                   (" — files already cached" if summary["download_bytes"] == 0 else ""))))
             except (OSError, ValueError, KeyError):
                 pass
-        if definition.estimated_bytes is not None:
+        if definition.component_id == "lic-core":
+            label, value = component_download_disclosure(definition, self.plan)
+            metadata.append((label, value))
+        elif definition.estimated_bytes is not None:
             if facts.verified and facts.selected_path:
                 metadata.append(("Download required", "None — compatible files already found"))
             elif definition.component_id == "florence-captioning" and self.model_evidence and self.model_evidence.get("reusable"):
@@ -1050,7 +1072,8 @@ class ManagerShell:
         facts = self.component_facts[definition.component_id]
         storage = (self.model_path.get() if definition.component_id == "florence-captioning" else
                    self.component_paths.get(definition.component_id, tk.StringVar(value="")).get())
-        details = component_detail_contract(definition, facts, storage)
+        details = component_detail_contract(definition, facts, storage,
+                                            self.plan if definition.component_id == "lic-core" else None)
         DetailsDialog(self.window, details["title"], details["summary"], details["sections"], details["advanced"])
 
     def show_help(self, anchor: str):

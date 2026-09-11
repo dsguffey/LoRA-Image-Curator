@@ -28,7 +28,7 @@ datasets.
   audit, and packaging while every shipped file retains the full audit;
 - every direct SQLite connection in maintained source has explicit close
   ownership, including failed catalog initialization on Python 3.14/Windows;
-- the deterministic full-source archive builds twice with identical bytes;`r`n- archive CRC, member manifest, clean extraction, and a synthetic overwrite-in-place overlay pass without copying the installed workspace;
+- the deterministic full-source archive builds twice with identical bytes; archive CRC, member manifest, clean extraction, and a synthetic overwrite-in-place overlay pass without copying the installed workspace;
 - the current cumulative Windows/Tk GUI chain through v0.28.2 passes without
   unraisable Tk finalizers, orphaned delayed callbacks, or background Tcl/Tk
   diagnostics on stderr; the v0.27.10-and-earlier history runs in a strict

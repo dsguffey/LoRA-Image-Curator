@@ -85,19 +85,33 @@ def check_release(root: Path = PROJECT_ROOT, *, check_hashes: bool = True) -> di
     return {"source_files": len(files)}
 
 
+def manifest_regeneration_files(root: Path = PROJECT_ROOT) -> tuple[Path, ...]:
+    """Return the complete policy-approved checkout inventory for regeneration.
+
+    The committed manifest remains the ownership source during ordinary checks.
+    A deliberate regeneration from a Git checkout must also admit newly tracked
+    policy-approved source files; otherwise a new document can never join the
+    manifest without hand-editing a hash placeholder first.
+    """
+    root = root.resolve()
+    tracked = tracked_source_files(root)
+    if tracked is None:
+        return manifest_release_files(root)
+    return tuple(root / name for name in sorted(tracked))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--regenerate", action="store_true")
     args = parser.parse_args()
     if args.regenerate:
-        check_release(check_hashes=False)
         try:
             from tools.build_release import manifest_bytes
         except ModuleNotFoundError as error:
             if error.name != "tools":
                 raise
             from build_release import manifest_bytes
-        (PROJECT_ROOT / MANIFEST_FILENAME).write_bytes(manifest_bytes(list(manifest_release_files(PROJECT_ROOT))))
+        (PROJECT_ROOT / MANIFEST_FILENAME).write_bytes(manifest_bytes(list(manifest_regeneration_files(PROJECT_ROOT))))
     result = check_release()
     print(f"Release gate passed: {result['source_files']} source files; hashes and local imports verified.")
     return 0
