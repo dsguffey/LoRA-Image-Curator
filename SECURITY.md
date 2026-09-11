@@ -18,9 +18,7 @@ optional FFmpeg executable. Its principal security goals are:
 - validate a catalog before replacement or deletion;
 - constrain model selection to InsightFace's expected root/models/name layout;
 - exclude catalogs, caches, logs, model weights, and private paths from releases.
-- keep the full source, slim Portable Source, and future private-runtime
-  Windows inventories separate so repository-only files and an existing
-  user/developer virtual environment cannot enter either end-user payload.
+- keep source releases and managed Windows installer artifacts separate so repository-only files and an existing user/developer virtual environment cannot enter an end-user payload.
 
 The application does not attempt to sandbox PyTorch, Transformers,
 InsightFace, ONNX Runtime, MediaPipe, or FFmpeg. Install third-party components
@@ -37,7 +35,7 @@ registered HTTPS host, downloads to a partial file, checks the exact byte size
 and SHA-256, and atomically replaces the destination only after verification.
 The registry does not make an unverified artifact safe; components without a
 release-owned artifact hash remain external, publisher-direct, or deferred to
-the locked portable-build process.
+the locked managed-distribution build process.
 
 ## Reporting a vulnerability
 

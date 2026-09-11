@@ -24,10 +24,7 @@ matching. The Trigger Keyword and reference folder are optional for a plain
 face scan. If the reference folder produces no usable face, the provider still
 scans every catalog image and stores face evidence, but it creates no identity
 matches or Trigger Keyword suggestions. A later valid reference can reuse those
-detections. The v0.28.2 Portable Source package remains the current portable
-artifact until this Git/source fix is deliberately propagated. Version 0.28.2
-added the deterministic slim Portable Source distribution on top
-of v0.28.1's explicit provider setup and model-download consent. The application
+detections. LIC Install Manager Lite is the supported Windows installation path; the prior Portable Source package is retired. Version 0.28.2 introduced that historical source distribution before it was replaced by the Manager. The application
 has been exercised with roughly 14,000 to 17,000 local images. Current primary
 workstation observations are about five seconds for a cold first launch and
 three seconds for the first Browser load at approximately 14,000 images, with a

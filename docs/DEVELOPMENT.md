@@ -23,10 +23,7 @@ model lives outside the source tree at
 Third-party identities and model-integrity facts belong in
 `provider_registry.json`; run `python tools\generate_sbom.py` after changing
 that registry and commit the matching `SBOM.spdx.json`. Do not restore moving
-model aliases such as `/latest/`. The source and future portable inventories
-are separate: `portable_payload_policy.json` excludes tests, release tools,
-developer material, source-only setup files, existing virtual environments,
-and all user/runtime data from the end-user ZIP.
+model aliases such as `/latest/`. Managed installer artifacts must exclude tests, release tools, developer material, source-only setup files, existing virtual environments, and all user/runtime data.
 
 Do not commit or package a virtual environment, model weights, catalogs,
 thumbnail caches, logs, dependency snapshots, or real dataset material.

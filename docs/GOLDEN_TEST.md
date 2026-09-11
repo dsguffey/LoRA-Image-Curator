@@ -28,13 +28,7 @@ datasets.
   audit, and packaging while every shipped file retains the full audit;
 - every direct SQLite connection in maintained source has explicit close
   ownership, including failed catalog initialization on Python 3.14/Windows;
-- the flat full-source archive and slim Portable Source archive each build
-  twice with identical bytes;
-- archive CRC, member manifest, clean extraction, and a synthetic
-  overwrite-in-place overlay pass without copying the installed workspace;
-- the Portable Source extraction contains the complete runtime/setup payload
-  but no repository tests, build tools, developer docs, GitHub metadata, or
-  user/runtime data;
+- the deterministic full-source archive builds twice with identical bytes;`r`n- archive CRC, member manifest, clean extraction, and a synthetic overwrite-in-place overlay pass without copying the installed workspace;
 - the current cumulative Windows/Tk GUI chain through v0.28.2 passes without
   unraisable Tk finalizers, orphaned delayed callbacks, or background Tcl/Tk
   diagnostics on stderr; the v0.27.10-and-earlier history runs in a strict
@@ -66,7 +60,4 @@ trial remain active roadmap work.
 The user has separately confirmed the complete packaged v0.27.17 Windows
 golden-build gate. v0.28.2 retains the catalog/UI and Florence recovery runtime
 while adding explicit provider-download and shared setup paths to the v0.28.0
-provenance foundation and the separately tested slim Portable Source payload.
-The v0.28.2 GUI, real CUDA tensor, Florence inference/resume, optional ONNX
-Runtime endpoints, and setup from the extracted Portable Source ZIP still
-require a fresh live-Windows pass before the release may be called golden.
+provenance foundation. The v0.28.2 GUI, real CUDA tensor, Florence inference/resume, and optional ONNX Runtime endpoints still require a fresh live-Windows pass before the release may be called golden.

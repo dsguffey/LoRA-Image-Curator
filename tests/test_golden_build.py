@@ -250,41 +250,6 @@ def run(*, include_gui: bool) -> None:
         overlay = temporary_root / "overlay"
         _verify_synthetic_overlay(second_archive, overlay)
 
-        print(
-            "Building and verifying the slim Portable Source distribution…",
-            flush=True,
-        )
-        first_portable = temporary_root / "portable-source-first.zip"
-        second_portable = temporary_root / "portable-source-second.zip"
-        _run(
-            [
-                sys.executable,
-                "tools/build_portable_source.py",
-                "--output",
-                str(first_portable),
-            ],
-            environment=environment,
-        )
-        first_portable_bytes = first_portable.read_bytes()
-        _run(
-            [
-                sys.executable,
-                "tools/build_portable_source.py",
-                "--output",
-                str(second_portable),
-            ],
-            environment=environment,
-        )
-        assert first_portable_bytes == second_portable.read_bytes(), (
-            "Two Portable Source builds were not byte-for-byte deterministic."
-        )
-        portable_extraction = temporary_root / "portable_source_extraction"
-        _verify_extracted_archive(second_portable, portable_extraction)
-        assert not (portable_extraction / "tests").exists()
-        assert not (portable_extraction / "tools").exists()
-        assert not (portable_extraction / "docs").exists()
-        assert (portable_extraction / "README.txt").is_file()
-
         if include_gui:
             _run_gui_gate(
                 [sys.executable, "-X", "dev", str(PROJECT_ROOT / GUI_ENTRYPOINT)],
@@ -301,14 +266,14 @@ def run(*, include_gui: bool) -> None:
         print(
             f"\nGOLDEN BUILD PASSED — {APP_NAME} v{APP_VERSION}\n"
             "All maintained automated regressions, static checks, deterministic "
-            "source and Portable Source packaging checks, clean-extraction/"
+            "source packaging checks, clean-extraction/"
             "overlay checks, and live GUI checkpoints passed.",
             flush=True,
         )
     else:
         print(
             f"\nHEADLESS GOLDEN CHECKS PASSED — {APP_NAME} v{APP_VERSION}\n"
-            "Both deterministic package types passed. Run again without "
+            "The deterministic source package passed. Run again without "
             "--no-gui on Windows before recording a golden handoff.",
             flush=True,
         )

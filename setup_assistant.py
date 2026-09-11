@@ -1,4 +1,4 @@
-"""Portable Windows setup and launch assistant for the source distribution.
+"""Windows setup and launch assistant for the source distribution.
 
 The public GitHub release is Python source, so it needs a Python interpreter and
 third-party packages.  This module keeps those implementation details behind a

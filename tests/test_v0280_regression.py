@@ -142,37 +142,6 @@ def test_first_launch_notice_maps_before_becoming_modal() -> None:
     )
 
 
-def test_source_and_portable_inventories_cannot_be_confused() -> None:
-    """Require a slim end-user payload and a separately named source archive."""
-    policy = json.loads(_project("portable_payload_policy.json"))
-    assert policy["artifact_name_template"].startswith(
-        "LoRA_Image_Curator_Portable_Windows_x64_"
-    )
-    assert policy["source_artifact_name_template"].startswith(
-        "LoRA_Image_Curator_Source_"
-    )
-    excluded_directories = set(policy["excluded_directories"])
-    assert {"tests", "tools", "docs", ".github", "venv", "output", "models"} <= (
-        excluded_directories
-    )
-    excluded_files = set(policy["excluded_source_only_files"])
-    assert {
-        "CONTRIBUTING.md",
-        "GIT_READY_CHECKLIST.md",
-        "setup_assistant.py",
-        "requirements.txt",
-    } <= excluded_files
-    required = set(policy["required_user_files"])
-    assert {
-        "LICENSE",
-        "provider_registry.json",
-        "SBOM.spdx.json",
-        "THIRD_PARTY_NOTICE.md",
-    } <= required
-    builder = _project("tools/build_release.py")
-    assert 'default_name = f"LoRA_Image_Curator_Source_v{version}.zip"' in builder
-
-
 def test_checked_in_sbom_is_generated_from_the_registry() -> None:
     """Prevent human-readable notices and machine inventory from drifting."""
     checked_in = json.loads(_project("SBOM.spdx.json"))
@@ -215,11 +184,11 @@ if __name__ == "__main__":
     test_notice_records_only_its_version_after_ok()
     test_notice_wording_buttons_and_shutdown_persistence_are_synchronized()
     test_first_launch_notice_maps_before_becoming_modal()
-    test_source_and_portable_inventories_cannot_be_confused()
+
     test_checked_in_sbom_is_generated_from_the_registry()
     test_smart_launcher_and_release_gates_cover_the_foundation()
     print(
         "v0.28.0 regression tests passed: provider provenance, verified model "
-        "download, notice persistence, slim portable policy, SPDX inventory, "
+        "download, notice persistence, SPDX inventory, "
         "smart launch, and release gates are synchronized."
     )
