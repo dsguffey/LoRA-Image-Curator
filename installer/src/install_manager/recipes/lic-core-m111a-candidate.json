@@ -1,0 +1,17 @@
+{
+  "schema_version": 2,
+  "product": "LIC Lite",
+  "release_id": "lic-lite-0.28.4-m111a-core-candidate-1",
+  "version": "0.28.4+m111a.1",
+  "channel": "candidate",
+  "classification": "qualification-candidate",
+  "compatibility": "known-compatible",
+  "profile": "windows-x64-core-v2",
+  "provenance": "Exact LIC Lite Core package with M1.11B Face Analysis component catalog and dated 2026-09-10 compatibility profile. Local human-review candidate only; no customer release approval.",
+  "application_sha256": "029dc5979fea0dcfd1057cc3e01f933754c683c9c66783fe54d8f8e905587f26",
+  "runtime_sha256": "75afa83f93b284d19040e24bc440ab741c09582c0d5310504d607a4e08c3dbaf",
+  "dependency_digest": "9d507d457c4121e08e31089ae197c3e2b9b8b2b228cb05c9682385fe0e146fbf",
+  "component_catalog_digest": "a99fd3c7c565de6d60059fdef9f678499dcf77771d5a4d942e9cfe455497e308",
+  "readiness_contract": "lic-core-readiness-v2",
+  "activation_allowed": true
+}

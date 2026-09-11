@@ -1,0 +1,48 @@
+# Python and local development output
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+
+# Install Manager local state and private evidence
+reports/
+.lic-repair/
+metadata/
+logs/
+cache/
+state/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+settings.json
+
+# Downloaded or generated packages and resources
+*.zip
+*.whl
+*.exe
+*.dll
+*.pyd
+*.tar.gz
+models/
+artifacts/
+staging/
+test-output/
+
+# Local configuration and operating-system metadata
+.env
+.env.*
+!.env.example
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini

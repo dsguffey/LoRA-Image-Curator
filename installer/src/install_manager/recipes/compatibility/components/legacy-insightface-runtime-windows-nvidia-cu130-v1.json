@@ -1,0 +1,333 @@
+{
+  "schema_version": 1,
+  "manifest_id": "legacy-insightface-runtime-windows-nvidia-cu130-v1",
+  "component_id": "legacy-insightface-runtime",
+  "capability": "Historical InsightFace runtime compatibility",
+  "tier": "optional",
+  "provider": "InsightFace",
+  "native_version": "InsightFace 1.0.1+lic.cuda13.1 / ONNX Runtime GPU 1.28.0",
+  "python_version": "3.14.6",
+  "platform": "win_amd64",
+  "approved_sources": [
+    "files.pythonhosted.org",
+    "reviewed LIC downstream build"
+  ],
+  "dependency_lock": null,
+  "packages": [
+    {
+      "name": "insightface",
+      "version": "1.0.1+lic.cuda13.1",
+      "scope": "component",
+      "artifact": {
+        "filename": "insightface-1.0.1+lic.cuda13.1-py3-none-any.whl",
+        "sha256": "0a0289e939b76878a981acdf83b536cc069ffa7c59eab3267f26dcd9877abbc5",
+        "size": 768750,
+        "source": {
+          "kind": "downstream-build",
+          "upstream_url": "https://files.pythonhosted.org/packages/42/ce/33989427a7fae952e1606d0edee4191f965630f3c74f2166fa776fafd271/insightface-1.0.1-py3-none-any.whl",
+          "upstream_sha256": "5f373f6fedbdda5cbc59a34ca386a75a2995cdaf6899402590ae9eb4308fc2e8",
+          "build_adapter": "LIC lic_dependencies.insightface_build v1",
+          "availability": "preserved-reviewed-bytes"
+        },
+        "license_id": "MIT"
+      }
+    },
+    {
+      "name": "onnx",
+      "version": "1.22.0",
+      "scope": "component",
+      "artifact": {
+        "filename": "onnx-1.22.0-cp312-abi3-win_amd64.whl",
+        "sha256": "72ccebab3bac07215c204ce8848d42e78eaaa666badbf72d25cd359b9f269e3a",
+        "size": 17213290,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/13/a8/734725bb703c5fabb687f79c79e51249475212b3eb37771ac4a4ac9b487f/onnx-1.22.0-cp312-abi3-win_amd64.whl"
+        },
+        "license_id": "Apache-2.0"
+      }
+    },
+    {
+      "name": "onnxruntime-gpu",
+      "version": "1.28.0",
+      "scope": "component",
+      "artifact": {
+        "filename": "onnxruntime_gpu-1.28.0-cp314-cp314-win_amd64.whl",
+        "sha256": "965f2cad344510bfe2a024ba5c485528caafcc3cf11b218dfb988b0f0e34057d",
+        "size": 242095308,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/1f/8f/7d0613468fda5c15c53095f971abe934145d174c025f7fc98649a9454a64/onnxruntime_gpu-1.28.0-cp314-cp314-win_amd64.whl"
+        },
+        "license_id": "MIT"
+      }
+    },
+    {
+      "name": "opencv-contrib-python",
+      "version": "5.0.0.93",
+      "scope": "shared",
+      "artifact": {
+        "filename": "opencv_contrib_python-5.0.0.93-cp37-abi3-win_amd64.whl",
+        "sha256": "461622db95c964652d4d8fda171034961c3de270f78a6095aaad31050771774a",
+        "size": 53822579,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/09/29/6985260569ee3c7f6fcae252bc06e2a843e5b90eed665a2936bdd26fa283/opencv_contrib_python-5.0.0.93-cp37-abi3-win_amd64.whl"
+        },
+        "license_id": "Apache-2.0"
+      }
+    },
+    {
+      "name": "scipy",
+      "version": "1.18.0",
+      "scope": "component",
+      "artifact": {
+        "filename": "scipy-1.18.0-cp314-cp314-win_amd64.whl",
+        "sha256": "2d8bbdc6c817f5b4006a54d799d4f5bab6f910193cbb9a1ff310833d4d270f61",
+        "size": 37288845,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/93/3e/902d836831474b0ab5a37d16404f7bc5fafd9efba632890e271ba952635f/scipy-1.18.0-cp314-cp314-win_amd64.whl"
+        },
+        "license_id": "BSD-3-Clause"
+      }
+    },
+    {
+      "name": "scikit-image",
+      "version": "0.26.0",
+      "scope": "component",
+      "artifact": {
+        "filename": "scikit_image-0.26.0-cp314-cp314-win_amd64.whl",
+        "sha256": "0660b83968c15293fd9135e8d860053ee19500d52bf55ca4fb09de595a1af650",
+        "size": 12023490,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/8d/5b/0671dc91c0c79340c3fe202f0549c7d3681eb7640fe34ab68a5f090a7c7f/scikit_image-0.26.0-cp314-cp314-win_amd64.whl"
+        },
+        "license_id": "BSD-3-Clause"
+      }
+    },
+    {
+      "name": "imageio",
+      "version": "2.37.4",
+      "scope": "component",
+      "artifact": {
+        "filename": "imageio-2.37.4-py3-none-any.whl",
+        "sha256": "1ab2e22c8debf700f24c3ac43e8f95f3b3a8110c83b93411e97b4b0b2cd1c7e6",
+        "size": 318000,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/3e/2d/ca050652104bab2cf55e569db2a178b1b61cb041fef28307f2db383f6d9f/imageio-2.37.4-py3-none-any.whl"
+        },
+        "license_id": "BSD-2-Clause"
+      }
+    },
+    {
+      "name": "tifffile",
+      "version": "2026.7.31",
+      "scope": "component",
+      "artifact": {
+        "filename": "tifffile-2026.7.31-py3-none-any.whl",
+        "sha256": "81adfa08012be1c478f99b83cda2f529eef8620cfbdf94fc41eef6f1d7b47dc5",
+        "size": 271576,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/da/ed/75bf4d6ae6fec7233ef466f27dffc99f91fde53a31e69f02640b418317ec/tifffile-2026.7.31-py3-none-any.whl"
+        },
+        "license_id": "BSD-3-Clause"
+      }
+    },
+    {
+      "name": "lazy-loader",
+      "version": "0.5",
+      "scope": "component",
+      "artifact": {
+        "filename": "lazy_loader-0.5-py3-none-any.whl",
+        "sha256": "ab0ea149e9c554d4ffeeb21105ac60bed7f3b4fd69b1d2360a4add51b170b005",
+        "size": 8044,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/8a/a1/8d812e53a5da1687abb10445275d41a8b13adb781bbf7196ddbcf8d88505/lazy_loader-0.5-py3-none-any.whl"
+        },
+        "license_id": "BSD-3-Clause"
+      }
+    },
+    {
+      "name": "ml-dtypes",
+      "version": "0.5.4",
+      "scope": "component",
+      "artifact": {
+        "filename": "ml_dtypes-0.5.4-cp314-cp314-win_amd64.whl",
+        "sha256": "8c6a2dcebd6f3903e05d51960a8058d6e131fe69f952a5397e5dbabc841b6d56",
+        "size": 221032,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/e9/93/2bfed22d2498c468f6bcd0d9f56b033eaa19f33320389314c19ef6766413/ml_dtypes-0.5.4-cp314-cp314-win_amd64.whl"
+        },
+        "license_id": "Apache-2.0"
+      }
+    },
+    {
+      "name": "protobuf",
+      "version": "7.35.1",
+      "scope": "component",
+      "artifact": {
+        "filename": "protobuf-7.35.1-py3-none-any.whl",
+        "sha256": "4bc97768d8fe4ad6743c8a19403e314511ed9f6d13205b687e52421c023ac1b9",
+        "size": 171659,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/19/c7/5f7c636ec43e0c545e28d1f1db71990108306f7bdcb89f069ba97e428e7f/protobuf-7.35.1-py3-none-any.whl"
+        },
+        "license_id": "BSD-3-Clause"
+      }
+    },
+    {
+      "name": "networkx",
+      "version": "3.6.1",
+      "scope": "shared",
+      "artifact": {
+        "filename": "networkx-3.6.1-py3-none-any.whl",
+        "sha256": "d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762",
+        "size": null,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/9e/c9/b2622292ea83fbb4ec318f5b9ab867d0a28ab43c5717bb85b0a5f6b3b0a4/networkx-3.6.1-py3-none-any.whl"
+        },
+        "license_id": "BSD-3-Clause"
+      }
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "scope": "shared",
+      "artifact": {
+        "filename": "requests-2.34.2-py3-none-any.whl",
+        "sha256": "2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0",
+        "size": null,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl"
+        },
+        "license_id": "Apache-2.0"
+      }
+    },
+    {
+      "name": "tqdm",
+      "version": "4.70.0",
+      "scope": "shared",
+      "artifact": {
+        "filename": "tqdm-4.70.0-py3-none-any.whl",
+        "sha256": "7f585706bfddbdebf89daac705b2dfcc16890130727d3197ca62c732b4310953",
+        "size": null,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/f9/1c/01bfd571a64e7f270e6bab5e33777debe0edc56759233ce84f27dec92d14/tqdm-4.70.0-py3-none-any.whl"
+        },
+        "license_id": "MPL-2.0 AND MIT"
+      }
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "scope": "shared",
+      "artifact": {
+        "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+        "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+        "size": null,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl"
+        },
+        "license_id": "PSF-2.0"
+      }
+    },
+    {
+      "name": "certifi",
+      "version": "2026.7.22",
+      "scope": "shared",
+      "artifact": {
+        "filename": "certifi-2026.7.22-py3-none-any.whl",
+        "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775",
+        "size": null,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl"
+        },
+        "license_id": "MPL-2.0"
+      }
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.4.9",
+      "scope": "shared",
+      "artifact": {
+        "filename": "charset_normalizer-3.4.9-cp314-cp314-win_amd64.whl",
+        "sha256": "16b65ea0f2465b6fb52aa22de5eca612aa964ddfec00a912e26f4656cbef890b",
+        "size": null,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/49/fd/a1d26144398c67486422a72bf5812cda22cb4ccfcd95a290fb41ceb4b8e2/charset_normalizer-3.4.9-cp314-cp314-win_amd64.whl"
+        },
+        "license_id": "MIT"
+      }
+    },
+    {
+      "name": "idna",
+      "version": "3.18",
+      "scope": "shared",
+      "artifact": {
+        "filename": "idna-3.18-py3-none-any.whl",
+        "sha256": "7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2",
+        "size": null,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/1e/5e/d4e9f1a599fb8e573b7b87160658329fbf28d19eac2718f51fc3def3aa5a/idna-3.18-py3-none-any.whl"
+        },
+        "license_id": "BSD-3-Clause"
+      }
+    },
+    {
+      "name": "urllib3",
+      "version": "2.7.0",
+      "scope": "shared",
+      "artifact": {
+        "filename": "urllib3-2.7.0-py3-none-any.whl",
+        "sha256": "9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897",
+        "size": null,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl"
+        },
+        "license_id": "MIT"
+      }
+    }
+  ],
+  "resources": [
+    {
+      "kind": "insightface-model-pack",
+      "pack": "buffalo_l",
+      "classification": "optional",
+      "license_constraint": "publisher pretrained weights are non-commercial research unless separately licensed",
+      "files": {
+        "1k3d68.onnx": "df5c06b8a0c12e422b2ed8947b8869faa4105387f199c477af038aa01f9a45cc",
+        "2d106det.onnx": "f001b856447c413801ef5c42091ed0cd516fcd21f2d6b79635b1e733a7109dbf",
+        "det_10g.onnx": "5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91",
+        "genderage.onnx": "4fde69b1c810857b88c64a335084f1c3fe8f01246c9a191b48c7bb756d6652fb",
+        "w600k_r50.onnx": "4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43"
+      }
+    }
+  ],
+  "validation": {
+    "probe": "lic-dependency-gpu-and-face-v1",
+    "evidence": "reports/lic-venv-rebuild-2026-09-02/gpu-validation.json"
+  },
+  "provenance": {
+    "basis": "accepted six-face CUDA detection/recognition execution",
+    "classification": "optional-capability",
+    "canonical_ownership": [
+      "onnxruntime-gpu only",
+      "opencv-contrib-python only"
+    ]
+  }
+}

@@ -68,7 +68,11 @@ def iter_public_files() -> list[Path]:
     compilation and packaging; arbitrary local archives must never become
     public source merely because they sit beneath ``DatasetTools``.
     """
-    return list(manifest_release_files(PROJECT_ROOT))
+    # The installer is a separately maintained public subproject with its own
+    # release preflight.  Keep LIC's application-specific documentation and
+    # static-policy metrics scoped to the code they were designed to assess.
+    return [path for path in manifest_release_files(PROJECT_ROOT)
+            if not path.relative_to(PROJECT_ROOT).as_posix().startswith("installer/")]
 
 
 def literal_bool_keyword(call: ast.Call, keyword_name: str) -> bool | None:

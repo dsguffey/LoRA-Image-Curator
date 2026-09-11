@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "artifact_id": "pythoncore-win-x64",
+  "version": "3.14.6",
+  "filename": "python-3.14.6-amd64.zip",
+  "url": "https://www.python.org/ftp/python/3.14.6/python-3.14.6-amd64.zip",
+  "expected_sha256": "75afa83f93b284d19040e24bc440ab741c09582c0d5310504d607a4e08c3dbaf",
+  "publisher": "Python Software Foundation",
+  "source_name": "Python 3.14.6 Windows release manifest",
+  "license_id": "PSF-2.0",
+  "expected_size": 36547413
+}

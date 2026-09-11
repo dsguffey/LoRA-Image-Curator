@@ -1,0 +1,250 @@
+{
+  "schema_version": 2,
+  "product": "LoRA Image Curator",
+  "components": [
+    {
+      "component_id": "lic-core",
+      "capability": "Core functionality",
+      "description": "Includes LoRA Image Curator, a private Python environment, and the libraries required to browse, curate, edit, review, and export catalogs.",
+      "tier": "core",
+      "required_for_readiness": true,
+      "provider": "LoRA Image Curator",
+      "publisher": "LoRA Image Curator project",
+      "source_name": "Official LIC package plus Python.org and PyPI",
+      "source_url": "https://github.com/dsguffey/LoRA-Image-Curator",
+      "third_party": true,
+      "estimated_bytes": 100000000,
+      "storage_policy": "managed application root; optional models use independent storage",
+      "selector_type": "none",
+      "identity": {
+        "application_version": "0.28.4",
+        "profile": "windows-x64-core-v2",
+        "python": "3.14.6",
+        "readiness_contract": "lic-core-readiness-v2"
+      },
+      "license": "LIC is MIT; bundled and acquired dependencies retain their own terms",
+      "restrictions": "Optional AI providers have separate hardware, package, model, and license requirements.",
+      "compatibility": "Windows x64, Python 3.14.6, provider-neutral Core profile",
+      "dependencies": [],
+      "acquisition_adapter": "lic-core-bootstrap",
+      "validation_adapter": "lic-core-readiness-v2",
+      "update_policy": "approved-static-channel",
+      "help_anchor": "core-functionality",
+      "managed_install": true,
+      "artifacts": [
+        {
+          "name": "LoRA Image Curator",
+          "provider": "LoRA Image Curator project",
+          "source": "approved LIC Lite package"
+        },
+        {
+          "name": "Python 3.14.6",
+          "provider": "Python Software Foundation",
+          "source": "python.org"
+        },
+        {
+          "name": "Required Python packages",
+          "provider": "PyPI projects",
+          "source": "files.pythonhosted.org"
+        }
+      ]
+    },
+    {
+      "component_id": "florence-captioning",
+      "capability": "Generate AI image captions",
+      "description": "Use Florence to generate image descriptions and optional object/OCR triage locally.",
+      "tier": "optional",
+      "required_for_readiness": false,
+      "provider": "Florence community / Microsoft",
+      "publisher": "Florence community / Microsoft",
+      "source_name": "PyPI, PyTorch, and Hugging Face",
+      "source_url": "https://huggingface.co/florence-community/Florence-2-large-ft",
+      "third_party": true,
+      "estimated_bytes": 3500000000,
+      "storage_policy": "independently selectable shared Hugging Face model root plus packages in the private LIC environment",
+      "selector_type": "directory",
+      "identity": {
+        "profile": "windows-nvidia-cu130-florence-v1",
+        "model": "florence-community/Florence-2-large-ft",
+        "revision": "26b734a54fdfbf9c398351eedfabb7f27fc470b7",
+        "transformers": "4.56.2"
+      },
+      "license": "Florence model is MIT; acquired packages retain their own terms",
+      "restrictions": "Requires the qualified NVIDIA/CUDA 13 provider profile and compatible NVIDIA driver.",
+      "compatibility": "Windows x64, Python 3.14.6, exact CUDA 13 package closure and pinned Florence snapshot",
+      "dependencies": [
+        "lic-core"
+      ],
+      "acquisition_adapter": "florence-managed-v1",
+      "validation_adapter": "florence-model-directory",
+      "update_policy": "approved-static-channel",
+      "help_anchor": "florence-captioning",
+      "managed_install": true,
+      "artifacts": [
+        {
+          "name": "Florence runtime and NVIDIA packages",
+          "provider": "PyPI projects and PyTorch Foundation",
+          "source": "files.pythonhosted.org and download-r2.pytorch.org"
+        },
+        {
+          "name": "Florence-2 large fine-tuned",
+          "provider": "Florence community / Microsoft",
+          "source": "huggingface.co"
+        }
+      ]
+    },
+    {
+      "component_id": "face-analysis",
+      "capability": "Face Analysis",
+      "description": "Detect faces and match them to reference identities with OpenCV YuNet + SFace.",
+      "tier": "optional",
+      "required_for_readiness": false,
+      "provider": "OpenCV YuNet + SFace",
+      "publisher": "OpenCV / OpenCV Zoo",
+      "source_name": "OpenCV Zoo immutable revision",
+      "source_url": "https://github.com/opencv/opencv_zoo/tree/47534e27c9851bb1128ccc0102f1145e27f23f98",
+      "third_party": true,
+      "estimated_bytes": 38926091,
+      "storage_policy": "manager-owned YuNet/SFace model folder by default; an exact compatible existing folder remains external",
+      "selector_type": "directory",
+      "identity": {
+        "provider_id": "opencv-yunet-sface",
+        "implementation": "yunet-2026may+sface-2021dec",
+        "pair_fingerprint": "83765f109aa05375af02104abd24ee5f15c4a474c51ae295f06e8b3aef1cc865",
+        "embedding_dimension": 128,
+        "default_similarity_threshold": 0.5
+      },
+      "license": "YuNet is MIT; SFace is Apache-2.0",
+      "restrictions": "Face suggestions remain review evidence. SFace training-data provenance requires review before public distribution.",
+      "compatibility": "Windows x64, Python 3.14.6, approved OpenCV contrib build, and the exact YuNet/SFace model pair",
+      "dependencies": [
+        "lic-core"
+      ],
+      "acquisition_adapter": "verified-file-copy-v1",
+      "validation_adapter": "yunet-sface-pair-v1",
+      "update_policy": "approved-static-channel",
+      "help_anchor": "face-analysis",
+      "managed_install": true,
+      "provider_policy": {
+        "payment": "none-identified",
+        "project_url": "https://github.com/opencv/opencv_zoo",
+        "license_url": "https://github.com/opencv/opencv_zoo/tree/47534e27c9851bb1128ccc0102f1145e27f23f98/models",
+        "support_url": null
+      },
+      "artifacts": [
+        {
+          "name": "YuNet face detector",
+          "filename": "face_detection_yunet_2026may.onnx",
+          "provider": "OpenCV Zoo",
+          "source": "OpenCV Zoo immutable revision",
+          "size": 229738,
+          "sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"
+        },
+        {
+          "name": "SFace face recognizer",
+          "filename": "face_recognition_sface_2021dec.onnx",
+          "provider": "OpenCV Zoo",
+          "source": "OpenCV Zoo immutable revision",
+          "size": 38696353,
+          "sha256": "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79"
+        }
+      ]
+    },
+    {
+      "component_id": "body-analysis",
+      "capability": "Detect body and pose",
+      "description": "Use Google MediaPipe to record local body and pose evidence.",
+      "tier": "optional",
+      "required_for_readiness": false,
+      "provider": "Google MediaPipe",
+      "publisher": "Google",
+      "source_name": "PyPI and Google Cloud Storage",
+      "source_url": "https://developers.google.com/mediapipe/solutions/vision/pose_landmarker",
+      "third_party": true,
+      "estimated_bytes": 90000000,
+      "storage_policy": "manager-owned MediaPipe provider folder by default; an exact compatible existing provider folder may remain external",
+      "selector_type": "directory",
+      "identity": {
+        "package": "mediapipe 0.10.35",
+        "model": "Pose Landmarker Full float16/1",
+        "sha256": "5134a3aad27a58b93da0088d431f366da362b44e3ccfbe3462b3827a839011b1",
+        "accepted_equivalent_sha256s": [
+          "4eaa5eb7a98365221087693fcc286334cf0858e2eb6e15b506aa4a7ecdcec4ad"
+        ]
+      },
+      "license": "Apache-2.0",
+      "restrictions": "Model results are review evidence, not a guarantee.",
+      "compatibility": "Requires the vetted MediaPipe Python package closure and exact Pose Landmarker task",
+      "dependencies": [
+        "lic-core"
+      ],
+      "acquisition_adapter": "verified-file-copy-v1",
+      "validation_adapter": "mediapipe-task-file",
+      "update_policy": "approved-static-channel",
+      "help_anchor": "body-analysis",
+      "managed_install": true,
+      "provider_policy": {
+        "payment": "none-identified",
+        "project_url": "https://ai.google.dev/edge/mediapipe/solutions/vision/pose_landmarker",
+        "license_url": "https://www.apache.org/licenses/LICENSE-2.0",
+        "support_url": null
+      },
+      "artifacts": [
+        {
+          "name": "Pose Landmarker Full float16 v1",
+          "provider": "Google",
+          "source": "storage.googleapis.com"
+        },
+        {
+          "name": "MediaPipe runtime packages",
+          "provider": "PyPI projects",
+          "source": "files.pythonhosted.org"
+        }
+      ]
+    },
+    {
+      "component_id": "video-extraction",
+      "capability": "Extract frames from video",
+      "description": "Use the qualified BtbN LGPL build of FFmpeg to extract frames locally.",
+      "tier": "optional",
+      "required_for_readiness": false,
+      "provider": "FFmpeg / BtbN build",
+      "publisher": "FFmpeg project and BtbN/FFmpeg-Builds",
+      "source_name": "Pinned BtbN GitHub release",
+      "source_url": "https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-05-13-10",
+      "third_party": true,
+      "estimated_bytes": 146078600,
+      "storage_policy": "manager-owned tool directory; an existing external FFmpeg folder remains selectable",
+      "selector_type": "directory",
+      "identity": {
+        "release": "autobuild-2026-09-05-13-10",
+        "version": "n8.1.2-50-g1a748fe2cd-20260905",
+        "archive_sha256": "a86187b579310debe4241b4b4f4cefdac3ca294cfde76f775993445d19cf5b1d"
+      },
+      "license": "This exact build reports LGPL-3.0-or-later",
+      "restrictions": "Acquired from upstream after explicit action. Any future offline redistribution requires source and notice review.",
+      "compatibility": "Windows x64; exact static LGPL build passed LIC duration, H.264/H.265 decode, interval/scene, JPEG/PNG extraction",
+      "dependencies": [
+        "lic-core"
+      ],
+      "acquisition_adapter": "verified-zip-members-v1",
+      "validation_adapter": "ffmpeg-executable",
+      "update_policy": "approved-static-channel",
+      "help_anchor": "video-extraction",
+      "managed_install": true,
+      "provider_policy": {
+        "payment": "none-identified",
+        "project_url": "https://github.com/BtbN/FFmpeg-Builds",
+        "license_url": "https://ffmpeg.org/legal.html",
+        "support_url": null
+      },
+      "artifacts": [
+        {
+          "name": "FFmpeg n8.1.2-50 Windows x64 LGPL static archive",
+          "provider": "BtbN/FFmpeg-Builds",
+          "source": "GitHub release autobuild-2026-09-05-13-10"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,97 @@
+{
+  "compatibility": {
+    "application": "lora-image-curator",
+    "application_version": "0.28.4",
+    "loader": "native-florence2",
+    "transformers": "4.56.2",
+    "trust_remote_code": false,
+    "weights": "safetensors"
+  },
+  "family": "florence2",
+  "files": [
+    {
+      "digest": "45a441f0d1c61f68475ae6cb6aec35cd7d679671",
+      "digest_kind": "git-blob-sha1",
+      "path": "added_tokens.json",
+      "size": 22430
+    },
+    {
+      "digest": "9bd7ba38bd4651fc32946346edcc26d6410577aa",
+      "digest_kind": "git-blob-sha1",
+      "path": "config.json",
+      "size": 2396
+    },
+    {
+      "digest": "bd4a1d37522d13285c2f753d75af4c07ca463167",
+      "digest_kind": "git-blob-sha1",
+      "path": "generation_config.json",
+      "size": 292
+    },
+    {
+      "digest": "226b0752cac7789c48f0cb3ec53eda48b7be36cc",
+      "digest_kind": "git-blob-sha1",
+      "path": "merges.txt",
+      "size": 456318
+    },
+    {
+      "digest": "58a76f4be257b0dd03ddd6b16c2bb05f4e1910c550047c8fbc4d85de638c619e",
+      "digest_kind": "sha256",
+      "path": "model.safetensors",
+      "size": 1540958064
+    },
+    {
+      "digest": "e7e0dbc98f7a0985ea42428925d863c19ce1b222",
+      "digest_kind": "git-blob-sha1",
+      "path": "preprocessor_config.json",
+      "size": 603
+    },
+    {
+      "digest": "2dace493360deb05053d62f362df1db802d03aa9",
+      "digest_kind": "git-blob-sha1",
+      "path": "processor_config.json",
+      "size": 2264
+    },
+    {
+      "digest": "d748fe272a81974cb735e2d1d6821bb294566849",
+      "digest_kind": "git-blob-sha1",
+      "path": "special_tokens_map.json",
+      "size": 146627
+    },
+    {
+      "digest": "d03cc512bed8bc7e6012be4d5b20edb6a2d8ee3e",
+      "digest_kind": "git-blob-sha1",
+      "path": "tokenizer.json",
+      "size": 3748144
+    },
+    {
+      "digest": "7aec00347e73f5f33f60a05aa382b4defc3931d6",
+      "digest_kind": "git-blob-sha1",
+      "path": "tokenizer_config.json",
+      "size": 197922
+    },
+    {
+      "digest": "4ebe4bb3f3114daf2e4cc349f24873a1175a35d7",
+      "digest_kind": "git-blob-sha1",
+      "path": "vocab.json",
+      "size": 798293
+    }
+  ],
+  "license": {
+    "distribution": "acquire-from-provider; bundling requires notice review",
+    "id": "mit",
+    "reference": "https://huggingface.co/microsoft/Florence-2-large/resolve/main/LICENSE"
+  },
+  "provenance": {
+    "excluded_repository_files": [
+      ".gitattributes",
+      "README.md"
+    ],
+    "metadata_url": "https://huggingface.co/api/models/florence-community/Florence-2-large-ft/revision/26b734a54fdfbf9c398351eedfabb7f27fc470b7?blobs=true",
+    "scope": "explicit runtime-file projection of pinned revision"
+  },
+  "repository": "florence-community/Florence-2-large-ft",
+  "resource_id": "florence2-large-ft-native",
+  "revision": "26b734a54fdfbf9c398351eedfabb7f27fc470b7",
+  "schema_version": 1,
+  "source": "huggingface"
+}

@@ -150,6 +150,7 @@ REQUIRED_MEMBERS = {
     "Install Base Dependencies.bat",
     "Install Body Analysis Dependencies.bat",
     "tests/test_golden_build.py",
+    "tests/test_yunet_sface_provider.py",
     ".github/ISSUE_TEMPLATE/bug_report.md",
     ".github/ISSUE_TEMPLATE/feature_request.md",
     ".github/pull_request_template.md",

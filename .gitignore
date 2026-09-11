@@ -78,3 +78,10 @@ catalog_backups/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# LIC Install Manager source and release artifacts
+installer/build/
+installer/dist/
+installer/.lic-repair/
+installer/reports/
+installer/**/__pycache__/

@@ -1,0 +1,48 @@
+{
+  "schema_version": 2,
+  "manifest_id": "opencv-yunet-sface-windows-x64-v1",
+  "component_id": "face-analysis",
+  "capability": "Face Analysis",
+  "tier": "optional",
+  "provider": "OpenCV YuNet + SFace",
+  "provider_id": "opencv-yunet-sface",
+  "native_version": "YuNet 2026may + SFace 2021dec",
+  "python_version": "3.14.6",
+  "platform": "win_amd64",
+  "approved_sources": ["raw.githubusercontent.com/opencv/opencv_zoo@47534e27c9851bb1128ccc0102f1145e27f23f98"],
+  "dependency_lock": null,
+  "packages": [],
+  "resources": [
+    {
+      "resource_id": "yunet-detector",
+      "kind": "model-file",
+      "artifact": {
+        "artifact_id": "opencv-yunet-2026may", "version": "47534e27c9851bb1128ccc0102f1145e27f23f98",
+        "filename": "face_detection_yunet_2026may.onnx",
+        "url": "https://raw.githubusercontent.com/opencv/opencv_zoo/47534e27c9851bb1128ccc0102f1145e27f23f98/models/face_detection_yunet/face_detection_yunet_2026may.onnx",
+        "expected_sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0",
+        "publisher": "OpenCV Zoo", "source_name": "OpenCV Zoo immutable revision", "license_id": "MIT", "expected_size": 229738
+      },
+      "installation": {"adapter": "verified-file-copy-v1", "relative_path": "Resources/components/face-analysis/opencv-yunet-sface/face_detection_yunet_2026may.onnx"},
+      "ownership": "manager-owned", "disposition": "copy-and-verify",
+      "validation": {"adapter": "yunet-sface-pair-v1", "version": "opencv-yunet-sface-v1", "accepted_sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"}
+    },
+    {
+      "resource_id": "sface-recognizer",
+      "kind": "model-file",
+      "artifact": {
+        "artifact_id": "opencv-sface-2021dec", "version": "47534e27c9851bb1128ccc0102f1145e27f23f98",
+        "filename": "face_recognition_sface_2021dec.onnx",
+        "url": "https://raw.githubusercontent.com/opencv/opencv_zoo/47534e27c9851bb1128ccc0102f1145e27f23f98/models/face_recognition_sface/face_recognition_sface_2021dec.onnx",
+        "expected_sha256": "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79",
+        "publisher": "OpenCV Zoo", "source_name": "OpenCV Zoo immutable revision", "license_id": "Apache-2.0", "expected_size": 38696353
+      },
+      "installation": {"adapter": "verified-file-copy-v1", "relative_path": "Resources/components/face-analysis/opencv-yunet-sface/face_recognition_sface_2021dec.onnx"},
+      "ownership": "manager-owned", "disposition": "copy-and-verify",
+      "validation": {"adapter": "yunet-sface-pair-v1", "version": "opencv-yunet-sface-v1", "accepted_sha256": "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79"}
+    }
+  ],
+  "validation": {"probe": "LIC OpenCvYuNetSFaceProvider inspect_face_setup and one accepted fixture", "evidence": "M1.11B Phase 1 and Phase 2A"},
+  "provenance": {"model_pair_fingerprint": "83765f109aa05375af02104abd24ee5f15c4a474c51ae295f06e8b3aef1cc865", "embedding_dimension": 128, "default_similarity_threshold": 0.5},
+  "policy": {"payment": "none-identified", "project_url": "https://github.com/opencv/opencv_zoo", "license_url": "https://github.com/opencv/opencv_zoo/tree/47534e27c9851bb1128ccc0102f1145e27f23f98/models", "support_url": null}
+}

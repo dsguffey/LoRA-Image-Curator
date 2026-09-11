@@ -1,0 +1,554 @@
+{
+  "schema_version": 1,
+  "profile": "windows-nvidia-cu130-base",
+  "python_version": "3.14.6",
+  "platform": "win_amd64",
+  "wheels": [
+    {
+      "name": "torch",
+      "version": "2.13.0+cu130",
+      "artifact": {
+        "artifact_id": "wheel-torch",
+        "version": "2.13.0+cu130",
+        "filename": "torch-2.13.0+cu130-cp314-cp314-win_amd64.whl",
+        "url": "https://download-r2.pytorch.org/whl/cu130/torch-2.13.0%2Bcu130-cp314-cp314-win_amd64.whl",
+        "expected_sha256": "590b2a2b53ef295dcfcd703df17929bd579705bb0e42d9e43c462fe0f0b1e088",
+        "publisher": "Python distribution project: torch",
+        "source_name": "PyTorch CUDA 13 wheel index",
+        "license_id": "Apache-2.0 AND Apache-2.0 WITH LLVM-exception AND BSD-2-Clause AND BSD-3-Clause AND BSL-1.0 AND MIT",
+        "expected_size": 1922599627
+      },
+      "import_names": [
+        "torch"
+      ]
+    },
+    {
+      "name": "torchvision",
+      "version": "0.28.0+cu130",
+      "artifact": {
+        "artifact_id": "wheel-torchvision",
+        "version": "0.28.0+cu130",
+        "filename": "torchvision-0.28.0+cu130-cp314-cp314-win_amd64.whl",
+        "url": "https://download-r2.pytorch.org/whl/cu130/torchvision-0.28.0%2Bcu130-cp314-cp314-win_amd64.whl",
+        "expected_sha256": "a51e85f6133741ff89a941497dd8dbb208707c68f472c1983ae8dbed728876e1",
+        "publisher": "Python distribution project: torchvision",
+        "source_name": "PyTorch CUDA 13 wheel index",
+        "license_id": "BSD",
+        "expected_size": 9189253
+      },
+      "import_names": [
+        "torchvision"
+      ]
+    },
+    {
+      "name": "pip",
+      "version": "26.2",
+      "artifact": {
+        "artifact_id": "wheel-pip",
+        "version": "26.2",
+        "filename": "pip-26.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/62/36/a3aed958d60531cb442b7ab4596cda7b3621cfb916f8ae1d6769795c7dc1/pip-26.2-py3-none-any.whl",
+        "expected_sha256": "931c303696af6fa3417112103b1cad26890e5a07eccb5b99783700e33f2b8aad",
+        "publisher": "Python distribution project: pip",
+        "source_name": "Python Package Index",
+        "license_id": "MIT"
+      },
+      "import_names": [
+        "pip"
+      ]
+    },
+    {
+      "name": "setuptools",
+      "version": "83.0.0",
+      "artifact": {
+        "artifact_id": "wheel-setuptools",
+        "version": "83.0.0",
+        "filename": "setuptools-83.0.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/5d/40/e1e72872c6354b306daef1703549e8e83b4d43cfea356311bf722a043752/setuptools-83.0.0-py3-none-any.whl",
+        "expected_sha256": "29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3",
+        "publisher": "Python distribution project: setuptools",
+        "source_name": "Python Package Index",
+        "license_id": "MIT"
+      },
+      "import_names": [
+        "setuptools"
+      ]
+    },
+    {
+      "name": "wheel",
+      "version": "0.47.0",
+      "artifact": {
+        "artifact_id": "wheel-wheel",
+        "version": "0.47.0",
+        "filename": "wheel-0.47.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/87/1b/9e33c09813d65e248f7f773119148a612516a4bea93e9c6f545f78455b7c/wheel-0.47.0-py3-none-any.whl",
+        "expected_sha256": "212281cab4dff978f6cedd499cd893e1f620791ca6ff7107cf270781e587eced",
+        "publisher": "Python distribution project: wheel",
+        "source_name": "Python Package Index",
+        "license_id": "MIT"
+      },
+      "import_names": [
+        "wheel"
+      ]
+    },
+    {
+      "name": "packaging",
+      "version": "26.2",
+      "artifact": {
+        "artifact_id": "wheel-packaging",
+        "version": "26.2",
+        "filename": "packaging-26.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl",
+        "expected_sha256": "5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e",
+        "publisher": "Python distribution project: packaging",
+        "source_name": "Python Package Index",
+        "license_id": "Apache-2.0 OR BSD-2-Clause"
+      },
+      "import_names": [
+        "packaging"
+      ]
+    },
+    {
+      "name": "transformers",
+      "version": "4.56.2",
+      "artifact": {
+        "artifact_id": "wheel-transformers",
+        "version": "4.56.2",
+        "filename": "transformers-4.56.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/70/26/2591b48412bde75e33bfd292034103ffe41743cacd03120e3242516cd143/transformers-4.56.2-py3-none-any.whl",
+        "expected_sha256": "79c03d0e85b26cb573c109ff9eafa96f3c8d4febfd8a0774e8bba32702dd6dde",
+        "publisher": "Python distribution project: transformers",
+        "source_name": "Python Package Index",
+        "license_id": "Apache 2.0 License"
+      },
+      "import_names": [
+        "transformers"
+      ]
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.1",
+      "artifact": {
+        "artifact_id": "wheel-numpy",
+        "version": "2.5.1",
+        "filename": "numpy-2.5.1-cp314-cp314-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/c1/1a/837f9ed7405adcd7a40538792eb169eddd8fa5630c16a1ef49dae71a30f4/numpy-2.5.1-cp314-cp314-win_amd64.whl",
+        "expected_sha256": "24d0eb82c0541d3415a33425db64ae439dffccd7b4dbcb30e7c35120205c506a",
+        "publisher": "Python distribution project: numpy",
+        "source_name": "Python Package Index",
+        "license_id": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0"
+      },
+      "import_names": [
+        "numpy"
+      ]
+    },
+    {
+      "name": "pillow",
+      "version": "12.3.0",
+      "artifact": {
+        "artifact_id": "wheel-pillow",
+        "version": "12.3.0",
+        "filename": "pillow-12.3.0-cp314-cp314-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/f1/e0/492879f69d94f91f60fc8cd05ba03650e9520afebb2fb7aa12777d7c7f38/pillow-12.3.0-cp314-cp314-win_amd64.whl",
+        "expected_sha256": "fdafc9cce40277e0f7a0feabce0ee50dd2fa1800f3b38015e51296b5e814048d",
+        "publisher": "Python distribution project: pillow",
+        "source_name": "Python Package Index",
+        "license_id": "MIT-CMU"
+      },
+      "import_names": [
+        "PIL"
+      ]
+    },
+    {
+      "name": "einops",
+      "version": "0.8.2",
+      "artifact": {
+        "artifact_id": "wheel-einops",
+        "version": "0.8.2",
+        "filename": "einops-0.8.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/2a/09/f8d8f8f31e4483c10a906437b4ce31bdf3d6d417b73fe33f1a8b59e34228/einops-0.8.2-py3-none-any.whl",
+        "expected_sha256": "54058201ac7087911181bfec4af6091bb59380360f069276601256a76af08193",
+        "publisher": "Python distribution project: einops",
+        "source_name": "Python Package Index",
+        "license_id": "MIT"
+      },
+      "import_names": [
+        "einops"
+      ]
+    },
+    {
+      "name": "timm",
+      "version": "1.0.28",
+      "artifact": {
+        "artifact_id": "wheel-timm",
+        "version": "1.0.28",
+        "filename": "timm-1.0.28-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/c1/76/de1bfac17d183c49c6d0887903d3064ced51cf1d9ba7a8d611c1a8808c4f/timm-1.0.28-py3-none-any.whl",
+        "expected_sha256": "e577b88da96b3a722ea5e2f042455ce6f715d398304d8e63b17d126ed7d89968",
+        "publisher": "Python distribution project: timm",
+        "source_name": "Python Package Index",
+        "license_id": "Apache-2.0"
+      },
+      "import_names": [
+        "timm"
+      ]
+    },
+    {
+      "name": "Send2Trash",
+      "version": "2.1.0",
+      "artifact": {
+        "artifact_id": "wheel-send2trash",
+        "version": "2.1.0",
+        "filename": "send2trash-2.1.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/1c/78/504fdd027da3b84ff1aecd9f6957e65f35134534ccc6da8628eb71e76d3f/send2trash-2.1.0-py3-none-any.whl",
+        "expected_sha256": "0da2f112e6d6bb22de6aa6daa7e144831a4febf2a87261451c4ad849fe9a873c",
+        "publisher": "Python distribution project: Send2Trash",
+        "source_name": "Python Package Index",
+        "license_id": "BSD-3-Clause"
+      },
+      "import_names": [
+        "send2trash"
+      ]
+    },
+    {
+      "name": "huggingface_hub",
+      "version": "0.36.2",
+      "artifact": {
+        "artifact_id": "wheel-huggingface-hub",
+        "version": "0.36.2",
+        "filename": "huggingface_hub-0.36.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/a8/af/48ac8483240de756d2438c380746e7130d1c6f75802ef22f3c6d49982787/huggingface_hub-0.36.2-py3-none-any.whl",
+        "expected_sha256": "48f0c8eac16145dfce371e9d2d7772854a4f591bcb56c9cf548accf531d54270",
+        "publisher": "Python distribution project: huggingface_hub",
+        "source_name": "Python Package Index",
+        "license_id": "Apache"
+      },
+      "import_names": [
+        "huggingface_hub"
+      ]
+    },
+    {
+      "name": "tokenizers",
+      "version": "0.22.2",
+      "artifact": {
+        "artifact_id": "wheel-tokenizers",
+        "version": "0.22.2",
+        "filename": "tokenizers-0.22.2-cp39-abi3-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/65/71/0670843133a43d43070abeb1949abfdef12a86d490bea9cd9e18e37c5ff7/tokenizers-0.22.2-cp39-abi3-win_amd64.whl",
+        "expected_sha256": "c9ea31edff2968b44a88f97d784c2f16dc0729b8b143ed004699ebca91f05c48",
+        "publisher": "Python distribution project: tokenizers",
+        "source_name": "Python Package Index",
+        "license_id": "See wheel metadata"
+      },
+      "import_names": [
+        "tokenizers"
+      ]
+    },
+    {
+      "name": "fsspec",
+      "version": "2026.7.0",
+      "artifact": {
+        "artifact_id": "wheel-fsspec",
+        "version": "2026.7.0",
+        "filename": "fsspec-2026.7.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/fd/3c/6a2bf344106328fd04963664a60b9bb6496fc25df8e962fcdc1367285fb9/fsspec-2026.7.0-py3-none-any.whl",
+        "expected_sha256": "b57ddbafedfaef7018c1ecab32aa200a9d7ca26b77965f64e48b70061249d279",
+        "publisher": "Python distribution project: fsspec",
+        "source_name": "Python Package Index",
+        "license_id": "BSD-3-Clause"
+      },
+      "import_names": [
+        "fsspec"
+      ]
+    },
+    {
+      "name": "networkx",
+      "version": "3.6.1",
+      "artifact": {
+        "artifact_id": "wheel-networkx",
+        "version": "3.6.1",
+        "filename": "networkx-3.6.1-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/9e/c9/b2622292ea83fbb4ec318f5b9ab867d0a28ab43c5717bb85b0a5f6b3b0a4/networkx-3.6.1-py3-none-any.whl",
+        "expected_sha256": "d47fbf302e7d9cbbb9e2555a0d267983d2aa476bac30e90dfbe5669bd57f3762",
+        "publisher": "Python distribution project: networkx",
+        "source_name": "Python Package Index",
+        "license_id": "BSD-3-Clause"
+      },
+      "import_names": [
+        "networkx"
+      ]
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.3",
+      "artifact": {
+        "artifact_id": "wheel-pyyaml",
+        "version": "6.0.3",
+        "filename": "pyyaml-6.0.3-cp314-cp314-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/23/20/bb6982b26a40bb43951265ba29d4c246ef0ff59c9fdcdf0ed04e0687de4d/pyyaml-6.0.3-cp314-cp314-win_amd64.whl",
+        "expected_sha256": "4a2e8cebe2ff6ab7d1050ecd59c25d4c8bd7e6f400f5f82b96557ac0abafd0ac",
+        "publisher": "Python distribution project: PyYAML",
+        "source_name": "Python Package Index",
+        "license_id": "MIT"
+      },
+      "import_names": [
+        "yaml"
+      ]
+    },
+    {
+      "name": "regex",
+      "version": "2026.7.19",
+      "artifact": {
+        "artifact_id": "wheel-regex",
+        "version": "2026.7.19",
+        "filename": "regex-2026.7.19-cp314-cp314-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/96/e1/8862885e70409de70e8c005f57fb2e7be8d9ef0317250d60f4c9660a300d/regex-2026.7.19-cp314-cp314-win_amd64.whl",
+        "expected_sha256": "d721e53758b2cca74990185eb0671dd466d7a388a1a45d0c6f4c13cef41a68ac",
+        "publisher": "Python distribution project: regex",
+        "source_name": "Python Package Index",
+        "license_id": "Apache-2.0 AND CNRI-Python"
+      },
+      "import_names": [
+        "regex"
+      ]
+    },
+    {
+      "name": "safetensors",
+      "version": "0.8.0",
+      "artifact": {
+        "artifact_id": "wheel-safetensors",
+        "version": "0.8.0",
+        "filename": "safetensors-0.8.0-cp310-abi3-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/1b/6d/3fba214c1e5e0f69991677ec3bc17023f0421776975e1de0c682dca475e2/safetensors-0.8.0-cp310-abi3-win_amd64.whl",
+        "expected_sha256": "096ec1a98435df7beb08853bb5aa9081a84f23d0adc67ed1a0a10550f608373f",
+        "publisher": "Python distribution project: safetensors",
+        "source_name": "Python Package Index",
+        "license_id": "See wheel metadata"
+      },
+      "import_names": [
+        "safetensors"
+      ]
+    },
+    {
+      "name": "sympy",
+      "version": "1.14.0",
+      "artifact": {
+        "artifact_id": "wheel-sympy",
+        "version": "1.14.0",
+        "filename": "sympy-1.14.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl",
+        "expected_sha256": "e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5",
+        "publisher": "Python distribution project: sympy",
+        "source_name": "Python Package Index",
+        "license_id": "BSD"
+      },
+      "import_names": [
+        "sympy"
+      ]
+    },
+    {
+      "name": "mpmath",
+      "version": "1.3.0",
+      "artifact": {
+        "artifact_id": "wheel-mpmath",
+        "version": "1.3.0",
+        "filename": "mpmath-1.3.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/43/e3/7d92a15f894aa0c9c4b49b8ee9ac9850d6e63b03c9c32c0367a13ae62209/mpmath-1.3.0-py3-none-any.whl",
+        "expected_sha256": "a0b2b9fe80bbcd81a6647ff13108738cfb482d481d826cc0e02f5b35e5c88d2c",
+        "publisher": "Python distribution project: mpmath",
+        "source_name": "Python Package Index",
+        "license_id": "BSD"
+      },
+      "import_names": [
+        "mpmath"
+      ]
+    },
+    {
+      "name": "tqdm",
+      "version": "4.70.0",
+      "artifact": {
+        "artifact_id": "wheel-tqdm",
+        "version": "4.70.0",
+        "filename": "tqdm-4.70.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/f9/1c/01bfd571a64e7f270e6bab5e33777debe0edc56759233ce84f27dec92d14/tqdm-4.70.0-py3-none-any.whl",
+        "expected_sha256": "7f585706bfddbdebf89daac705b2dfcc16890130727d3197ca62c732b4310953",
+        "publisher": "Python distribution project: tqdm",
+        "source_name": "Python Package Index",
+        "license_id": "MPL-2.0 AND MIT"
+      },
+      "import_names": [
+        "tqdm"
+      ]
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "artifact": {
+        "artifact_id": "wheel-typing-extensions",
+        "version": "4.16.0",
+        "filename": "typing_extensions-4.16.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/49/d3/b8441a820a491ddfc024b0b0cf0393375b75ea13866d9c66727e54c2fc80/typing_extensions-4.16.0-py3-none-any.whl",
+        "expected_sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+        "publisher": "Python distribution project: typing_extensions",
+        "source_name": "Python Package Index",
+        "license_id": "PSF-2.0"
+      },
+      "import_names": [
+        "typing_extensions"
+      ]
+    },
+    {
+      "name": "colorama",
+      "version": "0.4.6",
+      "artifact": {
+        "artifact_id": "wheel-colorama",
+        "version": "0.4.6",
+        "filename": "colorama-0.4.6-py2.py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl",
+        "expected_sha256": "4f1d9991f5acc0ca119f9d443620b77f9d6b33703e51011c16baf57afb285fc6",
+        "publisher": "Python distribution project: colorama",
+        "source_name": "Python Package Index",
+        "license_id": "See wheel metadata"
+      },
+      "import_names": [
+        "colorama"
+      ]
+    },
+    {
+      "name": "filelock",
+      "version": "3.32.2",
+      "artifact": {
+        "artifact_id": "wheel-filelock",
+        "version": "3.32.2",
+        "filename": "filelock-3.32.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/c1/e8/72f8cef9fdfeffe06213fe8508039396ee48daa0e3259457ed766173bfd6/filelock-3.32.2-py3-none-any.whl",
+        "expected_sha256": "87dd94cf281e586d135fa51132b8e3d9a598b316e90377a288663c9321036c82",
+        "publisher": "Python distribution project: filelock",
+        "source_name": "Python Package Index",
+        "license_id": "MIT"
+      },
+      "import_names": [
+        "filelock"
+      ]
+    },
+    {
+      "name": "Jinja2",
+      "version": "3.1.6",
+      "artifact": {
+        "artifact_id": "wheel-jinja2",
+        "version": "3.1.6",
+        "filename": "jinja2-3.1.6-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl",
+        "expected_sha256": "85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67",
+        "publisher": "Python distribution project: Jinja2",
+        "source_name": "Python Package Index",
+        "license_id": "See wheel metadata"
+      },
+      "import_names": [
+        "jinja2"
+      ]
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "3.0.3",
+      "artifact": {
+        "artifact_id": "wheel-markupsafe",
+        "version": "3.0.3",
+        "filename": "markupsafe-3.0.3-cp314-cp314-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/28/52/182836104b33b444e400b14f797212f720cbc9ed6ba34c800639d154e821/markupsafe-3.0.3-cp314-cp314-win_amd64.whl",
+        "expected_sha256": "bdc919ead48f234740ad807933cdf545180bfbe9342c2bb451556db2ed958581",
+        "publisher": "Python distribution project: MarkupSafe",
+        "source_name": "Python Package Index",
+        "license_id": "BSD-3-Clause"
+      },
+      "import_names": [
+        "markupsafe"
+      ]
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "artifact": {
+        "artifact_id": "wheel-requests",
+        "version": "2.34.2",
+        "filename": "requests-2.34.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl",
+        "expected_sha256": "2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0",
+        "publisher": "Python distribution project: requests",
+        "source_name": "Python Package Index",
+        "license_id": "Apache-2.0"
+      },
+      "import_names": [
+        "requests"
+      ]
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.4.9",
+      "artifact": {
+        "artifact_id": "wheel-charset-normalizer",
+        "version": "3.4.9",
+        "filename": "charset_normalizer-3.4.9-cp314-cp314-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/49/fd/a1d26144398c67486422a72bf5812cda22cb4ccfcd95a290fb41ceb4b8e2/charset_normalizer-3.4.9-cp314-cp314-win_amd64.whl",
+        "expected_sha256": "16b65ea0f2465b6fb52aa22de5eca612aa964ddfec00a912e26f4656cbef890b",
+        "publisher": "Python distribution project: charset-normalizer",
+        "source_name": "Python Package Index",
+        "license_id": "MIT"
+      },
+      "import_names": [
+        "charset_normalizer"
+      ]
+    },
+    {
+      "name": "idna",
+      "version": "3.18",
+      "artifact": {
+        "artifact_id": "wheel-idna",
+        "version": "3.18",
+        "filename": "idna-3.18-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/1e/5e/d4e9f1a599fb8e573b7b87160658329fbf28d19eac2718f51fc3def3aa5a/idna-3.18-py3-none-any.whl",
+        "expected_sha256": "7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2",
+        "publisher": "Python distribution project: idna",
+        "source_name": "Python Package Index",
+        "license_id": "BSD-3-Clause"
+      },
+      "import_names": [
+        "idna"
+      ]
+    },
+    {
+      "name": "urllib3",
+      "version": "2.7.0",
+      "artifact": {
+        "artifact_id": "wheel-urllib3",
+        "version": "2.7.0",
+        "filename": "urllib3-2.7.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl",
+        "expected_sha256": "9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897",
+        "publisher": "Python distribution project: urllib3",
+        "source_name": "Python Package Index",
+        "license_id": "MIT"
+      },
+      "import_names": [
+        "urllib3"
+      ]
+    },
+    {
+      "name": "certifi",
+      "version": "2026.7.22",
+      "artifact": {
+        "artifact_id": "wheel-certifi",
+        "version": "2026.7.22",
+        "filename": "certifi-2026.7.22-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl",
+        "expected_sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775",
+        "publisher": "Python distribution project: certifi",
+        "source_name": "Python Package Index",
+        "license_id": "MPL-2.0"
+      },
+      "import_names": [
+        "certifi"
+      ]
+    }
+  ]
+}

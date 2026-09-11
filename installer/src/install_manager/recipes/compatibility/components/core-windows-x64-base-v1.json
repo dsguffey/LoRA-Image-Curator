@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "manifest_id": "lic-core-windows-x64-v2",
+  "component_id": "lic-core",
+  "capability": "Core functionality",
+  "tier": "core",
+  "provider": "LoRA Image Curator project",
+  "native_version": "LIC Lite 0.28.4",
+  "python_version": "3.14.6",
+  "platform": "win_amd64",
+  "approved_sources": [
+    "python.org",
+    "files.pythonhosted.org",
+    "approved LIC Lite package"
+  ],
+  "dependency_lock": {
+    "path": "core-windows-x64-v2.json",
+    "file_sha256": "cd8b0d4e7d3b5d5f3a623cff7668d340c8c533fca9bc66e6083ceb18092a4b43",
+    "semantic_sha256": "9d507d457c4121e08e31089ae197c3e2b9b8b2b228cb05c9682385fe0e146fbf"
+  },
+  "packages": [],
+  "resources": [
+    {
+      "kind": "application",
+      "identity": "LIC Lite 0.28.4",
+      "classification": "core"
+    }
+  ],
+  "validation": {
+    "probe": "lic-core-readiness-v2",
+    "evidence": "docs/M1_9_VERIFICATION.md"
+  },
+  "provenance": {
+    "basis": "accepted provider-neutral Core qualification",
+    "classification": "required-by-core"
+  }
+}

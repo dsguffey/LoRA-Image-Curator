@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "manifest_id": "ffmpeg-gyan-2026-07-16-reference-v1",
+  "component_id": "video-extraction",
+  "capability": "Extract frames from video",
+  "tier": "optional",
+  "provider": "FFmpeg / Gyan.dev build",
+  "native_version": "2026-07-16-git-ceabc9b306-full_build-www.gyan.dev",
+  "python_version": "3.14.6",
+  "platform": "win_amd64",
+  "approved_sources": [
+    "ffmpeg.org",
+    "gyan.dev"
+  ],
+  "dependency_lock": null,
+  "packages": [],
+  "resources": [
+    {
+      "kind": "reference-executable",
+      "filename": "ffmpeg.exe",
+      "sha256": "ded8cdd9b5762cae6ec962918122fa81ec0faa98da5cc6af64365ac26ab8339e",
+      "size": 218321920,
+      "configuration": "GPL v3, static full build",
+      "managed_acquisition": false,
+      "classification": "optional"
+    }
+  ],
+  "validation": {
+    "probe": "bounded-ffmpeg-version-v1",
+    "evidence": "M1.10 local identity probe"
+  },
+  "provenance": {
+    "basis": "accepted local reference executable identity",
+    "classification": "optional-capability",
+    "redistribution": "unapproved pending exact source/notice review"
+  }
+}

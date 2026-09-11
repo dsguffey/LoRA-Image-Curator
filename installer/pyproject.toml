@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "install-manager"
+version = "0.1.0"
+description = "Verified LIC package staging and base-environment construction"
+requires-python = ">=3.11"
+
+[project.scripts]
+install-manager-m12 = "install_manager.m12_cli:main"
+install-manager-m13 = "install_manager.m13_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+install_manager = ["recipes/*.json", "recipes/compatibility/components/*.json", "recipes/compatibility/profiles/*.json"]

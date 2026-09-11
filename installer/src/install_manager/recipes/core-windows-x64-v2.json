@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "profile": "windows-x64-core-v2",
+  "python_version": "3.14.6",
+  "platform": "win_amd64",
+  "wheels": [
+    {
+      "name": "pip",
+      "version": "26.2",
+      "artifact": {
+        "artifact_id": "wheel-pip",
+        "version": "26.2",
+        "filename": "pip-26.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/62/36/a3aed958d60531cb442b7ab4596cda7b3621cfb916f8ae1d6769795c7dc1/pip-26.2-py3-none-any.whl",
+        "expected_sha256": "931c303696af6fa3417112103b1cad26890e5a07eccb5b99783700e33f2b8aad",
+        "publisher": "Python distribution project: pip",
+        "source_name": "Python Package Index",
+        "license_id": "MIT"
+      },
+      "import_names": [
+        "pip"
+      ]
+    },
+    {
+      "name": "setuptools",
+      "version": "83.0.0",
+      "artifact": {
+        "artifact_id": "wheel-setuptools",
+        "version": "83.0.0",
+        "filename": "setuptools-83.0.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/5d/40/e1e72872c6354b306daef1703549e8e83b4d43cfea356311bf722a043752/setuptools-83.0.0-py3-none-any.whl",
+        "expected_sha256": "29b23c360f22f414dc7336bb39178cc7bcbf6021ed2733cde173f09dba19abb3",
+        "publisher": "Python distribution project: setuptools",
+        "source_name": "Python Package Index",
+        "license_id": "MIT"
+      },
+      "import_names": [
+        "setuptools"
+      ]
+    },
+    {
+      "name": "wheel",
+      "version": "0.47.0",
+      "artifact": {
+        "artifact_id": "wheel-wheel",
+        "version": "0.47.0",
+        "filename": "wheel-0.47.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/87/1b/9e33c09813d65e248f7f773119148a612516a4bea93e9c6f545f78455b7c/wheel-0.47.0-py3-none-any.whl",
+        "expected_sha256": "212281cab4dff978f6cedd499cd893e1f620791ca6ff7107cf270781e587eced",
+        "publisher": "Python distribution project: wheel",
+        "source_name": "Python Package Index",
+        "license_id": "MIT"
+      },
+      "import_names": [
+        "wheel"
+      ]
+    },
+    {
+      "name": "packaging",
+      "version": "26.2",
+      "artifact": {
+        "artifact_id": "wheel-packaging",
+        "version": "26.2",
+        "filename": "packaging-26.2-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl",
+        "expected_sha256": "5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e",
+        "publisher": "Python distribution project: packaging",
+        "source_name": "Python Package Index",
+        "license_id": "Apache-2.0 OR BSD-2-Clause"
+      },
+      "import_names": [
+        "packaging"
+      ]
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.1",
+      "artifact": {
+        "artifact_id": "wheel-numpy",
+        "version": "2.5.1",
+        "filename": "numpy-2.5.1-cp314-cp314-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/c1/1a/837f9ed7405adcd7a40538792eb169eddd8fa5630c16a1ef49dae71a30f4/numpy-2.5.1-cp314-cp314-win_amd64.whl",
+        "expected_sha256": "24d0eb82c0541d3415a33425db64ae439dffccd7b4dbcb30e7c35120205c506a",
+        "publisher": "Python distribution project: numpy",
+        "source_name": "Python Package Index",
+        "license_id": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0"
+      },
+      "import_names": [
+        "numpy"
+      ]
+    },
+    {
+      "name": "pillow",
+      "version": "12.3.0",
+      "artifact": {
+        "artifact_id": "wheel-pillow",
+        "version": "12.3.0",
+        "filename": "pillow-12.3.0-cp314-cp314-win_amd64.whl",
+        "url": "https://files.pythonhosted.org/packages/f1/e0/492879f69d94f91f60fc8cd05ba03650e9520afebb2fb7aa12777d7c7f38/pillow-12.3.0-cp314-cp314-win_amd64.whl",
+        "expected_sha256": "fdafc9cce40277e0f7a0feabce0ee50dd2fa1800f3b38015e51296b5e814048d",
+        "publisher": "Python distribution project: pillow",
+        "source_name": "Python Package Index",
+        "license_id": "MIT-CMU"
+      },
+      "import_names": [
+        "PIL"
+      ]
+    },
+    {
+      "name": "Send2Trash",
+      "version": "2.1.0",
+      "artifact": {
+        "artifact_id": "wheel-send2trash",
+        "version": "2.1.0",
+        "filename": "send2trash-2.1.0-py3-none-any.whl",
+        "url": "https://files.pythonhosted.org/packages/1c/78/504fdd027da3b84ff1aecd9f6957e65f35134534ccc6da8628eb71e76d3f/send2trash-2.1.0-py3-none-any.whl",
+        "expected_sha256": "0da2f112e6d6bb22de6aa6daa7e144831a4febf2a87261451c4ad849fe9a873c",
+        "publisher": "Python distribution project: Send2Trash",
+        "source_name": "Python Package Index",
+        "license_id": "BSD-3-Clause"
+      },
+      "import_names": [
+        "send2trash"
+      ]
+    }
+  ]
+}

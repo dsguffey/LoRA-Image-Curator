@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "manifest_id": "florence-windows-nvidia-cu130-v1",
+  "component_id": "florence-captioning",
+  "capability": "Generate AI image captions",
+  "tier": "optional",
+  "provider": "Florence community / Microsoft",
+  "native_version": "Florence-2-large-ft@26b734a54fdfbf9c398351eedfabb7f27fc470b7",
+  "python_version": "3.14.6",
+  "platform": "win_amd64",
+  "approved_sources": [
+    "files.pythonhosted.org",
+    "download-r2.pytorch.org",
+    "huggingface.co"
+  ],
+  "dependency_lock": {
+    "path": "florence-windows-nvidia-cu130-v1.json",
+    "file_sha256": "f60accd4d8e006fd040fb66480acf69ddc7b74d8bde677e4b0afd7f02753fed1",
+    "semantic_sha256": "f86f8bdf2309a8e28903f0db4ad490a4999a1731b5da3b79f4d9a5647c413257"
+  },
+  "packages": [],
+  "resources": [
+    {
+      "kind": "huggingface-model",
+      "repository": "florence-community/Florence-2-large-ft",
+      "revision": "26b734a54fdfbf9c398351eedfabb7f27fc470b7",
+      "manifest": "florence2-large-ft.json",
+      "classification": "optional"
+    }
+  ],
+  "validation": {
+    "probe": "florence-caption-v1",
+    "evidence": "reports/lic-venv-rebuild-2026-09-02/provider-smoke.json"
+  },
+  "provenance": {
+    "basis": "accepted CUDA caption, object-detection and OCR execution",
+    "classification": "optional-capability"
+  }
+}
