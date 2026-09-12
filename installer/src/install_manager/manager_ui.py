@@ -11,7 +11,7 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Callable
 import webbrowser
 
-from .acquisition import AcquisitionCancelled
+from .acquisition import AcquisitionCancelled, AcquisitionFailure
 from .bootstrap import BootstrapIdentityMismatch, disclosure
 from .bootstrap_layout import validate_root
 from .capabilities import first_run_contract, lic_capabilities
@@ -89,6 +89,8 @@ def active_launch_contract(record: dict | None, root: Path) -> bool:
 def component_status_text(definition, facts: ComponentFacts) -> str:
     if facts.detail:
         return facts.detail
+    if facts.phase == ComponentPhase.DOWNLOADING:
+        return f"Downloading from {definition.source_name}…"
     return {
         "florence-model-directory": "Select the Florence model folder or a parent Hugging Face model directory.",
         ComponentPhase.CHECKING: "Checking installed files…",
@@ -98,7 +100,6 @@ def component_status_text(definition, facts: ComponentFacts) -> str:
         ComponentPhase.PARTIAL: "Work was paused or interrupted. Resume continues with preserved verified work.",
         ComponentPhase.QUEUED: "Queued",
         ComponentPhase.PREPARING: "Preparing installation…",
-        ComponentPhase.DOWNLOADING: f"Downloading from {definition.source_name}…",
         ComponentPhase.VERIFYING: "Verifying downloaded files…",
         ComponentPhase.INSTALLING: "Installing and configuring…",
         ComponentPhase.CANCELING: "Pausing at the next safe boundary…",
@@ -107,7 +108,7 @@ def component_status_text(definition, facts: ComponentFacts) -> str:
         ComponentPhase.REPAIR_REQUIRED: ("Installed files need repair. Choosing Repair authorizes reacquisition "
                                          "only of the missing approved files disclosed for this component."),
         ComponentPhase.INCOMPATIBLE: "The selected files are not compatible.",
-        ComponentPhase.ERROR: "The operation stopped safely.",
+        ComponentPhase.ERROR: "The operation could not finish. Review the message above and try again when ready.",
     }[facts.phase]
 
 
@@ -306,13 +307,56 @@ def friendly_error(error: Exception) -> str:
         return ("The installer package is incomplete or damaged. Download a fresh verified installer package "
                 "before trying again.")
     if "download" in message or "acquisition" in message or "urlopen" in message:
-        return ("A required download could not be completed. Your existing files are safe. "
-                "Check your connection and select Retry.")
+        return ("A required download could not be completed. Nothing from the failed download was installed. "
+                "Check your connection and try again.")
     if "cuda" in message or "gpu" in message:
         return "The NVIDIA GPU readiness check did not pass. Your existing files are safe."
     if "readiness" in message or "preflight" in message or "validation" in message:
         return "LoRA Image Curator did not pass final validation, so the existing installation was left unchanged."
-    return "The operation stopped safely. Existing files were preserved."
+    return "The operation could not finish. Existing files and verified work were preserved."
+
+
+def acquisition_error_presentation(error: BaseException | str) -> tuple[str, str]:
+    """Return a concise card explanation and copyable technical diagnostic."""
+    if isinstance(error, AcquisitionFailure):
+        category, host, attempts, detail = error.category, error.host, error.attempts, error.detail
+        artifact = error.artifact_id
+    else:
+        raw = str(error)
+        fields = {}
+        for item in raw.split():
+            if "=" in item:
+                key, value = item.split("=", 1)
+                fields[key] = value
+        category = fields.get("category", "")
+        host, attempts = fields.get("host", "the approved source"), fields.get("attempts", "")
+        artifact, detail = fields.get("artifact", ""), raw
+    if not category and any(token in detail.casefold() for token in ("verification", "hash mismatch", "did not match the approved")):
+        category = "verification-failure"
+    messages = {
+        "network-unavailable": ("No internet connection could be detected. Nothing new was installed. "
+                                "Check your connection and try again."),
+        "dns-unavailable": (f"LIC Install Manager could not reach {host}. Check your network connection and try again."),
+        "not-found": ("The required file could not be found at its approved source (404). Nothing from that "
+                      "failed download was installed. This may require an updated installer definition."),
+        "server-error": ("The download server is temporarily unavailable. Try again later."),
+        "timeout": ("The download timed out. Completed verified work was preserved. Try again or Resume where available."),
+        "tls-certificate": ("LIC Install Manager could not verify the secure connection to the download source. "
+                            "Nothing from that connection was trusted or installed."),
+        "http-error": (f"The approved download source returned an HTTP error ({detail}). Nothing from that failed "
+                       "download was installed. Try again later."),
+        "verification-failure": ("The file downloaded, but it did not match the approved file. It was not accepted for "
+                                 "installation. Retry the download; if it continues, review technical details."),
+    }
+    normal = messages.get(category, friendly_error(RuntimeError(str(error))))
+    technical = "\n".join(part for part in (
+        f"Category: {category}" if category else "",
+        f"Artifact: {artifact}" if artifact else "",
+        f"Host: {host}" if host else "",
+        f"Attempts: {attempts}" if attempts else "",
+        f"Diagnostic: {detail}",
+    ) if part)
+    return normal, technical
 
 
 def component_failure_message(definition, error: str) -> str:
@@ -320,22 +364,22 @@ def component_failure_message(definition, error: str) -> str:
     message = error.lower()
     if definition.component_id == "video-extraction":
         if "timeout" in message:
-            return ("FFmpeg did not respond during verification. Its files were not changed. Close any program using "
-                    "FFmpeg, then choose the folder again or try a different FFmpeg folder.")
+            return ("FFmpeg did not respond during verification. Managed files were not changed. Close any program using "
+                    "FFmpeg, then use Import to copy an approved FFmpeg build again.")
         if "not identify" in message or "ffmpeg" in message:
             return ("The selected FFmpeg folder could not be configured. Its files were not changed. "
-                    "Choose a folder containing ffmpeg.exe, then review Details if it still fails.")
-        return ("FFmpeg could not be configured. Its files were not changed. Choose the folder again, then review "
-                "Details for the diagnostic if the problem continues.")
+                    "Choose Import to copy an approved FFmpeg build, then review technical details if it still fails.")
+        return ("FFmpeg could not be configured. Managed files were not changed. Use Import to copy an approved "
+                "FFmpeg build, then review technical details if the problem continues.")
     if definition.component_id == "body-analysis":
         return ("Body and pose analysis could not be configured. Existing model files were not changed. "
-                "Choose the provider folder again, then review Details if the problem continues.")
+                "Use Import to copy approved resources, then review technical details if the problem continues.")
     if definition.component_id == "face-analysis":
         return ("Face Analysis could not be configured. Existing model files were not changed. "
-                "Choose the folder containing both model files again, then review Details if the problem continues.")
+                "Use Import to copy approved resources, then review technical details if the problem continues.")
     if definition.component_id == "florence-captioning":
         return ("Image captioning could not be configured. Existing model files were not changed. "
-                "Review Details and the component log before trying again.")
+                "Review technical details and the component log before trying again.")
     return friendly_error(RuntimeError(error))
 
 
@@ -375,6 +419,107 @@ class Tooltip:
         if self.popup:
             self.popup.destroy()
             self.popup = None
+
+
+def install_clipboard_bindings(window: tk.Misc) -> None:
+    """Give editable Entry controls normal Windows shortcuts and a context menu."""
+    menu = tk.Menu(window, tearoff=False)
+
+    def actions(editable: bool) -> tuple[str, ...]:
+        return clipboard_actions(editable)
+
+    def select_all(widget):
+        widget.selection_range(0, "end")
+        widget.icursor("end")
+        return "break"
+
+    def popup(event):
+        widget = event.widget
+        try:
+            menu.delete(0, "end")
+            state = str(widget.cget("state"))
+            editable = state != "readonly" and state != "disabled"
+            if "Cut" in actions(editable):
+                menu.add_command(label="Cut", command=lambda: widget.event_generate("<<Cut>>"))
+            menu.add_command(label="Copy", command=lambda: widget.event_generate("<<Copy>>"))
+            if "Paste" in actions(editable):
+                menu.add_command(label="Paste", command=lambda: widget.event_generate("<<Paste>>"))
+            menu.add_separator()
+            menu.add_command(label="Select All", command=lambda: select_all(widget))
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+        return "break"
+
+    window.bind_class("TEntry", "<Control-a>", lambda event: select_all(event.widget), add=True)
+    window.bind_class("TEntry", "<Button-3>", popup, add=True)
+
+
+def clipboard_actions(editable: bool) -> tuple[str, ...]:
+    """The shared context-menu contract for editable and informational text."""
+    return ("Cut", "Copy", "Paste", "Select All") if editable else ("Copy", "Select All")
+
+
+def selectable_text(parent, text: str, *, background: str = WHITE, foreground: str = INK,
+                    width: int = 90, pady: int = 0, font: tuple = ("Segoe UI", 10)) -> tk.Text:
+    """A compact read-only text control that supports selection, copy and Select All."""
+    lines = max(1, min(24, (len(text) // max(40, width - 8)) + text.count("\n") + 1))
+    widget = tk.Text(parent, height=lines, width=width, wrap="word", relief="flat", borderwidth=0,
+                     highlightthickness=0, background=background, foreground=foreground,
+                     font=font, padx=0, pady=0, cursor="xterm", takefocus=True)
+    widget.insert("1.0", text)
+    widget.configure(state="disabled")
+    install_readonly_text_bindings(widget)
+    widget.pack(anchor="w", fill="x", pady=pady)
+    return widget
+
+
+def set_selectable_text(widget: tk.Text, text: str) -> None:
+    """Update a read-only text view without making it editable to the end user."""
+    widget.configure(state="normal")
+    widget.delete("1.0", "end")
+    widget.insert("1.0", text)
+    widget.configure(height=max(1, min(24, (len(text) // 82) + text.count("\n") + 1)), state="disabled")
+
+
+def install_readonly_text_bindings(widget: tk.Text) -> None:
+    """Apply the Copy/Select All contract to any disabled informational Text control."""
+    menu = tk.Menu(widget, tearoff=False)
+    def select_all(_event=None):
+        widget.configure(state="normal")
+        widget.tag_add("sel", "1.0", "end-1c")
+        widget.configure(state="disabled")
+        return "break"
+    def popup(event):
+        menu.delete(0, "end")
+        menu.add_command(label="Copy", command=lambda: widget.event_generate("<<Copy>>"))
+        menu.add_command(label="Select All", command=select_all)
+        menu.tk_popup(event.x_root, event.y_root)
+        menu.grab_release()
+        return "break"
+    widget.bind("<Control-a>", select_all)
+    widget.bind("<Button-3>", popup)
+
+
+class TechnicalDiagnosticsDialog:
+    """Contextual, selectable diagnostics shown only after an operation error."""
+    def __init__(self, parent, title: str, diagnostic: str, log_path: Path):
+        window = self.window = tk.Toplevel(parent)
+        window.title(f"{title} — Technical details")
+        window.geometry("760x480")
+        window.minsize(560, 360)
+        window.transient(parent)
+        ttk.Label(window, text="Technical details", style="PageTitle.TLabel").pack(anchor="w", padx=24, pady=(22, 4))
+        selectable_text(window,
+                        "This information can help with troubleshooting. It does not change what the Manager trusts or installs.",
+                        width=82, pady=(0, 10))
+        box = tk.Text(window, wrap="word", relief="solid", borderwidth=1, background="#f5f8fa",
+                      foreground=INK, font=("Consolas", 9), padx=10, pady=8)
+        box.insert("1.0", diagnostic + f"\n\nLogs: {log_path}")
+        box.configure(state="disabled")
+        install_readonly_text_bindings(box)
+        box.pack(fill="both", expand=True, padx=24, pady=(0, 14))
+        ttk.Button(window, text="Close", command=window.destroy).pack(anchor="e", padx=24, pady=(0, 20))
 
 
 class DetailsDialog:
@@ -476,8 +621,14 @@ class ManagerShell:
         self.component_facts = self._initial_component_facts()
         self.operation_queue = ComponentOperationQueue()
         self.component_widgets = {}
+        self.global_import_widgets = {}
+        self.global_import_active = False
+        self.global_import_progress = 0.0
+        self.global_import_detail = "Import copies compatible files into LIC-managed Data folders. Your original files are unchanged."
+        self.global_import_diagnostic = ""
         self.help_anchor = ""
         self.window = tk.Tk()
+        install_clipboard_bindings(self.window)
         self.application_path = tk.StringVar(value=str(root))
         self.model_path = tk.StringVar(value=str(selected_models))
         if self.recovery and self.review_scenario == "recovery-mismatch":
@@ -517,9 +668,8 @@ class ManagerShell:
         self._navigation(sections)
         page = initial_page if initial_page in sections else "Install & Update"
         if initial_page == "Details":
+            # Historical review entry point: normal product UI no longer exposes generic Details.
             page = "Install & Update"
-            detail_index = 0 if review_scenario == "core-disclosure" else 1
-            self.window.after(600, lambda: self.show_component_details(self.components[detail_index]))
         self.show_page(page)
         if review_scenario == "insightface-existing":
             self.window.after(450, lambda: self.canvas.yview_moveto(0.26))
@@ -619,7 +769,7 @@ class ManagerShell:
         facts = {item.component_id: ComponentFacts() for item in self.components}
         core = facts["lic-core"]
         core.detail = ("Not installed. Nothing will be downloaded until you choose Install Core; that action "
-                       "authorizes the missing Core items listed on this card and in Details.")
+                       "authorizes the missing Core items shown on this card.")
         if active_launch_contract(self.record, self.root):
             core.phase, core.verified, core.detail = (ComponentPhase.INSTALLED, True,
                                                       "✓ Installed and verified")
@@ -748,6 +898,20 @@ class ManagerShell:
             target = facts["video-extraction"]
             target.phase, target.verified, target.selected_path = ComponentPhase.INSTALLED, True, r"C:\TestProfile\Tools\ffmpeg.exe"
             target.detail = "✓ Existing compatible FFmpeg executable verified."
+        elif scenario == "network-error":
+            target = facts["florence-captioning"]
+            target.phase = ComponentPhase.ERROR
+            target.detail, target.diagnostic = acquisition_error_presentation(
+                AcquisitionFailure("dns-unavailable", "florence-model", "huggingface.co", 2, "host not found"))
+        elif scenario == "verification-error":
+            target = facts["face-analysis"]
+            target.phase = ComponentPhase.ERROR
+            target.detail, target.diagnostic = acquisition_error_presentation(
+                AcquisitionFailure("verification-failure", "opencv-yunet", "opencv-zoo", 1, "SHA-256 mismatch"))
+        elif scenario == "paused":
+            target = facts["body-analysis"]
+            target.phase, target.resumable = ComponentPhase.PARTIAL, True
+            target.detail = "Paused safely. Verified work was preserved. Choose Resume to continue."
         return facts
 
     def _styles(self):
@@ -841,8 +1005,7 @@ class ManagerShell:
     def title(self, heading: str, description: str):
         ttk.Label(self.content, text=heading, style="PageTitle.TLabel", wraplength=900,
                   justify="left").pack(anchor="w")
-        ttk.Label(self.content, text=description, style="Body.TLabel", wraplength=900,
-                  justify="left").pack(anchor="w", pady=(6, 22))
+        selectable_text(self.content, description, width=96, pady=(6, 22))
 
     def card(self, title: str, body: str, *, status: str | None = None, action=None):
         frame = ttk.Frame(self.content, style="Card.TFrame", padding=14)
@@ -852,10 +1015,7 @@ class ManagerShell:
         ttk.Label(top, text=title, style="CardTitle.TLabel").pack(side="left")
         if status:
             ttk.Label(top, text=status, style="CardBody.TLabel", foreground=GREEN).pack(side="right")
-        ttk.Label(frame, text=body, style="CardBody.TLabel", wraplength=720,
-                  justify="left").pack(anchor="w", pady=(5, 0))
-        if action:
-            ttk.Button(frame, text="Details", command=action).pack(anchor="e", pady=(8, 0))
+        selectable_text(frame, body, background=PALE, width=82, pady=(5, 0), font=("Segoe UI", 9))
         return frame
 
     def info(self, parent, text: str):
@@ -878,14 +1038,55 @@ class ManagerShell:
                             and not self.component_facts[item.component_id].verified)
             self.title("Setup required", f"{remaining} required component still needs to be installed."
                        if remaining == 1 else f"{remaining} required components still need to be installed.")
+        self._render_global_import()
         ttk.Label(self.content, text="CORE FUNCTIONALITY — Required", style="Section.TLabel").pack(anchor="w", pady=(0, 5))
         for definition in (item for item in self.components if item.tier == "core"):
             self._render_component_card(definition)
         ttk.Label(self.content, text="OPTIONAL FEATURES", style="Section.TLabel").pack(anchor="w", pady=(20, 5))
-        ttk.Label(self.content, text="Install or import resources for only the features you want. Optional features do not affect core readiness.",
-                  style="Muted.TLabel", wraplength=900, justify="left").pack(anchor="w", pady=(0, 5))
+        selectable_text(self.content, "Install only the optional features you want. Optional features do not affect Core readiness.",
+                        foreground=MUTED, width=96, pady=(0, 5), font=("Segoe UI", 9))
         for definition in (item for item in self.components if item.tier == "optional"):
             self._render_component_card(definition)
+
+    def _render_global_import(self):
+        """The sole normal external-resource intake control."""
+        frame = ttk.Frame(self.content, style="Card.TFrame", padding=14)
+        frame.pack(fill="x", pady=(0, 18))
+        ttk.Label(frame, text="Import resources", style="CardTitle.TLabel").pack(anchor="w")
+        selectable_text(frame,
+                        "Import scans one folder for all recognized approved LIC resources. It copies compatible files "
+                        "into this LIC installation's managed Data folders. Your original files are left unchanged.",
+                        background=PALE, width=90, pady=(4, 7), font=("Segoe UI", 9))
+        status = tk.StringVar(value=self.global_import_detail)
+        status_view = selectable_text(frame, status.get(), background=PALE, width=90,
+                                      foreground=AMBER if self.global_import_active else INK,
+                                      pady=(0, 5), font=("Segoe UI", 9))
+        status.trace_add("write", lambda *_args: set_selectable_text(status_view, status.get()))
+        progress = ttk.Progressbar(frame, maximum=100,
+                                   mode="indeterminate" if self.global_import_active and not self.global_import_progress else "determinate",
+                                   value=self.global_import_progress,
+                                   style="Complete.Horizontal.TProgressbar" if self.global_import_progress >= 100 else "Horizontal.TProgressbar")
+        progress.pack(fill="x", pady=(0, 8))
+        if getattr(self, "global_import_active", False):
+            progress.start(12)
+        actions = ttk.Frame(frame, style="Card.TFrame")
+        actions.pack(fill="x")
+        import_busy = self.operation_queue.active is not None and not self.global_import_active
+        button = ttk.Button(actions, text="Pause" if self.global_import_active else "Import",
+                            style="Accent.TButton",
+                            command=self.pause_global_import if self.global_import_active else self.import_all_resources,
+                            state="disabled" if self.review_mode or import_busy else "normal")
+        button.pack(side="left")
+        if self.global_import_diagnostic:
+            ttk.Button(actions, text="Show technical details",
+                       command=lambda: TechnicalDiagnosticsDialog(self.window, "Import resources",
+                                                                   self.global_import_diagnostic,
+                                                                   self.root / "Logs")).pack(side="right")
+        if import_busy:
+            selectable_text(actions, "Finish or Pause the active operation before importing resources.",
+                            background=PALE, foreground=MUTED, width=64, pady=0, font=("Segoe UI", 9)).pack_configure(side="left", padx=(10, 0))
+        self.global_import_widgets = {"status": status, "status_view": status_view,
+                                      "progress": progress, "action": button}
 
     def _render_component_card(self, definition):
         facts = self.component_facts[definition.component_id]
@@ -896,8 +1097,7 @@ class ManagerShell:
         ttk.Label(heading, text=definition.capability, style="CardTitle.TLabel").pack(side="left")
         ttk.Label(heading, text="Core" if definition.tier == "core" else "Optional",
                   style="CardBody.TLabel", foreground=BLUE).pack(side="right")
-        ttk.Label(frame, text=definition.description, style="CardBody.TLabel", wraplength=850,
-                  justify="left").pack(anchor="w", pady=(4, 7))
+        selectable_text(frame, definition.description, background=PALE, width=92, pady=(4, 7), font=("Segoe UI", 9))
         metadata = [("Provider", definition.provider), ("Downloaded from", definition.source_name)]
         if definition.component_id == "lic-core":
             label, value = component_download_disclosure(definition, self.plan)
@@ -921,13 +1121,12 @@ class ManagerShell:
             row = ttk.Frame(frame, style="Card.TFrame")
             row.pack(fill="x", pady=1)
             ttk.Label(row, text=label + ":", style="Field.TLabel", width=18).pack(side="left", anchor="n")
-            ttk.Label(row, text=value, style="CardBody.TLabel", wraplength=650,
-                      justify="left").pack(side="left", fill="x", expand=True)
+            selectable_text(row, value, background=PALE, width=68, font=("Segoe UI", 9)).pack_configure(side="left", fill="x", expand=True)
         if definition.third_party:
             third = ttk.Frame(frame, style="Card.TFrame")
             third.pack(fill="x", pady=(5, 2))
             ttk.Label(third, text="THIRD-PARTY DOWNLOAD", style="ThirdParty.TLabel").pack(side="left")
-            self.info(third, "This component comes from the named provider/source. Exact URLs, versions, hashes and terms are in Details.")
+            self.info(third, "This component comes from the named provider/source. Source, compatibility and terms are in Help.")
         if definition.component_id == "lic-core":
             identity_editable = identity_controls_editable(facts.phase)
             self._card_path_control(frame, "Application location", self.application_path, self.choose_application,
@@ -940,12 +1139,24 @@ class ManagerShell:
                 self._render_recovery_choices(frame)
         elif definition.tier == "optional":
             managed = managed_data_layout(self.root)
-            ttk.Label(frame, text=f"Managed resources: {managed['models'].parent}",
-                      style="Muted.TLabel", wraplength=850).pack(anchor="w", pady=(5, 0))
+            try:
+                resources = component_resource_status(self.delivery, self.root, definition.component_id)
+                available, missing = resources["available"], resources["missing"]
+                available_names = ", ".join(item.display_name for item in available[:2]) or "None"
+                if len(available) > 2:
+                    available_names += f", and {len(available) - 2} more"
+                resource_summary = (f"Managed resources: {len(available)} available ({available_names}); "
+                                    f"{len(missing)} still needed. Feature readiness is checked after Install.")
+            except (OSError, ValueError, KeyError, TypeError):
+                resource_summary = f"Managed resources are kept under {managed['models'].parent}."
+            selectable_text(frame, resource_summary, background=PALE, foreground=MUTED,
+                            width=92, pady=(5, 0), font=("Segoe UI", 9))
         status = tk.StringVar(value=component_status_text(definition, facts))
-        ttk.Label(frame, textvariable=status, style="CardBody.TLabel", wraplength=850,
-                  justify="left", foreground=GREEN if facts.verified else (RED if facts.phase in
-                  {ComponentPhase.ERROR, ComponentPhase.INCOMPATIBLE, ComponentPhase.REPAIR_REQUIRED} else INK)).pack(anchor="w", pady=(9, 3))
+        status_view = selectable_text(frame, status.get(), background=PALE, width=92,
+                                      foreground=GREEN if facts.verified else (RED if facts.phase in
+                                      {ComponentPhase.ERROR, ComponentPhase.INCOMPATIBLE, ComponentPhase.REPAIR_REQUIRED} else INK),
+                                      pady=(9, 3), font=("Segoe UI", 9))
+        status.trace_add("write", lambda *_args: set_selectable_text(status_view, status.get()))
         progress = progress_presentation(facts)
         bar = ttk.Progressbar(frame, maximum=100, mode=progress["mode"], value=progress["value"],
                               style="Complete.Horizontal.TProgressbar" if progress["value"] >= 100 else "Horizontal.TProgressbar")
@@ -961,17 +1172,12 @@ class ManagerShell:
                                         command=lambda item=definition: self.component_primary_action(item),
                                         state="disabled" if self.review_mode or facts.phase == ComponentPhase.CANCELING else "normal")
             primary_button.pack(side="left")
-        if definition.tier == "optional":
-            import_button = ttk.Button(
-                actions, text="Import", command=lambda item=definition: self.import_component_resources(item),
-                state="disabled" if self.review_mode or facts.phase in IDENTITY_LOCKED_PHASES else "normal")
-            import_button.pack(side="left", padx=(8, 0))
-            Tooltip(import_button, "Import copies compatible files into LIC managed data storage. Your original files are not changed.")
         if facts.selected_path:
             ttk.Button(actions, text="Go to directory", command=lambda item=definition: self.open_component_directory(item),
                        state="disabled" if self.review_mode else "normal").pack(side="left", padx=(8, 0))
-        ttk.Button(actions, text="Help", command=lambda anchor=definition.help_anchor: self.show_help(anchor)).pack(side="right")
-        ttk.Button(actions, text="Details", command=lambda item=definition: self.show_component_details(item)).pack(side="right", padx=(0, 8))
+        if facts.diagnostic:
+            ttk.Button(actions, text="Show technical details",
+                       command=lambda item=definition: self.show_technical_details(item)).pack(side="right")
         self.component_widgets[definition.component_id] = {"status": status, "progress": bar,
                                                             "primary": primary_button}
 
@@ -1118,18 +1324,11 @@ class ManagerShell:
         self.component_facts["lic-core"] = ComponentFacts()
         self.show_page("Install & Update")
 
-    def show_component_details(self, definition):
+    def show_technical_details(self, definition):
         facts = self.component_facts[definition.component_id]
-        storage = (str(self.root) if definition.component_id == "lic-core" else
-                   str(managed_data_layout(self.root)["models"].parent))
-        plan = self.plan if definition.component_id == "lic-core" else None
-        if definition.component_id == "face-analysis":
-            try:
-                plan = operation_download_summary(self.delivery, self.root, definition.component_id)
-            except (OSError, ValueError, KeyError):
-                pass
-        details = component_detail_contract(definition, facts, storage, plan)
-        DetailsDialog(self.window, details["title"], details["summary"], details["sections"], details["advanced"])
+        if facts.diagnostic:
+            TechnicalDiagnosticsDialog(self.window, definition.capability, facts.diagnostic,
+                                       self.root / "Logs")
 
     def show_help(self, anchor: str):
         self.help_anchor = anchor
@@ -1146,22 +1345,24 @@ class ManagerShell:
         finished.wait()
         return bool(answer["value"])
 
-    def import_component_resources(self, definition) -> None:
-        """Copy any exact approved resources found in a selected folder."""
+    def import_all_resources(self) -> None:
+        """Scan one selected folder once and import every approved managed resource found."""
         if self.operation_queue.active is not None:
-            self.component_facts[definition.component_id].detail = (
-                "Another operation is active. Pause or finish it before starting Import.")
-            self._update_component_card(definition.component_id)
+            self.global_import_detail = "Finish or Pause the active operation before importing resources."
+            if self.global_import_widgets:
+                self.global_import_widgets["status"].set(self.global_import_detail)
             return
         selected = filedialog.askdirectory(
             title="Import compatible LIC resources", initialdir=str(Path.home()))
         if not selected:
             return
-        request, start_now = self.operation_queue.submit(definition.component_id, "Import")
+        request, start_now = self.operation_queue.submit("__global_import__", "Import")
         if not start_now:
             return
-        facts = self.component_facts[definition.component_id]
-        facts.phase, facts.detail = ComponentPhase.PREPARING, "Scanning for compatible resources…"
+        self.global_import_active = True
+        self.global_import_progress = 0.0
+        self.global_import_diagnostic = ""
+        self.global_import_detail = "Scanning for compatible resources…"
         self.busy = True
         self.show_page("Install & Update")
 
@@ -1189,15 +1390,25 @@ class ManagerShell:
                     self.delivery, self.root, Path(selected), confirm_import=confirm_plan,
                     confirm_replace=confirm_replace,
                     progress=lambda event: self.events.put(
-                        ("component-import-progress", definition.component_id, event)),
+                        ("global-import-progress", event)),
                     pause_requested=request.token.requested)
-                self.events.put(("component-imported", definition.component_id, result))
+                self.events.put(("global-imported", result))
             except AcquisitionCancelled as error:
-                self.events.put(("component-import-paused", definition.component_id, str(error)))
+                self.events.put(("global-import-paused", str(error)))
             except Exception as error:
-                self.events.put(("component-import-failed", definition.component_id,
-                                 f"{type(error).__name__}: {error}"))
+                self.events.put(("global-import-failed", error))
         threading.Thread(target=worker, daemon=False).start()
+
+    def pause_global_import(self) -> None:
+        if self.operation_queue.cancel("__global_import__") == "canceling":
+            self.global_import_detail = "Pausing at the next safe file boundary…"
+            if self.global_import_widgets:
+                self.global_import_widgets["status"].set(self.global_import_detail)
+                self.global_import_widgets["action"].configure(text="Pausing…", state="disabled")
+
+    def import_component_resources(self, _definition=None) -> None:
+        """Compatibility seam for old UI harnesses; normal UI invokes one global Import."""
+        self.import_all_resources()
 
     def choose_component_path(self, definition):
         contract = picker_contract(definition)
@@ -1272,7 +1483,7 @@ class ManagerShell:
                 self.component_facts[definition.component_id] = ComponentFacts(
                     ComponentPhase.ERROR, selected_path=selected,
                     detail=(f"The selected {definition.capability} files were verified, but the manager could not "
-                            "save that choice. The files were not changed. Try again or review Details."),
+                            "save that choice. The files were not changed. Try again or review technical details."),
                     diagnostic=f"{type(error).__name__}: {error}")
         if getattr(self, "current_page", None) == "Install & Update":
             self._update_component_card(definition.component_id)
@@ -1314,6 +1525,11 @@ class ManagerShell:
         os.startfile(target)
 
     def component_primary_action(self, definition):
+        if getattr(self, "global_import_active", False):
+            self.global_import_detail = "Import is active. Pause or let it finish before starting another operation."
+            if self.global_import_widgets:
+                self.global_import_widgets["status"].set(self.global_import_detail)
+            return
         if definition.component_id == "lic-core" and self.recovery_journal_path is not None:
             self._refresh_recovery_state()
             if self.recovery and self.recovery.blocked:
@@ -1372,7 +1588,8 @@ class ManagerShell:
             if self.install_component is None:
                 raise RuntimeError("Managed component installation is unavailable in this build")
         except Exception as error:
-            self.component_facts[component_id] = ComponentFacts(ComponentPhase.ERROR, detail=str(error))
+            self.component_facts[component_id] = ComponentFacts(ComponentPhase.ERROR,
+                                                                 detail=friendly_error(error), diagnostic=str(error))
             self.operation_queue.complete(component_id)
             self.show_page("Install & Update")
             return
@@ -1392,7 +1609,7 @@ class ManagerShell:
             except AcquisitionCancelled as error:
                 self.events.put(("component-canceled", component_id, str(error)))
             except Exception as error:
-                self.events.put(("component-failed", component_id, str(error)))
+                self.events.put(("component-failed", component_id, error))
         threading.Thread(target=worker, daemon=False).start()
 
     def _start_core_operation(self, request, *, resume: bool):
@@ -1427,7 +1644,8 @@ class ManagerShell:
                 ComponentPhase.NOT_INSTALLED if missing_target else ComponentPhase.ERROR,
                 detail=("The previous installation folder no longer exists and cannot be resumed. "
                         "Start setup again; verified downloads remain available for reuse."
-                        if missing_target else str(error)))
+                        if missing_target else friendly_error(error)),
+                diagnostic="" if missing_target else str(error))
             self.operation_queue.complete("lic-core")
             self.show_page("Install & Update")
             return
@@ -1454,7 +1672,7 @@ class ManagerShell:
             except BootstrapIdentityMismatch as error:
                 self.events.put(("component-preflight-blocked", "lic-core", str(error)))
             except Exception as error:
-                self.events.put(("component-failed", "lic-core", str(error)))
+                self.events.put(("component-failed", "lic-core", error))
         threading.Thread(target=worker, daemon=False).start()
 
     def page_overview(self):
@@ -1801,45 +2019,52 @@ class ManagerShell:
         about = ttk.Frame(self.content, style="Card.TFrame", padding=12)
         about.pack(fill="x", pady=(0, 10))
         ttk.Label(about, text="ABOUT", style="Field.TLabel").pack(anchor="w")
-        ttk.Label(about, text=(f"{MANAGER_NAME}\n{PRODUCT_EXPANDED_NAME}\n"
-                               f"Version {PRODUCT_VERSION}\nDependency profile {DEPENDENCY_PROFILE_ID}"),
-                  style="CardBody.TLabel", justify="left").pack(anchor="w", pady=(4, 0))
-        selected_heading = HELP_ANCHORS.get(self.help_anchor, "")
-        if selected_heading:
-            ttk.Label(self.content, text=f"Showing help for: {selected_heading}",
-                      style="Muted.TLabel").pack(anchor="w", pady=(0, 8))
-        ttk.Label(self.content, text="Jump to", style="Field.TLabel").pack(anchor="w")
-        toc = ttk.Frame(self.content)
-        toc.pack(fill="x", pady=(3, 12))
+        selectable_text(about, f"{MANAGER_NAME}\n{PRODUCT_EXPANDED_NAME}\n"
+                        f"Version {PRODUCT_VERSION}\nDependency profile {DEPENDENCY_PROFILE_ID}",
+                        background=PALE, width=90, pady=(4, 0), font=("Segoe UI", 9))
+        optional = {item.component_id: item for item in self.components if item.tier == "optional"}
         topics = [
-            ("About LoRA Image Curator", "LoRA Image Curator organizes, reviews, captions and exports local image datasets."),
-            ("How installation works", "Install & Update shows current state and starts only the selected component. Core setup creates a private Python environment, verifies every approved artifact and activates only after readiness checks pass."),
-            ("Core functionality", "Core includes the application, private Python runtime and only the packages required for catalog, review, editing, readiness and export."),
-            ("Optional features and providers", "Florence captioning, Face Analysis with OpenCV YuNet + SFace, Google MediaPipe body analysis and FFmpeg video extraction are independent. They never block Core readiness."),
-            ("Third-party downloads", "Nothing is downloaded by startup, status, Import, Details or Help. Install, Update, Repair or same-plan Resume is required before acquisition."),
-            ("Storage locations", "The selected LIC root owns predictable optional resources under Data: Downloads, Models, Tasks, Packages, Tools and State."),
-            ("Importing existing resources", "Import scans a selected folder for exact approved resources, confirms what it found, and copies accepted files into managed Data storage. Original files are never changed."),
-            ("Updates", "Only manager-approved compatible releases can become Update actions. A newer upstream release alone is never enough."),
-            ("Interrupted downloads", "Restart or select Resume. Completed verified work is rechecked; generic partial transfers restart because trustworthy byte-range continuation is not yet established."),
-            ("Pause and resume", "Pause stops at the next safe boundary and preserves verified resources and operation state. Resume continues the same approved plan later."),
-            ("Repair and recovery", "Missing or damaged managed files become Repair required. Optional damage does not make core LoRA Image Curator unavailable."),
-            ("Managing resources", "Shared packages have one authoritative managed copy. Removing managed files manually can disable a feature, which the next check will report."),
-            ("Third-party licenses and notices", "Each Details view identifies practical terms and restrictions. InsightFace pretrained weights have separate, restricted terms from the MIT-licensed code."),
-            ("Troubleshooting", f"Review logs under {self.root / 'Logs'} and operation records under {self.root / 'State/operations'}."),
+            ("ABOUT / USING LIC INSTALL MANAGER",
+             "LIC Install Manager prepares, checks and repairs a local LIC installation. It does not upload catalog "
+             "images or collect telemetry. LIC can operate offline after installation."),
+            ("INSTALLING LIC",
+             "Core installs LIC, its private Python runtime and the libraries required to browse, curate, edit, review "
+             "and export catalogs. Install shows the current state and downloads only approved missing artifacts. "
+             "Pause stops at a safe boundary; Resume continues the same approved plan after a pause or interruption."),
+            ("IMPORTING EXISTING RESOURCES",
+             "Use the single Import action on Install & Update to select one folder. The Manager scans it for all exact "
+             "approved resources, shows what it recognizes, and copies accepted files into this LIC installation's "
+             "managed Data folders. It never links to, moves, changes or deletes the originals. Partial imports are useful: "
+             "Install can later download only the remaining resources."),
+            ("OPTIONAL FEATURES",
+             f"Florence Captioning — {optional['florence-captioning'].description} Provider: "
+             f"{optional['florence-captioning'].provider}. Its model and runtime are optional.\n\n"
+             f"Face Analysis — {optional['face-analysis'].description} Provider: {optional['face-analysis'].provider}. "
+             "YuNet, SFace and the approved OpenCV package are checked before the feature is ready.\n\n"
+             f"Body/Pose Analysis — {optional['body-analysis'].description} Provider: {optional['body-analysis'].provider}. "
+             "It uses the MediaPipe task and shares the approved OpenCV package with Face Analysis.\n\n"
+             f"Video Import / FFmpeg — {optional['video-extraction'].description} Provider: "
+             f"{optional['video-extraction'].provider}. It uses the approved FFmpeg build locally."),
+            ("DOWNLOADS AND MANAGED STORAGE",
+             "Each LIC root owns Data\\Downloads for in-progress and retained verified downloads, Data\\Models for "
+             "model files, Data\\Tasks for MediaPipe tasks, Data\\Packages for exact packages, Data\\Tools for FFmpeg, "
+             "and Data\\State for resource records. A resource can be available without making its feature ready. "
+             "Shared OpenCV is stored once and reused by Face Analysis and Body/Pose Analysis."),
+            ("TROUBLESHOOTING",
+             "No internet: check the connection and try again. DNS/host unavailable: confirm the network can reach the "
+             "named source. 404: the approved source may need an updated installer definition. Server error: try later. "
+             "Timeout: verified work is retained; try again or Resume. TLS/certificate failure: nothing from that connection "
+             "is trusted. Verification failure: the file was not accepted. Technical details and logs are available after an error."),
+            ("LICENSES / SOURCES",
+             "Optional features retain their providers' terms. The card identifies the provider and download amount; this Help "
+             "page provides the reference context. Review the LIC notices and each provider's official source before enabling an optional feature."),
         ]
-        for heading, _body in topics[:6]:
-            ttk.Button(toc, text=heading, command=lambda target=heading: self._jump_help(target)).pack(side="left", padx=(0, 6), pady=2)
         for heading, body in topics:
             frame = ttk.Frame(self.content)
             frame.pack(fill="x", pady=5)
-            label = ttk.Label(frame, text=heading, style="Section.TLabel")
-            label.pack(anchor="w")
-            if selected_heading == heading:
-                self.window.after_idle(lambda widget=label: self.canvas.yview_moveto(
-                    max(0.0, min(1.0, widget.winfo_y() / max(1, self.content.winfo_reqheight())))))
-            ttk.Label(frame, text=body, style="Body.TLabel", wraplength=850,
-                      justify="left").pack(anchor="w", fill="x", pady=(2, 0))
-            if heading == "Third-party downloads":
+            ttk.Label(frame, text=heading, style="Section.TLabel").pack(anchor="w")
+            selectable_text(frame, body, width=92, pady=(2, 0))
+            if heading == "LICENSES / SOURCES":
                 links = ttk.Frame(frame)
                 links.pack(anchor="w", pady=(5, 0))
                 for name, url in (("Python.org", "https://www.python.org/"), ("PyPI", "https://pypi.org/"),
@@ -1855,9 +2080,54 @@ class ManagerShell:
                 self.canvas.yview_moveto(max(0.0, min(1.0, child.winfo_y() / max(1, self.content.winfo_reqheight()))))
                 return
 
+    def _handle_global_import_event(self, kind: str, event) -> None:
+        """Keep global Import progress visible without rebuilding the current page."""
+        if kind == "global-import-progress":
+            self.global_import_detail = str(event.get("message", "Importing compatible resources…"))
+            current, total = event.get("current"), event.get("total")
+            if isinstance(current, int) and isinstance(total, int) and total > 0:
+                self.global_import_progress = min(99.0, max(0.0, 100.0 * current / total))
+            if self.global_import_widgets:
+                self.global_import_widgets["status"].set(self.global_import_detail)
+                progress = self.global_import_widgets["progress"]
+                progress.stop()
+                if self.global_import_progress:
+                    progress.configure(mode="determinate", value=self.global_import_progress)
+            return
+        self.busy = False
+        self.global_import_active = False
+        self.operation_queue.complete("__global_import__")
+        self._refresh_managed_resource_facts()
+        if kind == "global-imported":
+            self.global_import_progress = 100.0
+            if event.get("state") == "declined":
+                self.global_import_detail = "Import was not started. Your original files were unchanged."
+            elif not event.get("imported") and not event.get("already_present"):
+                self.global_import_detail = ("No compatible approved resources were found. "
+                                             f"Ignored {event.get('unrecognized', 0)} unrelated file(s).")
+            else:
+                self.global_import_detail = (
+                    f"Import complete. Added {len(event.get('imported', ()))} resource(s); "
+                    f"{len(event.get('already_present', ()))} were already available; "
+                    f"{event.get('invalid', 0)} recognized item(s) were not accepted.")
+        elif kind == "global-import-paused":
+            self.global_import_progress = 0.0
+            self.global_import_detail = ("Import paused safely. Verified copied resources were retained. "
+                                         "Choose Import to scan a folder again.")
+        else:
+            self.global_import_progress = 0.0
+            self.global_import_detail = ("Import could not finish before unverified files became authoritative. "
+                                         "Your original files were unchanged. Review technical details if needed.")
+            self.global_import_diagnostic = str(event)
+        if self.current_page == "Install & Update":
+            self.show_page("Install & Update")
+
     def poll(self):
         while not self.events.empty():
             item = self.events.get_nowait()
+            if len(item) == 2 and str(item[0]).startswith("global-import-"):
+                self._handle_global_import_event(item[0], item[1])
+                continue
             if len(item) == 3 and item[0].startswith("component-"):
                 kind, component_id, event = item
                 facts = self.component_facts[component_id]
@@ -1893,7 +2163,8 @@ class ManagerShell:
                     self.busy = False
                     self.operation_queue.complete(component_id)
                     facts.phase = ComponentPhase.ERROR
-                    facts.detail = "Import stopped before unverified files became authoritative. Original files were unchanged."
+                    facts.detail = ("Import could not finish before unverified files became authoritative. "
+                                    "Original files were unchanged. Review technical details if needed.")
                     facts.diagnostic = str(event)
                 elif kind == "component-progress":
                     view = progress_view(event)
@@ -1978,12 +2249,15 @@ class ManagerShell:
                         self.component_facts[component_id] = ComponentFacts(
                             ComponentPhase.PARTIAL, resumable=True,
                             detail=("Core files are ready, but activation could not finish. "
-                                    "Resume setup retries activation. Details contains diagnostic information."))
+                                    "Resume setup retries activation. Technical details are available if needed."))
                     elif not recovered:
+                        structured = isinstance(event, AcquisitionFailure) or "category=" in str(event)
+                        message, diagnostic = (acquisition_error_presentation(event) if structured else
+                                               (component_failure_message(self.component_by_id[component_id], str(event)), str(event)))
                         self.component_facts[component_id] = ComponentFacts(
                             ComponentPhase.ERROR,
-                            detail=component_failure_message(self.component_by_id[component_id], str(event)),
-                            diagnostic=str(event))
+                            detail=message,
+                            diagnostic=diagnostic)
                 if self.current_page == "Install & Update":
                     if kind in {"component-progress", "component-import-progress"}:
                         self._update_component_card(component_id)
@@ -2022,7 +2296,8 @@ class ManagerShell:
                     "mode": self.mode, "navigation": self.sections, "active_section": self.current_page,
                     "persistent_left_navigation": True, "consent_default": False,
                     "installation_started": self.busy, "ux_contract": contract,
-                    "details_available": True, "help_available": "Help" in self.sections,
+                    "details_available": False, "technical_diagnostics_contextual": True,
+                    "help_available": "Help" in self.sections,
                     "model_storage_visible": True, "managed_resource_storage": True,
                     "independent_storage": False,
                     "review_mode": self.review_mode, "quiet": self.quiet,

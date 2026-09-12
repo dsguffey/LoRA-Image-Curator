@@ -46,7 +46,8 @@ def main():
                                                       'recovery-restored', 'insightface-existing',
                                                       'core-ready-florence-absent', 'florence-absent',
                                                       'florence-existing', 'legacy-florence',
-                                                      'core-disclosure'))
+                                                      'core-disclosure', 'network-error',
+                                                      'verification-error', 'paused'))
     args = parser.parse_args()
     if ctypes.windll.shell32.IsUserAnAdmin():
         raise RuntimeError('Run this qualification as a standard user, without elevation')
