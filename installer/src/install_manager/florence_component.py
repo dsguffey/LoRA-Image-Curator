@@ -193,7 +193,12 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
                 if candidate.is_file():
                     return admit_local_artifact(descriptor, candidate, paths['cache'], policy)
             return acquire_artifact(descriptor, paths['cache'], policy,
-                                    ca_bundle=delivery / 'trust/cacert.pem', progress=progress)
+                                    ca_bundle=delivery / 'trust/cacert.pem', progress=progress,
+                                    partial_observer=lambda path, state: (
+                                        journal.record_unvalidated_acquisition(path)
+                                        if state in {'created', 'unvalidated'}
+                                        else journal.clear_unvalidated_acquisition(path)),
+                                    keep_partial_on_cancel=True)
 
         journal.set_status('running')
         try:
@@ -246,6 +251,8 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
                 results[current] = result
                 journal.set_step(current, 'completed', evidence=result)
                 current = ''
+            if cancel_requested():
+                raise AcquisitionCancelled('Cancellation requested at the final safe boundary')
             record = {'schema_version': 1, 'component': 'florence-captioning',
                       'state': 'installed', 'model_root': str(model_root),
                       'snapshot': str(snapshot),

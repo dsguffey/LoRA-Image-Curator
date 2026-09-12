@@ -44,7 +44,8 @@ class OperationJournal:
             "inputs": deepcopy(inputs or {}),
             "status": "planned", "started_at": now, "updated_at": now,
             "steps": [{"name": name, "status": "planned"} for name in steps],
-            "failure": None, "cleanup_actions": [], "final_validation": None,
+            "failure": None, "cleanup_actions": [], "unvalidated_acquisitions": [],
+            "final_validation": None,
         }
         journal = cls(path, data)
         journal._write()
@@ -96,6 +97,21 @@ class OperationJournal:
     def add_cleanup_action(self, action: str, *, performed: bool) -> None:
         self.data["cleanup_actions"].append({"action": action, "performed": performed})
         self._write()
+
+    def record_unvalidated_acquisition(self, path: Path | str) -> None:
+        """Record only an attempt-owned temporary download, never a trusted artifact."""
+        value = str(Path(path).expanduser().resolve())
+        values = self.data.setdefault("unvalidated_acquisitions", [])
+        if value not in values:
+            values.append(value)
+            self._write()
+
+    def clear_unvalidated_acquisition(self, path: Path | str) -> None:
+        value = str(Path(path).expanduser().resolve())
+        values = self.data.setdefault("unvalidated_acquisitions", [])
+        if value in values:
+            values.remove(value)
+            self._write()
 
     @classmethod
     def load(cls, path: Path) -> "OperationJournal":

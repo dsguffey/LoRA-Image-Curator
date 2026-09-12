@@ -42,6 +42,21 @@ def read_face_model_root(appdata: Path) -> str:
     return str(value.get("face_model_root", "")) if isinstance(value, dict) else ""
 
 
+def read_provider_location(appdata: Path, component_id: str) -> str:
+    """Read a confirmed optional-provider preference without treating it as install state."""
+    if component_id == "face-analysis":
+        return read_face_model_root(appdata)
+    target = settings_path(appdata)
+    if not target.is_file():
+        return ""
+    try:
+        value = json.loads(target.read_text(encoding="utf-8"))
+        paths = value.get("install_manager_provider_paths", {}) if isinstance(value, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return ""
+    return str(paths.get(component_id, "")) if isinstance(paths, dict) else ""
+
+
 def write_face_model_root(appdata: Path, model_root: Path | str) -> Path:
     """Atomically update only LIC's canonical path, preserving all other keys."""
     target = settings_path(appdata)
@@ -53,6 +68,29 @@ def write_face_model_root(appdata: Path, model_root: Path | str) -> Path:
                 raise ValueError("LIC settings document is not an object")
             value = candidate
         value["face_model_root"] = str(model_root)
+        temporary = target.with_name(target.name + f".{uuid.uuid4().hex}.tmp")
+        temporary.write_text(json.dumps(value, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
+        os.replace(temporary, target)
+    return target
+
+
+def write_provider_location(appdata: Path, component_id: str, provider_root: Path | str) -> Path:
+    """Atomically retain only a successfully validated provider-facing location."""
+    if component_id == "face-analysis":
+        return write_face_model_root(appdata, provider_root)
+    target = settings_path(appdata)
+    with _write_lock(target):
+        value: dict[str, object] = {}
+        if target.is_file():
+            candidate = json.loads(target.read_text(encoding="utf-8"))
+            if not isinstance(candidate, dict):
+                raise ValueError("LIC settings document is not an object")
+            value = candidate
+        paths = value.get("install_manager_provider_paths")
+        if not isinstance(paths, dict):
+            paths = {}
+            value["install_manager_provider_paths"] = paths
+        paths[component_id] = str(provider_root)
         temporary = target.with_name(target.name + f".{uuid.uuid4().hex}.tmp")
         temporary.write_text(json.dumps(value, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
         os.replace(temporary, target)

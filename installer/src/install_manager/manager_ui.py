@@ -28,7 +28,10 @@ from .florence_component import (inspect_installed as inspect_florence_installed
 from .recovery import (BootstrapRecovery, inspect_bootstrap_recovery,
                        restored_recovery_locations, validate_new_recovery_target)
 from .storage import default_model_root, inspect_model_storage, storage_review, validate_model_root
-from .lic_face_settings import read_face_model_root, write_face_model_root
+from .lic_face_settings import read_face_model_root
+from .lic_face_settings import read_provider_location, write_provider_location
+from .cancellation_cleanup import delete_unfinished_acquisitions, unfinished_acquisitions
+from .journal import OperationJournal
 from .provider_discovery import discover_provider_candidates, discovery_message
 from .product import (PRODUCT_EXPANDED_NAME, PRODUCT_NAME as PRODUCT_DISPLAY_NAME,
                       PRODUCT_VERSION, DEPENDENCY_PROFILE_ID)
@@ -49,6 +52,7 @@ IDENTITY_LOCKED_PHASES = frozenset({
     ComponentPhase.PREPARING, ComponentPhase.DOWNLOADING, ComponentPhase.VERIFYING,
     ComponentPhase.INSTALLING, ComponentPhase.CANCELING,
 })
+OPTIONAL_PROVIDER_IDS = frozenset({"florence-captioning", "face-analysis", "body-analysis", "video-extraction"})
 PRODUCT_NAME = "LoRA Image Curator"
 MANAGER_NAME = PRODUCT_DISPLAY_NAME
 FIRST_RUN_SECTIONS = ("Install & Update", "Move Installation", "Help")
@@ -114,6 +118,25 @@ def selection_instruction(definition) -> str:
         "insightface-pack-directory": "Select an InsightFace model-pack folder containing the expected ONNX files.",
         "yunet-sface-pair-v1": "Select the folder containing both approved Face Analysis ONNX files.",
     }.get(definition.validation_adapter, "Select compatible existing files.")
+
+
+def provider_root_from_resource(component_id: str, value: str | Path) -> Path:
+    """Project an inventory member back to the folder a person selected."""
+    path = Path(value)
+    if (component_id == "body-analysis" and path.name.casefold() == "pose_landmarker_full.task" or
+            component_id == "face-analysis" and path.suffix.casefold() == ".onnx" or
+            component_id == "video-extraction" and path.name.casefold() == "ffmpeg.exe"):
+        return path.parent
+    return path
+
+
+def primary_label(definition, facts: ComponentFacts, action: ComponentAction | None = None) -> str:
+    if facts.phase == ComponentPhase.CANCELING:
+        return "Canceling…"
+    action = action or component_action(definition, facts)
+    return ("Install Core" if definition.component_id == "lic-core" and action == ComponentAction.INSTALL else
+            "Install required libraries" if action == ComponentAction.INSTALL and facts.selected_path and definition.component_id != "lic-core" else
+            "Choose provider folder" if action == ComponentAction.USE_EXISTING and definition.selector_type != "none" else action.value)
 
 
 def picker_contract(definition) -> dict[str, object]:
@@ -463,11 +486,11 @@ class ManagerShell:
                                 for item in self.components if item.selector_type != "none"}
         self.lic_appdata = Path(os.environ.get("APPDATA", Path.home() / ".config"))
         face = self.component_by_id.get("face-analysis")
-        if face and "face-analysis" in self.component_paths:
+        if face and "face-analysis" in self.component_paths and not self.component_facts["face-analysis"].selected_path:
             canonical = read_face_model_root(self.lic_appdata)
             if canonical:
                 self.component_paths["face-analysis"].set(canonical)
-                self.component_facts["face-analysis"] = validate_existing_selection(face, Path(canonical))
+        self._restore_provider_preferences()
         choices = installed_record.get("choices", {}) if installed_record else {}
         self.start_menu = tk.BooleanVar(value=choices.get("start_menu", True))
         self.desktop = tk.BooleanVar(value=choices.get("desktop", False))
@@ -517,6 +540,38 @@ class ManagerShell:
             self.window.withdraw()
         if ui_probe:
             self.window.after(1400, lambda: self._write_probe(ui_probe))
+
+    def _restore_provider_preferences(self) -> None:
+        """Use a remembered location only as an editable default, never as inventory truth."""
+        for component_id in OPTIONAL_PROVIDER_IDS:
+            definition = self.component_by_id.get(component_id)
+            facts = self.component_facts.get(component_id)
+            if definition is None or facts is None or facts.selected_path:
+                continue  # Per-install inventory always wins.
+            value = read_provider_location(self.lic_appdata, component_id)
+            if not value:
+                continue
+            if component_id == "florence-captioning":
+                self.model_path.set(value)
+                try:
+                    self.model_evidence = inspect_model_storage(self.delivery, Path(value))
+                except (OSError, ValueError):
+                    pass
+            else:
+                variable = self.component_paths.get(component_id)
+                if variable is not None:
+                    variable.set(value)
+            # A preference may be stale. It remains an editable starting point
+            # and never changes the component to installed during passive startup.
+            facts.selected_path = value
+
+    def _primary_action_for(self, definition, facts: ComponentFacts) -> ComponentAction:
+        state = self.operation_queue.state_for(definition.component_id)
+        if state == "active":
+            return ComponentAction.CANCEL
+        if state == "queued":
+            return ComponentAction.CANCEL_QUEUE
+        return component_action(definition, facts)
 
     def _load_recovery(self, current_install: Path,
                        current_models: Path) -> BootstrapRecovery | None:
@@ -596,7 +651,8 @@ class ManagerShell:
                     item.detail = ("✓ Installed and verified" if item.verified else
                                    "Installed component state requires validation or repair.")
                     if component.resources:
-                        item.selected_path = component.resources[0].local_path
+                        item.selected_path = str(provider_root_from_resource(
+                            component.component_id, component.resources[0].local_path))
         florence = facts.get("florence-captioning")
         if florence is not None and self.model_evidence:
             florence.detail = "Not installed. Nothing will be downloaded until you choose Install."
@@ -910,15 +966,12 @@ class ManagerShell:
             bar.start(12)
         actions = ttk.Frame(frame, style="Card.TFrame")
         actions.pack(fill="x")
-        primary = component_action(definition, facts)
+        primary = self._primary_action_for(definition, facts)
         primary_button = None
         if primary:
-            label = ("Install Core" if definition.component_id == "lic-core" and primary == ComponentAction.INSTALL else
-                     "Install required libraries" if primary == ComponentAction.INSTALL and facts.selected_path and definition.component_id != "lic-core" else
-                     "Choose provider folder" if primary == ComponentAction.USE_EXISTING and definition.selector_type != "none" else primary.value)
-            primary_button = ttk.Button(actions, text=label, style="Accent.TButton",
+            primary_button = ttk.Button(actions, text=primary_label(definition, facts, primary), style="Accent.TButton",
                                         command=lambda item=definition: self.component_primary_action(item),
-                                        state="disabled" if self.review_mode else "normal")
+                                        state="disabled" if self.review_mode or facts.phase == ComponentPhase.CANCELING else "normal")
             primary_button.pack(side="left")
         if facts.selected_path:
             ttk.Button(actions, text="Go to directory", command=lambda item=definition: self.open_component_directory(item),
@@ -950,12 +1003,9 @@ class ManagerShell:
             bar.start(12)
         button = widgets.get("primary")
         if button is not None:
-            action = component_action(definition, facts)
-            label = ("Install Core" if component_id == "lic-core" and action == ComponentAction.INSTALL else
-                     "Install required libraries" if action == ComponentAction.INSTALL and facts.selected_path and component_id != "lic-core" else
-                     "Choose provider folder" if action == ComponentAction.USE_EXISTING and definition.selector_type != "none" else action.value)
-            button.configure(text=label,
-                             state="disabled" if self.review_mode or not action else "normal")
+            action = self._primary_action_for(definition, facts)
+            button.configure(text=primary_label(definition, facts, action),
+                             state="disabled" if self.review_mode or not action or facts.phase == ComponentPhase.CANCELING else "normal")
 
     def _card_path_control(self, parent, title, variable, command, hint="", *, editable=True, commit=None):
         ttk.Label(parent, text=title, style="Field.TLabel").pack(anchor="w", pady=(7, 2))
@@ -1153,8 +1203,12 @@ class ManagerShell:
             facts = ComponentFacts(ComponentPhase.INCOMPATIBLE, selected_path=str(selected_root),
                                    detail=f"The selected files could not be validated: {error}")
         self.component_facts[definition.component_id] = facts
-        if definition.component_id == "face-analysis" and facts.verified:
-            write_face_model_root(self.lic_appdata, Path(facts.selected_path or selected_root))
+        if (definition.component_id in OPTIONAL_PROVIDER_IDS and
+                facts.phase in {ComponentPhase.PARTIAL, ComponentPhase.INSTALLED}):
+            # Only a validation-accepted provider root becomes a user preference.
+            appdata = getattr(self, "lic_appdata", Path(os.environ.get("APPDATA", Path.home() / ".config")))
+            write_provider_location(appdata, definition.component_id,
+                                    Path(facts.selected_path or selected_root))
         if (facts.phase in {ComponentPhase.PARTIAL, ComponentPhase.INSTALLED} and
                 getattr(self, "record", None) and
                 getattr(self, "record_existing_component", None) is not None):
@@ -1184,10 +1238,10 @@ class ManagerShell:
                                    f"LoRA Image Curator and this Manager will use:\n\n{target}\n\n"
                                    "Models may be missing until you install them.", parent=self.window):
             return
-        write_face_model_root(self.lic_appdata, target)
         self.component_paths["face-analysis"].set(str(target))
-        self.component_facts["face-analysis"] = validate_existing_selection(
-            self.component_by_id["face-analysis"], target)
+        self.component_facts["face-analysis"] = ComponentFacts(
+            ComponentPhase.NOT_INSTALLED, selected_path=str(target),
+            detail="Face Analysis will use this folder only after its managed installation validates the models.")
         self.show_page("Install & Update")
 
     def _picker_initial_directory(self, definition):
@@ -1214,6 +1268,39 @@ class ManagerShell:
         else:
             self.show_page("Install & Update")
 
+    def _offer_unfinished_file_choice(self, component_id: str) -> None:
+        """Offer cleanup only for explicit, journal-owned unvalidated temporary paths."""
+        root = getattr(self, "root", None)
+        if root is None:
+            return
+        journal_path = (Path(root) / "State/operations/bootstrap.json" if component_id == "lic-core" else
+                        Path(root) / "State/operations/florence.json" if component_id == "florence-captioning" else
+                        Path(root) / f"State/operations/component-{component_id}.json")
+        if not journal_path.is_file():
+            return
+        try:
+            journal = OperationJournal.load(journal_path)
+            leftovers = unfinished_acquisitions(journal)
+        except (OSError, ValueError, KeyError, TypeError):
+            return
+        if not leftovers:
+            return
+        delete = messagebox.askyesno(
+            "Installation canceled",
+            "Some unfinished files from this installation attempt have not been validated.\n\n"
+            "Verified downloads are kept automatically so they can be reused later.\n\n"
+            "Choose Yes to delete unfinished files, or No to keep unfinished files.",
+            parent=self.window)
+        if delete:
+            deleted = delete_unfinished_acquisitions(journal)
+            detail = f"Installation canceled. Deleted {len(deleted)} unfinished unvalidated file(s)."
+        else:
+            journal.add_cleanup_action("keep-unvalidated-acquisition-files", performed=False)
+            detail = "Installation canceled. Unfinished unvalidated files were kept; verified downloads remain reusable."
+        facts = self.component_facts.get(component_id)
+        if facts is not None:
+            facts.detail = detail
+
     def open_component_directory(self, definition):
         selected = Path(self.component_facts[definition.component_id].selected_path)
         target = selected if selected.is_dir() else selected.parent
@@ -1237,7 +1324,7 @@ class ManagerShell:
             if recovery is not None:
                 self.component_recoveries[definition.component_id] = recovery
         facts = self.component_facts[definition.component_id]
-        action = component_action(definition, facts)
+        action = self._primary_action_for(definition, facts)
         if action == ComponentAction.USE_EXISTING and definition.selector_type != "none":
             self.choose_component_path(definition)
             return
@@ -1284,11 +1371,6 @@ class ManagerShell:
                     Path(facts.resource_path or self.component_paths[component_id].get())
                     if self.component_paths.get(component_id) and (facts.resource_path or self.component_paths[component_id].get())
                     else None)
-        # The shared LIC setting is the managed Face Analysis destination.
-        # A valid pre-existing pair is recorded by Browse/Use Existing and does
-        # not enter the managed acquisition path.
-        if component_id == "face-analysis":
-            selected = None
         try:
             if component_id == "florence-captioning":
                 evidence = inspect_model_storage(self.delivery, selected)
@@ -1739,7 +1821,7 @@ class ManagerShell:
             ("Using existing models", "Browse validates identity, exact revision/hash where available, completeness and compatibility. Unknown files are left unchanged."),
             ("Updates", "Only manager-approved compatible releases can become Update actions. A newer upstream release alone is never enough."),
             ("Interrupted downloads", "Restart or select Resume. Completed verified work is rechecked; generic partial transfers restart because trustworthy byte-range continuation is not yet established."),
-            ("Cancellation and resume", "Cancel requests stop transfers or wait for the next safe package-install boundary. Partial work is never published as installed."),
+            ("Cancellation and resume", "Cancel requests stop at the next safe boundary. Verified downloads are kept for reuse. If an attempt leaves unvalidated unfinished files, you can keep them or delete only those files. Partial work is never published as installed."),
             ("Moving an installation", "Move creates and validates a new installation, rebuilds path-bound components and keeps the old copy. AI models stay where they are unless copying is explicitly selected."),
             ("Repair and recovery", "Missing or damaged managed files become Repair required. Optional damage does not make core LoRA Image Curator unavailable."),
             ("Managing model files", "Go to directory opens the selected location. Some models may be shared; deleting them manually can disable a feature, which the next check will report."),
@@ -1804,10 +1886,15 @@ class ManagerShell:
                     elif component_id == "florence-captioning":
                         facts.selected_path = str(event.get("snapshot") or facts.selected_path)
                         self.model_evidence = inspect_model_storage(self.delivery, Path(event["model_root"]))
+                        write_provider_location(self.lic_appdata, component_id, Path(event["model_root"]))
                     else:
-                        facts.selected_path = str(event.get("resource") or facts.selected_path)
+                        facts.selected_path = str(provider_root_from_resource(
+                            component_id, event.get("resource") or facts.selected_path))
                         if component_id in self.component_paths:
                             self.component_paths[component_id].set(facts.selected_path)
+                        if component_id in OPTIONAL_PROVIDER_IDS and facts.selected_path:
+                            write_provider_location(self.lic_appdata, component_id,
+                                                    Path(facts.selected_path))
                     self.busy = False
                     self.operation_queue.complete(component_id)
                 elif kind == "component-canceled":
@@ -1825,6 +1912,7 @@ class ManagerShell:
                             facts.recovery_blocked, facts.detail = recovery.blocked, recovery.summary
                     else:
                         self._refresh_recovery_state()
+                    self._offer_unfinished_file_choice(component_id)
                 elif kind == "component-preflight-blocked":
                     self.busy = False
                     self.operation_queue.complete(component_id)

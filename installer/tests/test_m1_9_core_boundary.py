@@ -201,6 +201,7 @@ class ExplicitAcquisitionTests(unittest.TestCase):
         shell = ManagerShell.__new__(ManagerShell)
         shell.delivery = DELIVERY
         shell.root = base / "LIC"
+        shell.lic_appdata = base / "AppData"
         shell.application_path = Variable(shell.root)
         shell.model_path = Variable(base / "Models")
         shell.component_paths = {"florence-captioning": shell.model_path}

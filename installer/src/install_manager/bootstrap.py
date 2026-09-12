@@ -221,7 +221,12 @@ def execute(delivery: Path, root: Path, *, cache_source: Path | None = None,
                 current_source[0] = 'this LIC Lite package'
                 return admit_local_artifact(descriptor, bundled, paths['cache'], policy)
             return acquire_artifact(descriptor, paths['cache'], policy,
-                                    ca_bundle=delivery / 'trust/cacert.pem', progress=progress_event)
+                                    ca_bundle=delivery / 'trust/cacert.pem', progress=progress_event,
+                                    partial_observer=lambda path, state: (
+                                        journal.record_unvalidated_acquisition(path)
+                                        if state in {'created', 'unvalidated'}
+                                        else journal.clear_unvalidated_acquisition(path)),
+                                    keep_partial_on_cancel=True)
 
         try:
             for current_number, current in enumerate(STEPS, 1):
@@ -299,6 +304,8 @@ def execute(delivery: Path, root: Path, *, cache_source: Path | None = None,
                       'application_ready': results['readiness']['passed'],
                       'offline': not results['readiness']['network_attempts']}
             criteria = evaluate_criteria(checks, provider_criteria=CORE_READINESS_CRITERIA)
+            if cancel_requested():
+                raise AcquisitionCancelled('Cancellation requested at the final safe boundary')
             if not criteria['criteria_met']:
                 raise RuntimeError('Mandatory activation criteria failed')
             report = {'state': criteria['state'], 'activation_preflight_passed': criteria['criteria_met'],
@@ -313,8 +320,8 @@ def execute(delivery: Path, root: Path, *, cache_source: Path | None = None,
             if current:
                 journal.set_step(current, 'cancelled', error=f'{type(error).__name__}: {error}')
             journal.set_status('cancelled', failure=f'{type(error).__name__}: {error}')
-            emit('Canceled safely. Verified completed work was retained. Resume will recheck it; '
-                 'unverified partial transfer bytes were discarded.', terminal='cancelled')
+            emit('Canceled safely. Verified completed work was retained. Unvalidated unfinished files can be kept or deleted.',
+                 terminal='cancelled')
             raise
         except BaseException as error:
             if current:

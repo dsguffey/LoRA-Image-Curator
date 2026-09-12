@@ -129,7 +129,7 @@ def _plan(delivery: Path, root: Path, component_id: str,
     if selected_path is not None and len(resources) != 1:
         raise ValueError("This component's existing-resource selection must be recorded separately.")
     if component_id == "face-analysis" and not external:
-        face_root = canonical_face_model_root()
+        face_root = selected_path.expanduser().resolve() if selected_path is not None else canonical_face_model_root()
         destinations = [face_root / str(artifact_descriptor(resource).filename) for resource in resources]
     else:
         destinations = ([Path(external["path"])] if external else
@@ -242,14 +242,18 @@ def discard_cancelled_attempt(root: Path, component_id: str) -> Path:
 
 
 def _acquire(descriptor: ArtifactDescriptor, delivery: Path, cache: Path,
-             cache_source: Path | None, progress) -> object:
+             cache_source: Path | None, progress, journal: OperationJournal) -> object:
     policy = AcquisitionPolicy(acquisition_hosts(descriptor))
     if cache_source:
         candidate = cache_source / "verified" / descriptor.artifact_id / descriptor.version / descriptor.filename
         if candidate.is_file():
             return admit_local_artifact(descriptor, candidate, cache, policy)
-    return acquire_artifact(descriptor, cache, policy,
-                            ca_bundle=delivery / "trust/cacert.pem", progress=progress)
+    return acquire_artifact(
+        descriptor, cache, policy, ca_bundle=delivery / "trust/cacert.pem", progress=progress,
+        partial_observer=lambda path, state: (
+            journal.record_unvalidated_acquisition(path) if state in {"created", "unvalidated"}
+            else journal.clear_unvalidated_acquisition(path)),
+        keep_partial_on_cancel=True)
 
 
 def _resource_state(manifest, resource: dict, local_path: Path, validation: dict,
@@ -421,7 +425,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                 elif current == "acquire_dependencies":
                     acquired_dependencies = [
                         _acquire(ArtifactDescriptor.from_dict(item.artifact.as_dict()), delivery,
-                                 paths["cache"], cache_source, progress)
+                                 paths["cache"], cache_source, progress, journal)
                         for item in delta.wheels]
                     result = {"verified": True, "count": len(acquired_dependencies),
                               "reused": sum(item.reused for item in acquired_dependencies)}
@@ -437,7 +441,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                                    "reused": True, "source": "user-selected"}]
                     else:
                         acquired_resources = [_acquire(artifact_descriptor(resource), delivery,
-                                                       paths["cache"], cache_source, progress)
+                                                       paths["cache"], cache_source, progress, journal)
                                               for resource in resources]
                         result = [item.as_dict() for item in acquired_resources]
                 elif current == "install_resource":
@@ -449,7 +453,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                             acquired = acquired_resources[index]
                             if acquired is None:
                                 acquired = _acquire(artifact_descriptor(resource), delivery, paths["cache"],
-                                                    cache_source, progress)
+                                                    cache_source, progress, journal)
                                 acquired_resources[index] = acquired
                             installed.append(install_resource(root, resource, acquired))
                         result = installed
@@ -487,6 +491,8 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                 results[current] = result
                 journal.set_step(current, "completed", evidence=result)
                 current = ""
+            if cancel_requested():
+                raise AcquisitionCancelled("Cancellation requested at the final safe boundary")
             journal.set_validation({"passed": True, "optional_capability_ready": True,
                                     "profile": inventory.selected_profile})
             journal.set_status("succeeded")

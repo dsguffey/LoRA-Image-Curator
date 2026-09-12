@@ -233,6 +233,14 @@ class ComponentOperationQueue:
                 return "queue-canceled"
         return "not-found"
 
+    def state_for(self, component_id: str) -> str:
+        """Return queue truth for UI labels; rendered component facts may lag worker events."""
+        if self.active and self.active.component_id == component_id:
+            return "active"
+        if any(item.component_id == component_id for item in self.pending):
+            return "queued"
+        return "idle"
+
     def complete(self, component_id: str) -> OperationRequest | None:
         if self.active is None or self.active.component_id != component_id:
             raise ValueError("only the active component can complete")

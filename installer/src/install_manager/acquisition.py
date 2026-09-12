@@ -108,7 +108,9 @@ def verified_tls_context(ca_bundle: Path) -> ssl.SSLContext:
 def acquire_artifact(descriptor: ArtifactDescriptor, cache_root: Path, policy: AcquisitionPolicy,
                      *, ca_bundle: Path | None = None, opener: Callable = _open,
                      sleep: Callable[[float], None] = time.sleep,
-                     progress: Callable[[dict], None] = lambda event: None) -> AcquiredArtifact:
+                     progress: Callable[[dict], None] = lambda event: None,
+                     partial_observer: Callable[[Path, str], None] = lambda path, state: None,
+                     keep_partial_on_cancel: bool = False) -> AcquiredArtifact:
     """Acquire once, verify fully, then atomically promote into the verified cache."""
     descriptor.validate(policy.allowed_hosts)
     if opener is _open:
@@ -135,6 +137,7 @@ def acquire_artifact(descriptor: ArtifactDescriptor, cache_root: Path, policy: A
         target.parent.mkdir(parents=True, exist_ok=True)
         partial_root.mkdir(parents=True, exist_ok=True)
         partial = partial_root / f"{descriptor.artifact_id}-{uuid.uuid4().hex}.partial"
+        partial_observer(partial, "created")
         host = urllib.parse.urlparse(descriptor.url).hostname or ""
         last_error: Exception | None = None
         for attempt in range(1, policy.max_attempts + 1):
@@ -171,19 +174,26 @@ def acquire_artifact(descriptor: ArtifactDescriptor, cache_root: Path, policy: A
                 progress({'kind': 'download', 'artifact': descriptor.artifact_id,
                           'downloaded_bytes': size, 'total_bytes': total, 'complete': True})
                 os.replace(partial, target)
+                partial_observer(partial, "validated")
                 return AcquiredArtifact(descriptor, target.as_posix(), actual, size,
                                         "verified", True, False, attempt)
             except ValueError:
                 partial.unlink(missing_ok=True)
+                partial_observer(partial, "discarded")
                 raise
             except AcquisitionCancelled:
-                # Range-safe continuation is not yet established for generic artifacts.
-                # Keep the journaled completed work, but remove unverifiable partial bytes.
-                partial.unlink(missing_ok=True)
+                # Keeping a partial means only preserving the bytes for inspection;
+                # generic range-resume is deliberately not promised.
+                if keep_partial_on_cancel:
+                    partial_observer(partial, "unvalidated")
+                else:
+                    partial.unlink(missing_ok=True)
+                    partial_observer(partial, "discarded")
                 raise
             except urllib.error.HTTPError as error:
                 last_error = error
                 partial.unlink(missing_ok=True)
+                partial_observer(partial, "discarded")
                 retry_after = error.headers.get("Retry-After", "") if error.headers else ""
                 error.close()
                 if attempt < policy.max_attempts:
@@ -192,6 +202,7 @@ def acquire_artifact(descriptor: ArtifactDescriptor, cache_root: Path, policy: A
             except (OSError, urllib.error.URLError) as error:
                 last_error = error
                 partial.unlink(missing_ok=True)
+                partial_observer(partial, "discarded")
                 if attempt < policy.max_attempts:
                     sleep(policy.base_backoff_seconds * (2 ** (attempt - 1)))
         raise OSError(f"artifact acquisition failed after {policy.max_attempts} attempts: {last_error}")
