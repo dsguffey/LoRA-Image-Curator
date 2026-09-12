@@ -31,7 +31,7 @@ from .storage import default_model_root, inspect_model_storage, storage_review, 
 from .lic_face_settings import read_face_model_root, write_face_model_root
 from .provider_discovery import discover_provider_candidates, discovery_message
 from .product import (PRODUCT_EXPANDED_NAME, PRODUCT_NAME as PRODUCT_DISPLAY_NAME,
-                      PRODUCT_VERSION)
+                      PRODUCT_VERSION, DEPENDENCY_PROFILE_ID)
 
 
 NAVY = "#18324a"
@@ -1720,7 +1720,7 @@ class ManagerShell:
         about.pack(fill="x", pady=(0, 10))
         ttk.Label(about, text="ABOUT", style="Field.TLabel").pack(anchor="w")
         ttk.Label(about, text=(f"{MANAGER_NAME}\n{PRODUCT_EXPANDED_NAME}\n"
-                               f"Version {PRODUCT_VERSION}\nDependency profile 2026-09-10"),
+                               f"Version {PRODUCT_VERSION}\nDependency profile {DEPENDENCY_PROFILE_ID}"),
                   style="CardBody.TLabel", justify="left").pack(anchor="w", pady=(4, 0))
         selected_heading = HELP_ANCHORS.get(self.help_anchor, "")
         if selected_heading:
@@ -1733,7 +1733,7 @@ class ManagerShell:
             ("About LoRA Image Curator", "LoRA Image Curator organizes, reviews, captions and exports local image datasets."),
             ("How installation works", "Install & Update shows current state and starts only the selected component. Core setup creates a private Python environment, verifies every approved artifact and activates only after readiness checks pass."),
             ("Core functionality", "Core includes the application, private Python runtime and only the packages required for catalog, review, editing, readiness and export."),
-            ("Optional features and providers", "Florence captioning, InsightFace face analysis, Google MediaPipe body analysis and FFmpeg video extraction are independent. They never block Core readiness."),
+            ("Optional features and providers", "Florence captioning, Face Analysis with OpenCV YuNet + SFace, Google MediaPipe body analysis and FFmpeg video extraction are independent. They never block Core readiness."),
             ("Third-party downloads", "Nothing is downloaded by startup, status, Browse, Details or Help. A clearly labeled Install, Update, Repair or same-plan Resume action is required before acquisition."),
             ("Storage locations", "New installations default to Local AppData. Application and large AI-model locations remain independently selectable."),
             ("Using existing models", "Browse validates identity, exact revision/hash where available, completeness and compatibility. Unknown files are left unchanged."),
@@ -1764,7 +1764,7 @@ class ManagerShell:
                 for name, url in (("Python.org", "https://www.python.org/"), ("PyPI", "https://pypi.org/"),
                                   ("PyTorch", "https://download.pytorch.org/"), ("Hugging Face", "https://huggingface.co/"),
                                   ("MediaPipe", "https://developers.google.com/mediapipe/"),
-                                  ("InsightFace", "https://github.com/deepinsight/insightface"), ("FFmpeg", "https://ffmpeg.org/")):
+                                  ("OpenCV Zoo", "https://github.com/opencv/opencv_zoo"), ("FFmpeg", "https://ffmpeg.org/")):
                     ttk.Button(links, text=f"Open {name}", command=lambda address=url: open_official_source(address)).pack(side="left", padx=(0, 5), pady=2)
 
     def _jump_help(self, heading):
@@ -1898,7 +1898,7 @@ class ManagerShell:
         contract = first_run_contract(str(self.root), model_root=self.model_path.get(),
                                       start_menu=self.start_menu.get(), desktop=self.desktop.get())
         evidence = {"visible": bool(self.window.winfo_viewable()), "title": self.window.title(),
-                    "product_version": PRODUCT_VERSION, "dependency_profile": "2026-09-10",
+                    "product_version": PRODUCT_VERSION, "dependency_profile": DEPENDENCY_PROFILE_ID,
                     "mode": self.mode, "navigation": self.sections, "active_section": self.current_page,
                     "persistent_left_navigation": True, "consent_default": False,
                     "installation_started": self.busy, "ux_contract": contract,

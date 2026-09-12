@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "profile_id": "2026-09-10",
+  "profile_id": "2026-09-11",
   "status": "approved",
-  "approval_basis": "M1.11B OpenCV YuNet + SFace managed-component integration",
+  "approval_basis": "LIC Install Manager 0.7.1 Face Analysis shared-OpenCV correction",
   "python_version": "3.14.6",
   "platform": "win_amd64",
   "hardware_profile": "Windows x64 / NVIDIA CUDA 13 / RTX 5070 Ti qualified",
@@ -20,8 +20,8 @@
       "sha256": "1d5c6a726b713220a986b0de97223a76fa8b881a3cc3e8a10130d148e64e81a4"
     },
     "face-analysis": {
-      "path": "opencv-yunet-sface-windows-x64-v1.json",
-      "sha256": "adfd81f4bbb19062c15517612cd15ca6d4f3c95deae28bbc9b1fe62c1bcd3820"
+      "path": "opencv-yunet-sface-windows-x64-v2.json",
+      "sha256": "737bb6d8bbe52f332b3937ff16610c89fc11813786b47453495ab45d86aebbbe"
     },
     "mediapipe": {
       "path": "mediapipe-windows-x64-base-v2.json",

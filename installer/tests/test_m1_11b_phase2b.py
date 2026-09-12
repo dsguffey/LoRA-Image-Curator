@@ -35,8 +35,9 @@ class FaceComponentTests(unittest.TestCase):
 
     def test_profile_is_immutable_and_face_is_two_exact_artifacts(self):
         profiles = load_approved_profiles(PROFILES)
-        self.assertEqual([item.profile_id for item in profiles], ["2026-09-06", "2026-09-07", "2026-09-10"])
-        self.assertEqual(profiles[1].digest, "2f6af3aa5186cb8db82dc7ec59059bf3130fc1173e442e92a7939bd4e157d58a")
+        self.assertEqual([item.profile_id for item in profiles], ["2026-09-06", "2026-09-07", "2026-09-10", "2026-09-11"])
+        self.assertEqual(profiles[2].digest, "ac2da1f0e9a7d8cd606e72adfdcdb2e22abb86a5b9eb3b1815807edb80e2e443")
+        self.assertEqual(profiles[3].digest, "ddd947d8dd52c28d4cb2ccae9ae998683807dd24dd5d1f42ebc95331886db6dd")
         self.assertEqual(len(recommended_profile(PROFILES).component_by_id("face-analysis").raw["resources"]), 2)
         self.assertEqual(self.definition.provider, "OpenCV YuNet + SFace")
         self.assertTrue(self.definition.managed_install)

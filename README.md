@@ -54,7 +54,7 @@ The 72.4 MB ZIP includes everything required to launch provider-neutral LIC Core
 
 ### Install LIC Core
 
-1. Download `LIC-Install-Manager-0.7.0.zip` from the official GitHub Release.
+1. Download `LIC-Install-Manager-0.7.1.zip` from the official GitHub Release.
 2. Extract the ZIP.
 3. Run `LIC Install Manager.exe`.
 4. Choose **Install Core**.

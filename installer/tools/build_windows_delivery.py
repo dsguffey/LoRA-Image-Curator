@@ -21,6 +21,7 @@ from install_manager.dependency_lock import load_dependency_lock
 from install_manager.recipe import load_recipe
 from install_manager.release_preflight import payload_preflight, scan_content, validate_notices
 from install_manager.verification import verify_package
+from install_manager.product import PRODUCT_VERSION
 
 
 # Readiness probes run as a small isolated package.  Keep every module required
@@ -114,9 +115,9 @@ def main():
     p.add_argument('--runtime-root', type=Path, required=True)
     p.add_argument('--runtime-archive', type=Path, required=True)
     p.add_argument('--trust-wheel', type=Path, required=True,
-                   help='Exact pinned certifi wheel supplying the portable bootstrap CA bundle')
+                   help='Exact pinned certifi wheel supplying the package bootstrap CA bundle')
     p.add_argument('--core-wheel-root', type=Path,
-                   help='Root containing the exact Core wheels for an offline LIC Lite package')
+                   help='Root containing the exact Core wheels for the offline LIC Install Manager package')
     p.add_argument('--offline-core', action='store_true',
                    help='Fail unless the delivered package contains every approved Core artifact')
     p.add_argument('--archive-name',
@@ -130,9 +131,9 @@ def main():
     lock_path = ROOT / 'tools/build-tools-windows.json'
     lock = json.loads(lock_path.read_text())
     runtime_descriptor = load_artifact_descriptor(ROOT / 'src/install_manager/recipes/python-3.14.6-windows-x64.json')
-    # Lite deliberately contains only the approved baseline Core closure.
-    # Optional provider locks (including CUDA PyTorch) belong exclusively to
-    # a future Full package and must never expand Lite's offline payload.
+    # The delivered package contains only the approved baseline Core closure.
+    # Optional provider locks (including CUDA PyTorch) remain explicit Manager
+    # acquisitions and must never expand the offline Core payload.
     dependency_lock = load_dependency_lock(ROOT / 'src/install_manager/recipes/core-windows-x64-v2.json')
     trust_lock = load_dependency_lock(ROOT / 'src/install_manager/recipes/base-windows-nvidia-cu130.json')
     certifi = next((wheel for wheel in trust_lock.wheels if wheel.name == 'certifi'), None)
@@ -153,7 +154,7 @@ def main():
     # Scan inside the archive too. LIC has its own MIT license; it is not the manager license.
     with zipfile.ZipFile(args.lic_package) as archive:
         findings = [f for i in archive.infolist() if not i.is_dir()
-                    for f in scan_content('LIC-Lite/' + i.filename, archive.read(i))]
+                    for f in scan_content('LIC-Core/' + i.filename, archive.read(i))]
     if findings:
         raise ValueError('LIC payload hygiene findings: ' + str(findings))
     payload = output / 'payload'
@@ -200,7 +201,7 @@ def main():
             [args.core_wheel_root / wheel.artifact.filename for wheel in dependency_lock.wheels],
             notices / 'core-wheels')
         summary = [
-            'LIC Install Manager 0.7.0 — Third-party notices for this Lite package',
+            f'LIC Install Manager {PRODUCT_VERSION} — Third-party notices for this package',
             '',
             'This package includes the exact LIC Core wheels listed in recipes/core-windows-x64-v2.json.',
             'License texts supplied inside those wheels are preserved in notices/core-wheels/.',
@@ -223,7 +224,6 @@ def main():
     inputs = sorted([*ROOT.glob('src/install_manager/*.py'), *ROOT.glob('src/install_manager/recipes/**/*.json'),
                      *ROOT.glob('tools/*.py'), lock_path, ROOT / 'tools/third-party-inventory.json'])
     source_inputs = {f.relative_to(ROOT).as_posix(): sha256_file(f) for f in inputs}
-    from install_manager.product import PRODUCT_VERSION
     identity = {'version': PRODUCT_VERSION, 'source_commit': commit,
                 'source_input_sha256': hashlib.sha256(encoded(source_inputs)).hexdigest(),
                 'source_inputs': source_inputs, 'python': platform.python_version(),

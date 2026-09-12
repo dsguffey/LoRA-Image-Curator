@@ -85,13 +85,15 @@ class GenericStateTests(unittest.TestCase):
 class ProfileAndArtifactTests(unittest.TestCase):
     def test_historical_profile_is_retained_and_new_profile_is_recommended(self):
         profiles = load_approved_profiles(PROFILE_ROOT)
-        self.assertEqual([item.profile_id for item in profiles], ["2026-09-06", "2026-09-07", "2026-09-10"])
+        self.assertEqual([item.profile_id for item in profiles], ["2026-09-06", "2026-09-07", "2026-09-10", "2026-09-11"])
         self.assertEqual(profiles[0].digest,
                          "9f895d3706a3a7d5a5a02be8bc549c05b8d5c892520de8976446bd6f7e5fce96")
         self.assertEqual(profiles[1].digest,
                          "2f6af3aa5186cb8db82dc7ec59059bf3130fc1173e442e92a7939bd4e157d58a")
         self.assertEqual(profiles[2].digest,
-                         "a8323b05accb817986162f2dd08bd1ebd73370526a9eea5eb3df0bb1c8c2c7c5")
+                         "ac2da1f0e9a7d8cd606e72adfdcdb2e22abb86a5b9eb3b1815807edb80e2e443")
+        self.assertEqual(profiles[3].digest,
+                         "ddd947d8dd52c28d4cb2ccae9ae998683807dd24dd5d1f42ebc95331886db6dd")
 
     def test_mediapipe_resolution_records_authoritative_and_equivalent_hashes(self):
         manifest = recommended_profile(PROFILE_ROOT).component_by_id("body-analysis").raw
@@ -344,7 +346,7 @@ class AdapterAndTransactionTests(unittest.TestCase):
                 moved = move_installation(DELIVERY, source, destination)
             inventory = load_inventory(destination)
             self.assertEqual(Path(moved["root"]), destination.resolve())
-            self.assertEqual(inventory.selected_profile["profile_id"], "2026-09-10")
+            self.assertEqual(inventory.selected_profile["profile_id"], "2026-09-11")
             self.assertEqual(inventory.installed_component_ids, {"lic-core"})
             self.assertTrue(moved["move"]["component_inventory_driven"])
             self.assertTrue(record_path.is_file())

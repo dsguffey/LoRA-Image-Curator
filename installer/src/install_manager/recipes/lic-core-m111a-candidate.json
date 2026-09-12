@@ -7,7 +7,7 @@
   "classification": "qualification-candidate",
   "compatibility": "known-compatible",
   "profile": "windows-x64-core-v2",
-  "provenance": "Exact LIC Lite Core package with M1.11B Face Analysis component catalog and dated 2026-09-10 compatibility profile. Local human-review candidate only; no customer release approval.",
+  "provenance": "Exact LIC Core package with M1.11B Face Analysis component catalog and dated 2026-09-11 compatibility profile. Local 0.7.1 release candidate only; no customer release approval.",
   "application_sha256": "0e4efd320d26e1e61ee365363eaddc649c896893d9ded0bc386f4a3cd6b1f623",
   "runtime_sha256": "75afa83f93b284d19040e24bc440ab741c09582c0d5310504d607a4e08c3dbaf",
   "dependency_digest": "9d507d457c4121e08e31089ae197c3e2b9b8b2b228cb05c9682385fe0e146fbf",

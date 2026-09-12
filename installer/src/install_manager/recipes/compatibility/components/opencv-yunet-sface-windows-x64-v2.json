@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "manifest_id": "opencv-yunet-sface-windows-x64-v1",
+  "manifest_id": "opencv-yunet-sface-windows-x64-v2",
   "component_id": "face-analysis",
   "capability": "Face Analysis",
   "tier": "optional",
@@ -9,9 +9,25 @@
   "native_version": "YuNet 2026may + SFace 2021dec",
   "python_version": "3.14.6",
   "platform": "win_amd64",
-  "approved_sources": ["raw.githubusercontent.com/opencv/opencv_zoo@47534e27c9851bb1128ccc0102f1145e27f23f98"],
+  "approved_sources": ["files.pythonhosted.org", "raw.githubusercontent.com/opencv/opencv_zoo@47534e27c9851bb1128ccc0102f1145e27f23f98"],
   "dependency_lock": null,
-  "packages": [],
+  "packages": [
+    {
+      "name": "opencv-contrib-python",
+      "version": "5.0.0.93",
+      "scope": "shared",
+      "artifact": {
+        "filename": "opencv_contrib_python-5.0.0.93-cp37-abi3-win_amd64.whl",
+        "sha256": "461622db95c964652d4d8fda171034961c3de270f78a6095aaad31050771774a",
+        "size": 53822579,
+        "source": {
+          "kind": "https",
+          "url": "https://files.pythonhosted.org/packages/09/29/6985260569ee3c7f6fcae252bc06e2a843e5b90eed665a2936bdd26fa283/opencv_contrib_python-5.0.0.93-cp37-abi3-win_amd64.whl"
+        },
+        "license_id": "Apache-2.0"
+      }
+    }
+  ],
   "resources": [
     {
       "resource_id": "yunet-detector",
@@ -25,7 +41,7 @@
       },
       "installation": {"adapter": "verified-file-copy-v1", "relative_path": "Resources/components/face-analysis/opencv-yunet-sface/face_detection_yunet_2026may.onnx"},
       "ownership": "manager-owned", "disposition": "copy-and-verify",
-      "validation": {"adapter": "yunet-sface-pair-v1", "version": "opencv-yunet-sface-v1", "accepted_sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"}
+      "validation": {"adapter": "yunet-sface-pair-v1", "version": "opencv-yunet-sface-v2", "accepted_sha256": "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"}
     },
     {
       "resource_id": "sface-recognizer",
@@ -39,7 +55,7 @@
       },
       "installation": {"adapter": "verified-file-copy-v1", "relative_path": "Resources/components/face-analysis/opencv-yunet-sface/face_recognition_sface_2021dec.onnx"},
       "ownership": "manager-owned", "disposition": "copy-and-verify",
-      "validation": {"adapter": "yunet-sface-pair-v1", "version": "opencv-yunet-sface-v1", "accepted_sha256": "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79"}
+      "validation": {"adapter": "yunet-sface-pair-v1", "version": "opencv-yunet-sface-v2", "accepted_sha256": "0ba9fbfa01b5270c96627c4ef784da859931e02f04419c829e83484087c34e79"}
     }
   ],
   "validation": {"probe": "LIC OpenCvYuNetSFaceProvider inspect_face_setup and one accepted fixture", "evidence": "M1.11B Phase 1 and Phase 2A"},

@@ -16,7 +16,7 @@ from install_manager.component_catalog import (ComponentAction, ComponentFacts, 
                                                component_action, load_component_catalog,
                                                validate_existing_selection)
 from install_manager.provider_discovery import discover_provider_candidates
-from install_manager.product import PRODUCT_VERSION
+from install_manager.product import DEPENDENCY_PROFILE_ID, PRODUCT_VERSION
 
 
 CATALOG = ROOT / "src/install_manager/recipes/lic-components.json"
@@ -67,4 +67,5 @@ class AcceptanceCorrectionTests(unittest.TestCase):
         self.assertEqual(runner.call_args.kwargs["timeout"], 30)
 
     def test_product_version_is_canonical(self):
-        self.assertEqual(PRODUCT_VERSION, "0.7.0")
+        self.assertEqual(PRODUCT_VERSION, "0.7.1")
+        self.assertEqual(DEPENDENCY_PROFILE_ID, "2026-09-11")
