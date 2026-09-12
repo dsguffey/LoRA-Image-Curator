@@ -1304,16 +1304,15 @@ class ManagerShell:
         self.show_page("Install & Update")
 
     def begin_new_installation(self):
-        parent = filedialog.askdirectory(title="Choose a parent folder for a new LoRA Image Curator installation")
-        if not parent:
-            return
-        candidate = Path(parent) / "LoRA Image Curator"
+        # The visible application location is the user's already-confirmed choice.
+        # Recovery must not make them choose the same directory a second time.
+        candidate = Path(self.application_path.get())
         try:
             if self.recovery:
                 candidate = validate_new_recovery_target(candidate, self.recovery)
             validate_root(candidate, delivery=self.delivery, resume=False)
         except (OSError, ValueError) as error:
-            messagebox.showerror("Choose a new installation location", str(error), parent=self.window)
+            messagebox.showerror("Cannot begin a new installation", str(error), parent=self.window)
             return
         self.application_path.set(str(candidate))
         self.model_path.set(str(default_model_root(candidate)))
@@ -1322,7 +1321,7 @@ class ManagerShell:
         self.recovery_journal_path = None
         self.model_evidence = None
         self.component_facts["lic-core"] = ComponentFacts()
-        self.show_page("Install & Update")
+        self.component_primary_action(self.component_by_id["lic-core"])
 
     def show_technical_details(self, definition):
         facts = self.component_facts[definition.component_id]

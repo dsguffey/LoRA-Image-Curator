@@ -4,8 +4,9 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 import sys
+import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -113,6 +114,51 @@ class GlobalImportUiTests(unittest.TestCase):
         status.set.assert_called_once_with("Copying SFace…")
         progress.configure.assert_called_with(mode="determinate", value=50.0)
         shell.show_page.assert_not_called()
+
+
+class BeginNewInstallationTests(unittest.TestCase):
+    def _shell(self, candidate: Path):
+        shell = ManagerShell.__new__(ManagerShell)
+        shell.application_path = Mock(get=Mock(return_value=str(candidate)))
+        shell.model_path = Mock()
+        shell.delivery = ROOT / "src/install_manager"
+        shell.recovery = None
+        shell.recovery_journal_path = Path("old-journal")
+        shell.model_evidence = {"reusable": True}
+        shell.root = Path("old-root")
+        shell.component_facts = {"lic-core": ComponentFacts()}
+        shell.component_by_id = {"lic-core": object()}
+        shell.component_primary_action = Mock()
+        shell.window = Mock()
+        return shell
+
+    def test_uses_selected_location_without_opening_a_second_folder_picker(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            candidate = Path(temporary) / "chosen" / "LoRA Image Curator"
+            shell = self._shell(candidate)
+            with patch("install_manager.manager_ui.filedialog.askdirectory") as picker, \
+                 patch("install_manager.manager_ui.validate_root") as validate, \
+                 patch("install_manager.manager_ui.default_model_root", return_value=candidate / "Shared/Models"):
+                shell.begin_new_installation()
+            picker.assert_not_called()
+            validate.assert_called_once_with(candidate, delivery=shell.delivery, resume=False)
+            self.assertEqual(shell.root, candidate)
+            self.assertIsNone(shell.recovery)
+            self.assertIsNone(shell.recovery_journal_path)
+            shell.component_primary_action.assert_called_once_with(shell.component_by_id["lic-core"])
+
+    def test_invalid_selected_location_explains_the_problem_without_reopening_picker(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            candidate = Path(temporary) / "populated" / "LoRA Image Curator"
+            shell = self._shell(candidate)
+            with patch("install_manager.manager_ui.filedialog.askdirectory") as picker, \
+                 patch("install_manager.manager_ui.validate_root", side_effect=ValueError("The target is populated")), \
+                 patch("install_manager.manager_ui.messagebox.showerror") as show_error:
+                shell.begin_new_installation()
+            picker.assert_not_called()
+            show_error.assert_called_once()
+            self.assertIn("target is populated", show_error.call_args.args[1])
+            shell.component_primary_action.assert_not_called()
 
 
 if __name__ == "__main__":
