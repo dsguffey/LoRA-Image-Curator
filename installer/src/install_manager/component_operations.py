@@ -3,13 +3,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
-import os
 from pathlib import Path
 from typing import Callable
 
 from .acquisition import (AcquisitionCancelled, AcquisitionPolicy, acquire_artifact,
                           admit_local_artifact, sha256_file)
-from .artifacts import ArtifactDescriptor
+from .artifacts import AcquiredArtifact, ArtifactDescriptor
 from .bootstrap_layout import layout, reject_reparse_entries
 from .compatibility_profiles import (ResolvedDependencyProfile, canonical_digest,
                                      dependency_profile_for_components,
@@ -22,7 +21,8 @@ from .component_state import (ComponentInventory, ResourceState, component_from_
                               write_inventory)
 from .dependencies import install_locked_wheels
 from .journal import OperationJournal
-from .lic_face_settings import read_face_model_root
+from .managed_resources import (managed_artifact_path, managed_data_layout, promote_package,
+                                synchronize_resource_library)
 from .process_lock import process_lock
 from .validation import validate_environment
 
@@ -46,15 +46,6 @@ class ComponentRecovery:
 
 def _profile(delivery: Path):
     return recommended_profile(delivery / "recipes/compatibility/profiles")
-
-
-def canonical_face_model_root() -> Path:
-    """Return LIC's one shared Face Analysis location, never a manager cache."""
-    appdata = Path(os.environ.get("APPDATA", Path.home() / ".config"))
-    value = read_face_model_root(appdata)
-    if not value:
-        raise ValueError("Choose a Face Analysis model location before installing models.")
-    return Path(value).expanduser().resolve()
 
 
 def _definition(delivery: Path, component_id: str):
@@ -116,24 +107,9 @@ def _plan(delivery: Path, root: Path, component_id: str,
     dependency_artifacts = [item.artifact.as_dict() for item in dependency_profile.wheels
                             if item.name in new_names]
     resources = _resources(manifest)
-    external = None
-    if selected_path is not None and str(selected_path):
-        candidate = selected_path.expanduser().resolve()
-        if not candidate.is_file() and not candidate.is_dir():
-            raise FileNotFoundError(candidate)
-        if candidate.is_file():
-            external = {"path": str(candidate), "sha256": sha256_file(candidate),
-                        "size": candidate.stat().st_size}
-        else:
-            external = {"path": str(candidate), "sha256": None, "size": None}
-    if selected_path is not None and len(resources) != 1:
-        raise ValueError("This component's existing-resource selection must be recorded separately.")
-    if component_id == "face-analysis" and not external:
-        face_root = selected_path.expanduser().resolve() if selected_path is not None else canonical_face_model_root()
-        destinations = [face_root / str(artifact_descriptor(resource).filename) for resource in resources]
-    else:
-        destinations = ([Path(external["path"])] if external else
-                        [resource_destination(root, resource) for resource in resources])
+    if selected_path is not None:
+        raise ValueError("Install uses LIC managed resources; use Import to copy existing files first")
+    destinations = [resource_destination(root, resource) for resource in resources]
     return {
         "schema_version": 1,
         "operation": "install-component",
@@ -148,7 +124,7 @@ def _plan(delivery: Path, root: Path, component_id: str,
         "dependency_artifacts": dependency_artifacts,
         "resource_artifacts": [artifact_descriptor(resource).as_dict() for resource in resources],
         "resource_destinations": [str(destination) for destination in destinations],
-        "external_reuse": external,
+        "external_reuse": None,
     }
 
 
@@ -171,15 +147,17 @@ def operation_download_summary(delivery: Path, root: Path, component_id: str,
     it contributes zero download bytes.  Arbitrary similarly named files do not.
     """
     plan = _plan(delivery, root, component_id, selected_path)
-    cache = layout(root.resolve())["cache"]
-    resources = () if plan["external_reuse"] else tuple(plan["resource_artifacts"])
+    cache = managed_data_layout(root.resolve())["downloads"]
+    resources = tuple(plan["resource_artifacts"])
     descriptors = tuple(ArtifactDescriptor.from_dict(item) for item in
                         (*plan["dependency_artifacts"], *resources))
     cached = 0
     download = 0
     for descriptor in descriptors:
+        managed = managed_artifact_path(delivery, root, descriptor.artifact_id,
+                                        descriptor.version, descriptor.expected_sha256)
         candidate = cache / "verified" / descriptor.artifact_id / descriptor.version / descriptor.filename
-        hit = (candidate.is_file() and sha256_file(candidate) == descriptor.expected_sha256 and
+        hit = (managed is not None or candidate.is_file() and sha256_file(candidate) == descriptor.expected_sha256 and
                (descriptor.expected_size is None or candidate.stat().st_size == descriptor.expected_size))
         if hit:
             cached += 1
@@ -212,37 +190,25 @@ def inspect_recovery(delivery: Path, root: Path, component_id: str,
     blocked = not identity_matches or not steps_match
     completed = sum(item.get("status") == "completed" for item in journal.data.get("steps", ()))
     if not identity_matches:
-        summary = ("The previous setup used a different provider location or approved plan and cannot be resumed. "
-                   "Its diagnostic record was preserved.")
+        summary = ("The previous setup used a different approved artifact plan and cannot be resumed. "
+                   "Its diagnostic record was preserved; managed resources remain available for a new Install.")
     elif not steps_match:
         summary = "The interrupted operation uses an unsupported journal step contract."
     else:
-        summary = "Setup was interrupted. Resume continues only the same authorized artifact plan."
+        summary = "Work was paused or interrupted. Resume continues only the same authorized artifact plan."
     status = str(journal.data.get("status", ""))
     return ComponentRecovery(journal_path, component_id, status, completed, len(STEPS),
                              status in {"planned", "running", "cancelled", "failed"} and not blocked,
                              blocked, summary, str(selected_path) if selected_path else None)
 
 
-def discard_cancelled_attempt(root: Path, component_id: str) -> Path:
-    """Archive a cancelled journal without deleting artifacts, resources, or evidence."""
-    journal_path = root.resolve() / f"State/operations/component-{component_id}.json"
-    journal = OperationJournal.load(journal_path)
-    if journal.data.get("status") != "cancelled":
-        raise ValueError("Only a cancelled setup attempt can be discarded safely.")
-    history = journal_path.parent / "history"
-    history.mkdir(parents=True, exist_ok=True)
-    stem = f"component-{component_id}-cancelled-{str(journal.data.get('plan_digest', 'unknown'))[:12]}"
-    target = history / f"{stem}.json"
-    suffix = 1
-    while target.exists():
-        target = history / f"{stem}-{suffix}.json"; suffix += 1
-    journal_path.replace(target)
-    return target
-
-
-def _acquire(descriptor: ArtifactDescriptor, delivery: Path, cache: Path,
+def _acquire(descriptor: ArtifactDescriptor, delivery: Path, root: Path, cache: Path,
              cache_source: Path | None, progress, journal: OperationJournal) -> object:
+    managed = managed_artifact_path(delivery, root, descriptor.artifact_id,
+                                    descriptor.version, descriptor.expected_sha256)
+    if managed is not None and managed.is_file():
+        return AcquiredArtifact(descriptor, managed.as_posix(), descriptor.expected_sha256,
+                                managed.stat().st_size, "verified", True, True, 0)
     policy = AcquisitionPolicy(acquisition_hosts(descriptor))
     if cache_source:
         candidate = cache_source / "verified" / descriptor.artifact_id / descriptor.version / descriptor.filename
@@ -320,9 +286,10 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
     """Execute only an explicit component Install/Resume action."""
     if component_id == "florence-captioning":
         from .florence_component import execute as execute_florence
-        if selected_path is None:
-            raise ValueError("Florence requires its disclosed model storage location")
-        legacy = execute_florence(delivery, root, selected_path, cache_source=cache_source,
+        if selected_path is not None:
+            raise ValueError("Florence Install uses managed storage; use Import for existing files")
+        model_root = managed_data_layout(root)["models"]
+        legacy = execute_florence(delivery, root, model_root, cache_source=cache_source,
                                   resume=resume, status=status,
                                   cancel_requested=cancel_requested)
         profile = _profile(delivery)
@@ -331,7 +298,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
         inventory = with_profile(load_or_project_inventory(delivery, root, active), profile)
         resource = ResourceState(
             "florence-model", "model", "huggingface-snapshot-v1", str(legacy["snapshot"]),
-            "shared", "preserve-reference", {"digest": legacy["model_digest"]},
+            "manager-owned", "preserve-managed-resource", {"digest": legacy["model_digest"]},
             {"kind": "huggingface", "repository": "florence-community/Florence-2-large-ft"},
             {"version": "florence-caption-v1", "passed": True})
         component = component_from_manifest(
@@ -339,6 +306,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
             readiness={"version": "florence-caption-v1", "passed": True},
             resources=(resource,))
         write_inventory(root, replace_component(inventory, component))
+        synchronize_resource_library(delivery, root)
         return {**legacy, "component_inventory": str(root / "State/components/inventory.json")}
 
     root = root.resolve()
@@ -348,11 +316,6 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
     manifest = profile.component_by_id(component_id)
     resources = _resources(manifest)
     paths = layout(root)
-    if plan["external_reuse"]:
-        # Explicit reuse must be proven before any package mutation occurs.
-        validate_resource(resources[0], Path(plan["resource_destinations"][0]),
-                          python=paths["venv"] / "Scripts/python.exe",
-                          application=paths["application"] / "extracted")
     journal_path = root / f"State/operations/component-{component_id}.json"
     with process_lock(root):
         if resume:
@@ -425,39 +388,54 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                 elif current == "acquire_dependencies":
                     acquired_dependencies = [
                         _acquire(ArtifactDescriptor.from_dict(item.artifact.as_dict()), delivery,
-                                 paths["cache"], cache_source, progress, journal)
+                                 root, managed_data_layout(root)["downloads"], cache_source, progress, journal)
                         for item in delta.wheels]
                     result = {"verified": True, "count": len(acquired_dependencies),
                               "reused": sum(item.reused for item in acquired_dependencies)}
                 elif current == "install_dependencies":
+                    for acquired in acquired_dependencies:
+                        promote_package(delivery, root, Path(acquired.cache_path),
+                                        acquired.descriptor.artifact_id,
+                                        acquired.descriptor.version, acquired.actual_sha256)
                     result = (prior.get("evidence", {}) if prior["status"] == "completed" else
                               install_locked_wheels(paths["venv"] / "Scripts/python.exe", delta,
                                                     tuple(acquired_dependencies),
                                                     paths["logs"] / f"component-{component_id}-dependencies.log")
                               if delta.wheels else {"wheel_count": 0, "offline": True})
                 elif current == "acquire_resource":
-                    if plan["external_reuse"]:
-                        result = [{**plan["external_reuse"], "verified": True,
-                                   "reused": True, "source": "user-selected"}]
-                    else:
-                        acquired_resources = [_acquire(artifact_descriptor(resource), delivery,
-                                                       paths["cache"], cache_source, progress, journal)
-                                              for resource in resources]
-                        result = [item.as_dict() for item in acquired_resources]
+                    acquired_resources = []
+                    result = []
+                    for resource in resources:
+                        descriptor = artifact_descriptor(resource)
+                        managed = managed_artifact_path(delivery, root, descriptor.artifact_id,
+                                                        descriptor.version, descriptor.expected_sha256)
+                        acquired = (None if managed is not None else
+                                    _acquire(descriptor, delivery, root,
+                                             managed_data_layout(root)["downloads"], cache_source,
+                                             progress, journal))
+                        acquired_resources.append(acquired)
+                        result.append({"verified": True, "reused": managed is not None,
+                                       "path": str(managed)} if managed is not None else acquired.as_dict())
                 elif current == "install_resource":
-                    if plan["external_reuse"]:
-                        result = [{"path": str(installed_paths[0]), "external": True, "reused": True}]
-                    else:
-                        installed = []
-                        for index, resource in enumerate(resources):
-                            acquired = acquired_resources[index]
-                            if acquired is None:
-                                acquired = _acquire(artifact_descriptor(resource), delivery, paths["cache"],
-                                                    cache_source, progress, journal)
-                                acquired_resources[index] = acquired
-                            installed.append(install_resource(root, resource, acquired))
-                        result = installed
-                        installed_paths = [Path(item["path"]) for item in installed]
+                    installed = []
+                    for index, resource in enumerate(resources):
+                        acquired = acquired_resources[index]
+                        if acquired is None:
+                            descriptor = artifact_descriptor(resource)
+                            managed = managed_artifact_path(delivery, root, descriptor.artifact_id,
+                                                            descriptor.version, descriptor.expected_sha256)
+                            if managed is not None:
+                                installed.append({"path": str(managed), "reused": True,
+                                                  "managed": True})
+                                continue
+                            acquired = _acquire(descriptor, delivery, root,
+                                                managed_data_layout(root)["downloads"], cache_source,
+                                                progress, journal)
+                            acquired_resources[index] = acquired
+                        installed.append(install_resource(root, resource, acquired))
+                    result = installed
+                    installed_paths = [Path(item["path"]) for item in installed]
+                    synchronize_resource_library(delivery, root)
                 elif current == "validate":
                     environment = validate_environment(
                         paths["venv"] / "Scripts/python.exe", paths["venv"], paths["runtime"],
@@ -474,9 +452,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                 elif current == "publish":
                     resource_states = tuple(
                         _resource_state(manifest, resource, installed_path, runtime,
-                                        external=bool(plan["external_reuse"]),
-                                        external_adapter=(definition_adapter(delivery, component_id)
-                                                          if plan["external_reuse"] else None))
+                                        external=False)
                         for resource, installed_path, runtime in zip(
                             resources, installed_paths, results["validate"]["resources"]))
                     component = component_from_manifest(
@@ -504,7 +480,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
             if current:
                 journal.set_step(current, "cancelled", error=f"{type(error).__name__}: {error}")
             journal.set_status("cancelled", failure=f"{type(error).__name__}: {error}")
-            emit("Installation canceled safely. Verified work was preserved.", terminal="cancelled")
+            emit("Installation paused safely. Verified work was preserved for Resume.", terminal="cancelled")
             raise
         except BaseException as error:
             if current:

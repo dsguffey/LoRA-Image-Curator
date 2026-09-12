@@ -14,7 +14,7 @@
       "source_url": "https://github.com/dsguffey/LoRA-Image-Curator",
       "third_party": true,
       "estimated_bytes": 100000000,
-      "storage_policy": "managed application root; optional models use independent storage",
+      "storage_policy": "managed LIC root; optional resources use its Data library",
       "selector_type": "none",
       "identity": {
         "application_version": "0.28.4",
@@ -61,7 +61,7 @@
       "source_url": "https://huggingface.co/florence-community/Florence-2-large-ft",
       "third_party": true,
       "estimated_bytes": 3500000000,
-      "storage_policy": "independently selectable shared Hugging Face model root plus packages in the private LIC environment",
+      "storage_policy": "Florence resources in managed Data/Models; packages in managed Data/Packages",
       "selector_type": "directory",
       "identity": {
         "profile": "windows-nvidia-cu130-florence-v1",
@@ -105,7 +105,7 @@
       "source_url": "https://github.com/opencv/opencv_zoo/tree/47534e27c9851bb1128ccc0102f1145e27f23f98",
       "third_party": true,
       "estimated_bytes": 92748670,
-      "storage_policy": "manager-owned YuNet/SFace model folder by default; an exact compatible existing folder remains external",
+      "storage_policy": "YuNet/SFace models in managed Data/Models; shared packages in Data/Packages",
       "selector_type": "directory",
       "identity": {
         "provider_id": "opencv-yunet-sface",
@@ -162,7 +162,7 @@
       "source_url": "https://developers.google.com/mediapipe/solutions/vision/pose_landmarker",
       "third_party": true,
       "estimated_bytes": 90000000,
-      "storage_policy": "manager-owned MediaPipe provider folder by default; an exact compatible existing provider folder may remain external",
+      "storage_policy": "MediaPipe task in managed Data/Tasks; shared packages in Data/Packages",
       "selector_type": "directory",
       "identity": {
         "package": "mediapipe 0.10.35",
@@ -214,7 +214,7 @@
       "source_url": "https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-09-05-13-10",
       "third_party": true,
       "estimated_bytes": 146078600,
-      "storage_policy": "manager-owned tool directory; an existing external FFmpeg folder remains selectable",
+      "storage_policy": "approved FFmpeg build in managed Data/Tools",
       "selector_type": "directory",
       "identity": {
         "release": "autobuild-2026-09-05-13-10",

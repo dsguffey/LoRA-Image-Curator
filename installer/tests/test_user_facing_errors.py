@@ -3,18 +3,34 @@ from __future__ import annotations
 
 from pathlib import Path
 import queue
+import socket
 import sys
 import unittest
+import urllib.error
 from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from install_manager.component_catalog import ComponentFacts, ComponentPhase, load_component_catalog
+from install_manager.acquisition import classify_acquisition_error
 from install_manager.manager_ui import ManagerShell, component_detail_contract, friendly_error
 
 
 class UserFacingErrorTests(unittest.TestCase):
+    def test_transport_failures_keep_structured_categories_for_later_ui_work(self):
+        not_found = urllib.error.HTTPError("https://example.test/a", 404, "missing", {}, None)
+        server = urllib.error.HTTPError("https://example.test/a", 503, "down", {}, None)
+        try:
+            self.assertEqual(classify_acquisition_error(not_found), "not-found")
+            self.assertEqual(classify_acquisition_error(server), "server-error")
+        finally:
+            not_found.close()
+            server.close()
+        self.assertEqual(classify_acquisition_error(
+            urllib.error.URLError(socket.gaierror(11001, "host not found"))), "dns-unavailable")
+        self.assertEqual(classify_acquisition_error(TimeoutError()), "timeout")
+
     def test_populated_target_explains_that_no_files_were_overwritten(self):
         message = friendly_error(FileExistsError("The target is populated; existing files will not be adopted or overwritten"))
         self.assertIn("already contains files", message)

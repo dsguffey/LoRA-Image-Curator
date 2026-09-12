@@ -79,7 +79,7 @@ class BootstrapRecovery:
                     "location to resume this setup, or begin a new installation in a different "
                     "empty location.")
         if self.status == "cancelled":
-            return "Setup was cancelled. Verified completed work can be reused."
+            return "Setup was paused. Verified completed work can be reused by Resume."
         if self.status == "succeeded":
             return "Setup is verified and ready to finish activation."
         return "Setup was interrupted. Verified completed work can be reused."

@@ -11,12 +11,15 @@ from pathlib import Path
 from .acquisition import (AcquisitionCancelled, AcquisitionPolicy, acquire_artifact,
                           admit_local_artifact)
 from .bootstrap_layout import layout, reject_reparse_entries
+from .artifacts import AcquiredArtifact
 from .dependencies import install_locked_wheels
 from .dependency_lock import load_dependency_lock
 from .hf_source import HuggingFaceSource, hf_snapshot_target
 from .journal import OperationJournal
 from .lic_readiness import lic_model_policy, run_probe
 from .model_resources import ensure_model, load_model, verify_snapshot
+from .managed_resources import (managed_artifact_path, managed_data_layout, promote_package,
+                                synchronize_resource_library)
 from .process_lock import process_lock
 from .storage import inspect_model_storage, validate_model_root
 from .validation import validate_environment
@@ -188,11 +191,17 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
             status({**event, 'step': current_number, 'total_steps': len(STEPS), 'terminal': None})
 
         def acquire(descriptor):
+            managed = managed_artifact_path(delivery, root, descriptor.artifact_id,
+                                            descriptor.version, descriptor.expected_sha256)
+            if managed is not None and managed.is_file():
+                return AcquiredArtifact(descriptor, managed.as_posix(), descriptor.expected_sha256,
+                                        managed.stat().st_size, 'verified', True, True, 0)
+            downloads = managed_data_layout(root)['downloads']
             if cache_source:
                 candidate = cache_source / 'verified' / descriptor.artifact_id / descriptor.version / descriptor.filename
                 if candidate.is_file():
-                    return admit_local_artifact(descriptor, candidate, paths['cache'], policy)
-            return acquire_artifact(descriptor, paths['cache'], policy,
+                    return admit_local_artifact(descriptor, candidate, downloads, policy)
+            return acquire_artifact(descriptor, downloads, policy,
                                     ca_bundle=delivery / 'trust/cacert.pem', progress=progress,
                                     partial_observer=lambda path, state: (
                                         journal.record_unvalidated_acquisition(path)
@@ -218,6 +227,10 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
                     result = {'verified': True, 'count': len(wheels),
                               'reused': sum(item.reused for item in wheels)}
                 elif current == 'install_dependencies':
+                    for acquired in wheels:
+                        promote_package(delivery, root, Path(acquired.cache_path),
+                                        acquired.descriptor.artifact_id,
+                                        acquired.descriptor.version, acquired.actual_sha256)
                     if prior['status'] in {'running', 'failed'}:
                         raise ValueError('Interrupted package mutation requires reviewed repair; files were preserved')
                     if prior['status'] == 'completed':
@@ -265,6 +278,7 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
             temporary = target.with_suffix('.json.tmp')
             temporary.write_text(json.dumps(record, indent=2, sort_keys=True) + '\n', encoding='utf-8')
             os.replace(temporary, target)
+            synchronize_resource_library(delivery, root)
             journal.set_validation({'passed': True, 'optional_capability_ready': True})
             journal.set_status('succeeded')
             emit('Florence is installed and verified.', terminal='success')
@@ -273,7 +287,7 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
             if current:
                 journal.set_step(current, 'cancelled', error=f'{type(error).__name__}: {error}')
             journal.set_status('cancelled', failure=f'{type(error).__name__}: {error}')
-            emit('Florence installation canceled safely. Verified work was preserved.', terminal='cancelled')
+            emit('Florence installation paused safely. Verified work was preserved for Resume.', terminal='cancelled')
             raise
         except BaseException as error:
             if current:

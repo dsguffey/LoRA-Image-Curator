@@ -197,7 +197,7 @@ class RecoveryStateTests(unittest.TestCase):
             (pack / "det.onnx").write_bytes(b"fixture")
             facts = validate_existing_selection(definition, pack)
             self.assertEqual(facts.phase, ComponentPhase.INCOMPATIBLE)
-            self.assertEqual(component_action(definition, facts), ComponentAction.USE_EXISTING)
+            self.assertEqual(component_action(definition, facts), ComponentAction.REPAIR)
             self.assertEqual(facts.selected_path, str(pack.resolve()))
             self.assertFalse(facts.verified)
 

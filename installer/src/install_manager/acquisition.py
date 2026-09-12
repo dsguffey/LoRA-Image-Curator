@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import ssl
+import socket
 import threading
 import time
 from typing import Callable
@@ -21,6 +22,37 @@ from .process_lock import process_lock
 
 class AcquisitionCancelled(RuntimeError):
     """A caller requested cancellation at a safe acquisition boundary."""
+
+
+class AcquisitionFailure(OSError):
+    """Sanitized structured transport failure for later customer-facing UX."""
+
+    def __init__(self, category: str, artifact_id: str, host: str, attempts: int,
+                 detail: str):
+        self.category = category
+        self.artifact_id = artifact_id
+        self.host = host
+        self.attempts = attempts
+        self.detail = detail
+        super().__init__(f"artifact acquisition failed: category={category} artifact={artifact_id} "
+                         f"host={host} attempts={attempts} detail={detail}")
+
+
+def classify_acquisition_error(error: BaseException) -> str:
+    if isinstance(error, urllib.error.HTTPError):
+        if error.code == 404:
+            return "not-found"
+        if 500 <= error.code <= 599:
+            return "server-error"
+        return "http-error"
+    reason = error.reason if isinstance(error, urllib.error.URLError) else error
+    if isinstance(reason, ssl.SSLError):
+        return "tls-certificate"
+    if isinstance(reason, socket.gaierror):
+        return "dns-unavailable"
+    if isinstance(reason, (TimeoutError, socket.timeout)):
+        return "timeout"
+    return "network-unavailable"
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,7 +237,11 @@ def acquire_artifact(descriptor: ArtifactDescriptor, cache_root: Path, policy: A
                 partial_observer(partial, "discarded")
                 if attempt < policy.max_attempts:
                     sleep(policy.base_backoff_seconds * (2 ** (attempt - 1)))
-        raise OSError(f"artifact acquisition failed after {policy.max_attempts} attempts: {last_error}")
+        category = classify_acquisition_error(last_error or OSError("unknown transport failure"))
+        detail = (f"HTTP {last_error.code}" if isinstance(last_error, urllib.error.HTTPError)
+                  else type(last_error).__name__ if last_error else "unknown")
+        raise AcquisitionFailure(category, descriptor.artifact_id, host,
+                                 policy.max_attempts, detail) from None
 
 
 def admit_local_artifact(descriptor: ArtifactDescriptor, candidate: Path, cache_root: Path,

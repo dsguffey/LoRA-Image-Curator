@@ -11,7 +11,7 @@
   "application_sha256": "0e4efd320d26e1e61ee365363eaddc649c896893d9ded0bc386f4a3cd6b1f623",
   "runtime_sha256": "75afa83f93b284d19040e24bc440ab741c09582c0d5310504d607a4e08c3dbaf",
   "dependency_digest": "9d507d457c4121e08e31089ae197c3e2b9b8b2b228cb05c9682385fe0e146fbf",
-  "component_catalog_digest": "643e91cbb7183d8c1582ce34bc7a7964400d337f0f3a365eb4d36dfad1217f9d",
+  "component_catalog_digest": "808a1a9a8c7bac8b7e9a1182a7a4d5679d343c0bf53a3c42ee87c2dc2d212187",
   "readiness_contract": "lic-core-readiness-v2",
   "activation_allowed": true
 }

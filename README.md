@@ -71,7 +71,7 @@ Florence adds local captioning and image-understanding analysis. MediaPipe adds 
 - LIC does not upload images, catalogs, captions, embeddings, or identity names.
 - LIC and the Manager do not collect telemetry.
 - Core can operate offline after installation.
-- Optional providers are explicit choices. Opening, browsing, inspecting, or checking the Manager does not silently acquire an optional provider.
+- Optional providers are explicit choices. Opening, importing, inspecting, or checking the Manager does not silently acquire an optional provider.
 - Source images are read during analysis and copied for export; destructive actions require confirmation and use recovery-aware paths.
 
 Third-party providers, models, tools, websites, and their terms remain under their respective owners' control. Read [MODEL_LICENSES.txt](MODEL_LICENSES.txt), [THIRD_PARTY_NOTICE.md](THIRD_PARTY_NOTICE.md), and [SECURITY.md](SECURITY.md) before enabling optional components.

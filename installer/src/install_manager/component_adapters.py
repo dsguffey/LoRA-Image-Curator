@@ -59,14 +59,21 @@ def resource_destination(root: Path, resource: dict) -> Path:
     installation = resource.get("installation")
     if not isinstance(installation, dict) or installation.get("adapter") not in INSTALL_ADAPTERS:
         raise ValueError("resource installation adapter is not approved")
-    relative = PurePosixPath(str(installation.get("relative_path", "")))
-    if relative.is_absolute() or not relative.parts or ".." in relative.parts:
-        raise ValueError("resource destination must be a safe relative path")
-    root = root.resolve()
-    destination = (root / Path(*relative.parts)).resolve()
-    if root not in destination.parents:
-        raise ValueError("resource destination escapes the installation root")
-    return destination
+    if "kind" not in resource:
+        # Historical adapter fixtures/profiles retain their immutable destination;
+        # current schema-v2 component resources always carry a managed kind.
+        relative = PurePosixPath(str(installation.get("relative_path", "")))
+        if relative.is_absolute() or not relative.parts or ".." in relative.parts:
+            raise ValueError("resource destination must be a safe relative path")
+        resolved_root = root.resolve()
+        destination = (resolved_root / Path(*relative.parts)).resolve()
+        if resolved_root not in destination.parents:
+            raise ValueError("resource destination escapes the installation root")
+        return destination
+    # Current approved resources are projected into the canonical Data library.
+    # The manifest-relative path remains immutable profile history.
+    from .managed_resources import canonical_resource_destination
+    return canonical_resource_destination(root, resource)
 
 
 def _copy_verified_file(source: Path, destination: Path, expected: str) -> dict:

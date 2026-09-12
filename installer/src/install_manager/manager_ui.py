@@ -20,7 +20,7 @@ from .component_catalog import (CancellationToken, ComponentAction, ComponentFac
                                 load_component_catalog, product_ready, progress_presentation,
                                 validate_existing_selection)
 from .component_state import load_inventory
-from .component_operations import (discard_cancelled_attempt, operation_download_summary,
+from .component_operations import (operation_download_summary,
                                    inspect_recovery as inspect_component_recovery)
 from .managed_move import move_plan
 from .florence_component import (inspect_installed as inspect_florence_installed,
@@ -28,10 +28,11 @@ from .florence_component import (inspect_installed as inspect_florence_installed
 from .recovery import (BootstrapRecovery, inspect_bootstrap_recovery,
                        restored_recovery_locations, validate_new_recovery_target)
 from .storage import default_model_root, inspect_model_storage, storage_review, validate_model_root
-from .lic_face_settings import read_face_model_root
-from .lic_face_settings import read_provider_location, write_provider_location
-from .cancellation_cleanup import delete_unfinished_acquisitions, unfinished_acquisitions
-from .journal import OperationJournal
+from .lic_face_settings import (read_face_model_root, read_provider_location,
+                                write_body_model_path, write_face_model_root,
+                                write_provider_location)
+from .managed_resources import (component_resource_status, import_resources,
+                                managed_data_layout)
 from .provider_discovery import discover_provider_candidates, discovery_message
 from .product import (PRODUCT_EXPANDED_NAME, PRODUCT_NAME as PRODUCT_DISPLAY_NAME,
                       PRODUCT_VERSION, DEPENDENCY_PROFILE_ID)
@@ -55,7 +56,7 @@ IDENTITY_LOCKED_PHASES = frozenset({
 OPTIONAL_PROVIDER_IDS = frozenset({"florence-captioning", "face-analysis", "body-analysis", "video-extraction"})
 PRODUCT_NAME = "LoRA Image Curator"
 MANAGER_NAME = PRODUCT_DISPLAY_NAME
-FIRST_RUN_SECTIONS = ("Install & Update", "Move Installation", "Help")
+FIRST_RUN_SECTIONS = ("Install & Update", "Help")
 INSTALLED_SECTIONS = FIRST_RUN_SECTIONS
 HELP_ANCHORS = {
     "core-functionality": "Core functionality",
@@ -94,13 +95,13 @@ def component_status_text(definition, facts: ComponentFacts) -> str:
         ComponentPhase.NOT_INSTALLED: ("Not installed" if definition.managed_install else
                                        "Not configured. Automatic installation is not currently available. "
                                        + selection_instruction(definition)),
-        ComponentPhase.PARTIAL: "Installation was interrupted. Verified completed work can be reused.",
+        ComponentPhase.PARTIAL: "Work was paused or interrupted. Resume continues with preserved verified work.",
         ComponentPhase.QUEUED: "Queued",
         ComponentPhase.PREPARING: "Preparing installation…",
         ComponentPhase.DOWNLOADING: f"Downloading from {definition.source_name}…",
         ComponentPhase.VERIFYING: "Verifying downloaded files…",
         ComponentPhase.INSTALLING: "Installing and configuring…",
-        ComponentPhase.CANCELING: "Canceling at the next safe boundary…",
+        ComponentPhase.CANCELING: "Pausing at the next safe boundary…",
         ComponentPhase.INSTALLED: "✓ Installed and verified",
         ComponentPhase.UPDATE_AVAILABLE: "A manager-approved compatible update is available.",
         ComponentPhase.REPAIR_REQUIRED: ("Installed files need repair. Choosing Repair authorizes reacquisition "
@@ -111,7 +112,7 @@ def component_status_text(definition, facts: ComponentFacts) -> str:
 
 
 def selection_instruction(definition) -> str:
-    """Short, visible contract for Browse; validation remains authoritative."""
+    """Legacy picker copy retained for review fixtures; normal workflow uses Import."""
     return {
         "mediapipe-task-file": "Choose a MediaPipe provider folder; the approved task is found locally.",
         "ffmpeg-executable": "Choose an FFmpeg folder; ffmpeg.exe is found in that folder or its bin folder.",
@@ -132,7 +133,7 @@ def provider_root_from_resource(component_id: str, value: str | Path) -> Path:
 
 def primary_label(definition, facts: ComponentFacts, action: ComponentAction | None = None) -> str:
     if facts.phase == ComponentPhase.CANCELING:
-        return "Canceling…"
+        return "Pausing…"
     action = action or component_action(definition, facts)
     return ("Install Core" if definition.component_id == "lic-core" and action == ComponentAction.INSTALL else
             "Install required libraries" if action == ComponentAction.INSTALL and facts.selected_path and definition.component_id != "lic-core" else
@@ -458,7 +459,8 @@ class ManagerShell:
                            default_model_root(root))
         self.recovery_journal_path: Path | None = root / "State/operations/bootstrap.json"
         self.recovery = self._load_recovery(root, selected_models)
-        self.florence_recovery = self._load_florence_recovery(root, selected_models)
+        managed_models = managed_data_layout(root)["models"]
+        self.florence_recovery = self._load_florence_recovery(root, managed_models)
         self.component_recoveries = {}
         for definition in self.components:
             if definition.managed_install and definition.component_id not in {"lic-core", "florence-captioning"}:
@@ -468,7 +470,7 @@ class ManagerShell:
         self._apply_review_recovery(root, selected_models)
         self.model_evidence = None
         try:
-            self.model_evidence = inspect_model_storage(delivery, selected_models)
+            self.model_evidence = inspect_model_storage(delivery, managed_models)
         except (OSError, ValueError):
             pass
         self.component_facts = self._initial_component_facts()
@@ -484,13 +486,10 @@ class ManagerShell:
                                 if item.component_id == "florence-captioning" else
                                 self.component_facts[item.component_id].selected_path))
                                 for item in self.components if item.selector_type != "none"}
-        self.lic_appdata = Path(os.environ.get("APPDATA", Path.home() / ".config"))
-        face = self.component_by_id.get("face-analysis")
-        if face and "face-analysis" in self.component_paths and not self.component_facts["face-analysis"].selected_path:
-            canonical = read_face_model_root(self.lic_appdata)
-            if canonical:
-                self.component_paths["face-analysis"].set(canonical)
-        self._restore_provider_preferences()
+        # LIC is launched with this installation-scoped APPDATA. Face Analysis
+        # therefore receives the managed model root without changing host settings.
+        self.lic_appdata = root / "State/User/AppData/Roaming"
+        self._refresh_managed_resource_facts()
         choices = installed_record.get("choices", {}) if installed_record else {}
         self.start_menu = tk.BooleanVar(value=choices.get("start_menu", True))
         self.desktop = tk.BooleanVar(value=choices.get("desktop", False))
@@ -542,28 +541,27 @@ class ManagerShell:
             self.window.after(1400, lambda: self._write_probe(ui_probe))
 
     def _restore_provider_preferences(self) -> None:
-        """Use a remembered location only as an editable default, never as inventory truth."""
+        """Retained as a no-op compatibility seam for old UI review harnesses."""
+
+    def _refresh_managed_resource_facts(self) -> None:
+        """Reflect resource availability without claiming feature readiness."""
         for component_id in OPTIONAL_PROVIDER_IDS:
-            definition = self.component_by_id.get(component_id)
             facts = self.component_facts.get(component_id)
-            if definition is None or facts is None or facts.selected_path:
-                continue  # Per-install inventory always wins.
-            value = read_provider_location(self.lic_appdata, component_id)
-            if not value:
+            if facts is None or facts.verified or facts.resumable:
                 continue
-            if component_id == "florence-captioning":
-                self.model_path.set(value)
-                try:
-                    self.model_evidence = inspect_model_storage(self.delivery, Path(value))
-                except (OSError, ValueError):
-                    pass
-            else:
-                variable = self.component_paths.get(component_id)
-                if variable is not None:
-                    variable.set(value)
-            # A preference may be stale. It remains an editable starting point
-            # and never changes the component to installed during passive startup.
-            facts.selected_path = value
+            try:
+                state = component_resource_status(self.delivery, self.root, component_id)
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+            available = state["available"]
+            missing = state["missing"]
+            if available:
+                names = ", ".join(item.display_name for item in available[:3])
+                if len(available) > 3:
+                    names += f", and {len(available) - 3} more"
+                facts.phase = ComponentPhase.PARTIAL
+                facts.detail = (f"Managed resources available: {names}. "
+                                f"{len(missing)} required resource(s) still missing; the feature is not ready.")
 
     def _primary_action_for(self, definition, facts: ComponentFacts) -> ComponentAction:
         state = self.operation_queue.state_for(definition.component_id)
@@ -645,12 +643,17 @@ class ManagerShell:
                     item = facts.get(component.component_id)
                     if item is None or component.component_id == "lic-core":
                         continue
+                    legacy_external = any(resource.ownership == "user-supplied/external"
+                                          for resource in component.resources)
                     item.phase = (ComponentPhase.INSTALLED if component.state == "installed" and
-                                  component.readiness.get("passed") else ComponentPhase.PARTIAL)
+                                  component.readiness.get("passed") and not legacy_external
+                                  else ComponentPhase.PARTIAL)
                     item.verified = item.phase == ComponentPhase.INSTALLED
                     item.detail = ("✓ Installed and verified" if item.verified else
+                                   "Legacy external resource evidence was preserved. Use Import to copy it into managed storage."
+                                   if legacy_external else
                                    "Installed component state requires validation or repair.")
-                    if component.resources:
+                    if component.resources and not legacy_external:
                         item.selected_path = str(provider_root_from_resource(
                             component.component_id, component.resources[0].local_path))
         florence = facts.get("florence-captioning")
@@ -879,7 +882,7 @@ class ManagerShell:
         for definition in (item for item in self.components if item.tier == "core"):
             self._render_component_card(definition)
         ttk.Label(self.content, text="OPTIONAL FEATURES", style="Section.TLabel").pack(anchor="w", pady=(20, 5))
-        ttk.Label(self.content, text="Install or connect only the features you want. Optional features do not affect core readiness.",
+        ttk.Label(self.content, text="Install or import resources for only the features you want. Optional features do not affect core readiness.",
                   style="Muted.TLabel", wraplength=900, justify="left").pack(anchor="w", pady=(0, 5))
         for definition in (item for item in self.components if item.tier == "optional"):
             self._render_component_card(definition)
@@ -896,20 +899,10 @@ class ManagerShell:
         ttk.Label(frame, text=definition.description, style="CardBody.TLabel", wraplength=850,
                   justify="left").pack(anchor="w", pady=(4, 7))
         metadata = [("Provider", definition.provider), ("Downloaded from", definition.source_name)]
-        if definition.component_id != "lic-core" and facts.selected_path and not facts.verified:
-            try:
-                selected = Path(facts.resource_path or facts.selected_path)
-                summary = operation_download_summary(self.delivery, self.root, definition.component_id, selected)
-                metadata.extend((("Model files", "Verified locally"),
-                                 ("Required libraries", "Not installed"),
-                                 ("Download required", human_size(summary["download_bytes"]) +
-                                  (" — files already cached" if summary["download_bytes"] == 0 else ""))))
-            except (OSError, ValueError, KeyError):
-                pass
         if definition.component_id == "lic-core":
             label, value = component_download_disclosure(definition, self.plan)
             metadata.append((label, value))
-        elif definition.component_id == "face-analysis":
+        elif definition.managed_install:
             try:
                 summary = operation_download_summary(self.delivery, self.root, definition.component_id)
                 label, value = component_download_disclosure(definition, summary)
@@ -945,15 +938,10 @@ class ManagerShell:
                           style="CardBody.TLabel", foreground=AMBER).pack(anchor="w", pady=(4, 0))
             if self.recovery and self.recovery.blocked:
                 self._render_recovery_choices(frame)
-        elif definition.selector_type != "none":
-            variable = (self.model_path if definition.component_id == "florence-captioning" else
-                        self.component_paths[definition.component_id])
-            contract = picker_contract(definition)
-            command = lambda item=definition: self.choose_component_path(item)
-            self._card_path_control(frame, contract["label"],
-                                    variable, command, contract["hint"],
-                                    editable=identity_controls_editable(facts.phase),
-                                    commit=lambda item=definition: self.commit_component_path(item))
+        elif definition.tier == "optional":
+            managed = managed_data_layout(self.root)
+            ttk.Label(frame, text=f"Managed resources: {managed['models'].parent}",
+                      style="Muted.TLabel", wraplength=850).pack(anchor="w", pady=(5, 0))
         status = tk.StringVar(value=component_status_text(definition, facts))
         ttk.Label(frame, textvariable=status, style="CardBody.TLabel", wraplength=850,
                   justify="left", foreground=GREEN if facts.verified else (RED if facts.phase in
@@ -973,13 +961,14 @@ class ManagerShell:
                                         command=lambda item=definition: self.component_primary_action(item),
                                         state="disabled" if self.review_mode or facts.phase == ComponentPhase.CANCELING else "normal")
             primary_button.pack(side="left")
+        if definition.tier == "optional":
+            import_button = ttk.Button(
+                actions, text="Import", command=lambda item=definition: self.import_component_resources(item),
+                state="disabled" if self.review_mode or facts.phase in IDENTITY_LOCKED_PHASES else "normal")
+            import_button.pack(side="left", padx=(8, 0))
+            Tooltip(import_button, "Import copies compatible files into LIC managed data storage. Your original files are not changed.")
         if facts.selected_path:
             ttk.Button(actions, text="Go to directory", command=lambda item=definition: self.open_component_directory(item),
-                       state="disabled" if self.review_mode else "normal").pack(side="left", padx=(8, 0))
-        recovery = self.component_recoveries.get(definition.component_id)
-        if recovery and recovery.status == "cancelled":
-            ttk.Button(actions, text="Discard cancelled attempt",
-                       command=lambda item=definition: self.discard_component_attempt(item),
                        state="disabled" if self.review_mode else "normal").pack(side="left", padx=(8, 0))
         ttk.Button(actions, text="Help", command=lambda anchor=definition.help_anchor: self.show_help(anchor)).pack(side="right")
         ttk.Button(actions, text="Details", command=lambda item=definition: self.show_component_details(item)).pack(side="right", padx=(0, 8))
@@ -1131,8 +1120,8 @@ class ManagerShell:
 
     def show_component_details(self, definition):
         facts = self.component_facts[definition.component_id]
-        storage = (self.model_path.get() if definition.component_id == "florence-captioning" else
-                   self.component_paths.get(definition.component_id, tk.StringVar(value="")).get())
+        storage = (str(self.root) if definition.component_id == "lic-core" else
+                   str(managed_data_layout(self.root)["models"].parent))
         plan = self.plan if definition.component_id == "lic-core" else None
         if definition.component_id == "face-analysis":
             try:
@@ -1145,6 +1134,70 @@ class ManagerShell:
     def show_help(self, anchor: str):
         self.help_anchor = anchor
         self.show_page("Help")
+
+    def _ask_from_worker(self, title: str, message: str) -> bool:
+        """Run a modal confirmation on Tk's thread while an Import worker waits."""
+        finished = threading.Event()
+        answer = {"value": False}
+        def ask():
+            answer["value"] = messagebox.askyesno(title, message, parent=self.window)
+            finished.set()
+        self.window.after(0, ask)
+        finished.wait()
+        return bool(answer["value"])
+
+    def import_component_resources(self, definition) -> None:
+        """Copy any exact approved resources found in a selected folder."""
+        if self.operation_queue.active is not None:
+            self.component_facts[definition.component_id].detail = (
+                "Another operation is active. Pause or finish it before starting Import.")
+            self._update_component_card(definition.component_id)
+            return
+        selected = filedialog.askdirectory(
+            title="Import compatible LIC resources", initialdir=str(Path.home()))
+        if not selected:
+            return
+        request, start_now = self.operation_queue.submit(definition.component_id, "Import")
+        if not start_now:
+            return
+        facts = self.component_facts[definition.component_id]
+        facts.phase, facts.detail = ComponentPhase.PREPARING, "Scanning for compatible resources…"
+        self.busy = True
+        self.show_page("Install & Update")
+
+        def confirm_plan(plan):
+            actionable = [item for item in plan.candidates if item.state != "already-present"]
+            if not actionable:
+                return True
+            names = "\n".join(f"• {item.spec.display_name}" for item in actionable)
+            return self._ask_from_worker(
+                "Import compatible resources?",
+                f"Found compatible resources:\n\n{names}\n\n"
+                f"Copy {human_size(plan.copy_bytes)} into LIC managed storage under:\n"
+                f"{managed_data_layout(self.root)['models'].parent}\n\n"
+                "Your original files will not be changed.")
+
+        def confirm_replace(candidate):
+            return self._ask_from_worker(
+                "Replace managed resource?",
+                f"{candidate.spec.display_name} already exists in LIC managed storage.\n\n"
+                "Replace it with the validated imported copy? The original source is not changed.")
+
+        def worker():
+            try:
+                result = import_resources(
+                    self.delivery, self.root, Path(selected), confirm_import=confirm_plan,
+                    confirm_replace=confirm_replace,
+                    progress=lambda event: self.events.put(
+                        ("component-import-progress", definition.component_id, event)),
+                    pause_requested=request.token.requested)
+                self.events.put(("component-imported", definition.component_id, result))
+            except AcquisitionCancelled as error:
+                self.events.put(("component-import-paused", definition.component_id, str(error)))
+            except Exception as error:
+                self.events.put(("component-import-failed", definition.component_id,
+                                 f"{type(error).__name__}: {error}"))
+        threading.Thread(target=worker, daemon=False).start()
 
     def choose_component_path(self, definition):
         contract = picker_contract(definition)
@@ -1252,55 +1305,6 @@ class ManagerShell:
             return str(path if path.is_dir() else path.parent)
         return str(Path.home())
 
-    def discard_component_attempt(self, definition) -> None:
-        """Archive only a cancelled operation after an explicit customer action."""
-        try:
-            archived = discard_cancelled_attempt(self.root, definition.component_id)
-        except (OSError, ValueError) as error:
-            messagebox.showerror("Discard cancelled attempt", str(error), parent=self.window)
-            return
-        self.component_recoveries.pop(definition.component_id, None)
-        facts = self.component_facts[definition.component_id]
-        facts.detail = ("The cancelled setup record was preserved for diagnostics. You can now start a new "
-                        "explicit provider setup attempt.")
-        if getattr(self, "current_page", None) == "Install & Update":
-            self._update_component_card(definition.component_id)
-        else:
-            self.show_page("Install & Update")
-
-    def _offer_unfinished_file_choice(self, component_id: str) -> None:
-        """Offer cleanup only for explicit, journal-owned unvalidated temporary paths."""
-        root = getattr(self, "root", None)
-        if root is None:
-            return
-        journal_path = (Path(root) / "State/operations/bootstrap.json" if component_id == "lic-core" else
-                        Path(root) / "State/operations/florence.json" if component_id == "florence-captioning" else
-                        Path(root) / f"State/operations/component-{component_id}.json")
-        if not journal_path.is_file():
-            return
-        try:
-            journal = OperationJournal.load(journal_path)
-            leftovers = unfinished_acquisitions(journal)
-        except (OSError, ValueError, KeyError, TypeError):
-            return
-        if not leftovers:
-            return
-        delete = messagebox.askyesno(
-            "Installation canceled",
-            "Some unfinished files from this installation attempt have not been validated.\n\n"
-            "Verified downloads are kept automatically so they can be reused later.\n\n"
-            "Choose Yes to delete unfinished files, or No to keep unfinished files.",
-            parent=self.window)
-        if delete:
-            deleted = delete_unfinished_acquisitions(journal)
-            detail = f"Installation canceled. Deleted {len(deleted)} unfinished unvalidated file(s)."
-        else:
-            journal.add_cleanup_action("keep-unvalidated-acquisition-files", performed=False)
-            detail = "Installation canceled. Unfinished unvalidated files were kept; verified downloads remain reusable."
-        facts = self.component_facts.get(component_id)
-        if facts is not None:
-            facts.detail = detail
-
     def open_component_directory(self, definition):
         selected = Path(self.component_facts[definition.component_id].selected_path)
         target = selected if selected.is_dir() else selected.parent
@@ -1325,15 +1329,12 @@ class ManagerShell:
                 self.component_recoveries[definition.component_id] = recovery
         facts = self.component_facts[definition.component_id]
         action = self._primary_action_for(definition, facts)
-        if action == ComponentAction.USE_EXISTING and definition.selector_type != "none":
-            self.choose_component_path(definition)
-            return
         if action in {ComponentAction.CANCEL, ComponentAction.CANCEL_QUEUE}:
             result = self.operation_queue.cancel(definition.component_id)
             if result == "canceling":
-                facts.phase, facts.detail = ComponentPhase.CANCELING, "Canceling at the next safe boundary…"
+                facts.phase, facts.detail = ComponentPhase.CANCELING, "Pausing at the next safe boundary…"
             elif result == "queue-canceled":
-                facts.phase, facts.detail = ComponentPhase.NOT_INSTALLED, "Queued operation canceled."
+                facts.phase, facts.detail = ComponentPhase.NOT_INSTALLED, "Removed from queue."
             self.show_page("Install & Update")
             return
         if action == ComponentAction.CHECK_UPDATES:
@@ -1341,7 +1342,6 @@ class ManagerShell:
             self.show_page("Install & Update")
             return
         if not definition.managed_install:
-            self.choose_component_path(definition)
             return
         if definition.component_id != "lic-core":
             missing = [dependency for dependency in definition.dependencies
@@ -1367,17 +1367,8 @@ class ManagerShell:
         component_id = definition.component_id
         app = Path(self.application_path.get())
         facts = self.component_facts[component_id]
-        selected = (Path(facts.resource_path or self.model_path.get()) if component_id == "florence-captioning" else
-                    Path(facts.resource_path or self.component_paths[component_id].get())
-                    if self.component_paths.get(component_id) and (facts.resource_path or self.component_paths[component_id].get())
-                    else None)
+        selected = None
         try:
-            if component_id == "florence-captioning":
-                evidence = inspect_model_storage(self.delivery, selected)
-                if evidence["status"] in {"incompatible", "ambiguous"}:
-                    raise ValueError(evidence["message"])
-                if evidence["status"] == "missing":
-                    validate_model_root(selected)
             if self.install_component is None:
                 raise RuntimeError("Managed component installation is unavailable in this build")
         except Exception as error:
@@ -1386,8 +1377,8 @@ class ManagerShell:
             self.show_page("Install & Update")
             return
         facts.phase = ComponentPhase.PREPARING
-        facts.detail = ("Plan: verify Core, acquire and install any missing required libraries, then validate "
-                        "provider readiness. Verified local resource files will be reused without downloading.")
+        facts.detail = ("Checking managed resources, downloading only missing items, then installing and "
+                        "checking feature readiness.")
         self.busy = True
         self.show_page("Install & Update")
 
@@ -1406,6 +1397,15 @@ class ManagerShell:
 
     def _start_core_operation(self, request, *, resume: bool):
         app, models = Path(self.application_path.get()), Path(self.model_path.get())
+        if self.prepare is None or self.activate is None:
+            self.component_facts["lic-core"] = ComponentFacts(
+                ComponentPhase.ERROR,
+                detail=("This manager copy cannot start a new installation. Open the current LIC Install Manager "
+                        "package and try again."),
+                diagnostic="Installed-manager bootstrap callbacks were unavailable.")
+            self.operation_queue.complete("lic-core")
+            self.show_page("Install & Update")
+            return
         if resume and self.recovery_journal_path is not None:
             self._refresh_recovery_state()
             if self.recovery and self.recovery.blocked:
@@ -1816,15 +1816,14 @@ class ManagerShell:
             ("How installation works", "Install & Update shows current state and starts only the selected component. Core setup creates a private Python environment, verifies every approved artifact and activates only after readiness checks pass."),
             ("Core functionality", "Core includes the application, private Python runtime and only the packages required for catalog, review, editing, readiness and export."),
             ("Optional features and providers", "Florence captioning, Face Analysis with OpenCV YuNet + SFace, Google MediaPipe body analysis and FFmpeg video extraction are independent. They never block Core readiness."),
-            ("Third-party downloads", "Nothing is downloaded by startup, status, Browse, Details or Help. A clearly labeled Install, Update, Repair or same-plan Resume action is required before acquisition."),
-            ("Storage locations", "New installations default to Local AppData. Application and large AI-model locations remain independently selectable."),
-            ("Using existing models", "Browse validates identity, exact revision/hash where available, completeness and compatibility. Unknown files are left unchanged."),
+            ("Third-party downloads", "Nothing is downloaded by startup, status, Import, Details or Help. Install, Update, Repair or same-plan Resume is required before acquisition."),
+            ("Storage locations", "The selected LIC root owns predictable optional resources under Data: Downloads, Models, Tasks, Packages, Tools and State."),
+            ("Importing existing resources", "Import scans a selected folder for exact approved resources, confirms what it found, and copies accepted files into managed Data storage. Original files are never changed."),
             ("Updates", "Only manager-approved compatible releases can become Update actions. A newer upstream release alone is never enough."),
             ("Interrupted downloads", "Restart or select Resume. Completed verified work is rechecked; generic partial transfers restart because trustworthy byte-range continuation is not yet established."),
-            ("Cancellation and resume", "Cancel requests stop at the next safe boundary. Verified downloads are kept for reuse. If an attempt leaves unvalidated unfinished files, you can keep them or delete only those files. Partial work is never published as installed."),
-            ("Moving an installation", "Move creates and validates a new installation, rebuilds path-bound components and keeps the old copy. AI models stay where they are unless copying is explicitly selected."),
+            ("Pause and resume", "Pause stops at the next safe boundary and preserves verified resources and operation state. Resume continues the same approved plan later."),
             ("Repair and recovery", "Missing or damaged managed files become Repair required. Optional damage does not make core LoRA Image Curator unavailable."),
-            ("Managing model files", "Go to directory opens the selected location. Some models may be shared; deleting them manually can disable a feature, which the next check will report."),
+            ("Managing resources", "Shared packages have one authoritative managed copy. Removing managed files manually can disable a feature, which the next check will report."),
             ("Third-party licenses and notices", "Each Details view identifies practical terms and restrictions. InsightFace pretrained weights have separate, restricted terms from the MIT-licensed code."),
             ("Troubleshooting", f"Review logs under {self.root / 'Logs'} and operation records under {self.root / 'State/operations'}."),
         ]
@@ -1862,7 +1861,41 @@ class ManagerShell:
             if len(item) == 3 and item[0].startswith("component-"):
                 kind, component_id, event = item
                 facts = self.component_facts[component_id]
-                if kind == "component-progress":
+                if kind == "component-import-progress":
+                    message = str(event.get("message", "Importing compatible resources…"))
+                    facts.phase = (ComponentPhase.VERIFYING if event.get("phase") == "verifying"
+                                   else ComponentPhase.INSTALLING if event.get("phase") == "copying"
+                                   else ComponentPhase.PREPARING)
+                    facts.detail = message
+                elif kind == "component-imported":
+                    self.busy = False
+                    self.operation_queue.complete(component_id)
+                    self._refresh_managed_resource_facts()
+                    facts = self.component_facts[component_id]
+                    if event.get("state") == "declined":
+                        facts.phase, facts.detail = ComponentPhase.NOT_INSTALLED, "Import was not started."
+                    elif not event.get("imported") and not event.get("already_present"):
+                        facts.phase = ComponentPhase.NOT_INSTALLED
+                        facts.detail = ("No compatible approved resources were found. "
+                                        f"Ignored {event.get('unrecognized', 0)} unrelated file(s).")
+                    else:
+                        facts.detail += (f" Imported {len(event.get('imported', ()))}, already available "
+                                         f"{len(event.get('already_present', ()))}, invalid "
+                                         f"{event.get('invalid', 0)}.")
+                elif kind == "component-import-paused":
+                    self.busy = False
+                    self.operation_queue.complete(component_id)
+                    self._refresh_managed_resource_facts()
+                    facts = self.component_facts[component_id]
+                    facts.phase, facts.resumable = ComponentPhase.PARTIAL, False
+                    facts.detail = "Import paused. Verified copied resources were preserved; Import can be run again."
+                elif kind == "component-import-failed":
+                    self.busy = False
+                    self.operation_queue.complete(component_id)
+                    facts.phase = ComponentPhase.ERROR
+                    facts.detail = "Import stopped before unverified files became authoritative. Original files were unchanged."
+                    facts.diagnostic = str(event)
+                elif kind == "component-progress":
                     view = progress_view(event)
                     if event.get("kind") == "download":
                         facts.phase = ComponentPhase.DOWNLOADING
@@ -1879,6 +1912,7 @@ class ManagerShell:
                                                                   "✓ Installed and verified")
                     if component_id == "lic-core":
                         self.record, self.mode, self.root = event, "installed", Path(event["root"])
+                        self.lic_appdata = self.root / "State/User/AppData/Roaming"
                         # A succeeded bootstrap journal is historical evidence, not
                         # an active Resume condition after activation completes.
                         self.recovery = None
@@ -1886,15 +1920,15 @@ class ManagerShell:
                     elif component_id == "florence-captioning":
                         facts.selected_path = str(event.get("snapshot") or facts.selected_path)
                         self.model_evidence = inspect_model_storage(self.delivery, Path(event["model_root"]))
-                        write_provider_location(self.lic_appdata, component_id, Path(event["model_root"]))
                     else:
                         facts.selected_path = str(provider_root_from_resource(
                             component_id, event.get("resource") or facts.selected_path))
                         if component_id in self.component_paths:
                             self.component_paths[component_id].set(facts.selected_path)
-                        if component_id in OPTIONAL_PROVIDER_IDS and facts.selected_path:
-                            write_provider_location(self.lic_appdata, component_id,
-                                                    Path(facts.selected_path))
+                        if component_id == "face-analysis" and facts.selected_path:
+                            write_face_model_root(self.lic_appdata, Path(facts.selected_path))
+                        elif component_id == "body-analysis" and event.get("resource"):
+                            write_body_model_path(self.lic_appdata, Path(event["resource"]))
                     self.busy = False
                     self.operation_queue.complete(component_id)
                 elif kind == "component-canceled":
@@ -1903,16 +1937,16 @@ class ManagerShell:
                     if component_id == "florence-captioning":
                         self._refresh_florence_recovery()
                     elif component_id != "lic-core":
-                        variable = self.component_paths.get(component_id)
-                        selected = Path(variable.get()) if variable is not None and variable.get() else None
-                        recovery = self._load_component_recovery(component_id, selected)
+                        recovery = self._load_component_recovery(component_id, None)
                         if recovery:
                             self.component_recoveries[component_id] = recovery
                             facts.phase, facts.resumable = ComponentPhase.PARTIAL, recovery.resumable
                             facts.recovery_blocked, facts.detail = recovery.blocked, recovery.summary
                     else:
                         self._refresh_recovery_state()
-                    self._offer_unfinished_file_choice(component_id)
+                    if component_id in self.component_facts:
+                        self.component_facts[component_id].detail = (
+                            "Paused safely. Verified work and operation state were preserved. Choose Resume to continue.")
                 elif kind == "component-preflight-blocked":
                     self.busy = False
                     self.operation_queue.complete(component_id)
@@ -1928,9 +1962,7 @@ class ManagerShell:
                     if component_id == "florence-captioning":
                         self._refresh_florence_recovery()
                     elif component_id != "lic-core":
-                        variable = self.component_paths.get(component_id)
-                        selected = Path(variable.get()) if variable is not None and variable.get() else None
-                        recovery = self._load_component_recovery(component_id, selected)
+                        recovery = self._load_component_recovery(component_id, None)
                         if recovery:
                             self.component_recoveries[component_id] = recovery
                             facts.phase, facts.resumable = ComponentPhase.PARTIAL, recovery.resumable
@@ -1953,7 +1985,7 @@ class ManagerShell:
                             detail=component_failure_message(self.component_by_id[component_id], str(event)),
                             diagnostic=str(event))
                 if self.current_page == "Install & Update":
-                    if kind == "component-progress":
+                    if kind in {"component-progress", "component-import-progress"}:
                         self._update_component_card(component_id)
                     else:
                         # Completion/failure changes available actions and may
@@ -1991,7 +2023,8 @@ class ManagerShell:
                     "persistent_left_navigation": True, "consent_default": False,
                     "installation_started": self.busy, "ux_contract": contract,
                     "details_available": True, "help_available": "Help" in self.sections,
-                    "model_storage_visible": True, "independent_storage": True,
+                    "model_storage_visible": True, "managed_resource_storage": True,
+                    "independent_storage": False,
                     "review_mode": self.review_mode, "quiet": self.quiet,
                     "component_states": {key: value.phase.value for key, value in self.component_facts.items()},
                     "component_actions": {item.component_id:
@@ -2032,7 +2065,9 @@ def show_first_run(delivery: Path, root: Path, prepare, activate, launch, **kwar
     ManagerShell(delivery, root, prepare=prepare, activate=activate, launch=launch, **kwargs).run()
 
 
-def show_installed(delivery: Path, root: Path, launch, move, *, record: dict | None = None, **kwargs):
+def show_installed(delivery: Path, root: Path, launch, move=None, *, record: dict | None = None,
+                   prepare=None, activate=None, **kwargs):
     if record is None:
         record = json.loads((root / "State/installations/lic-lite.json").read_text(encoding="utf-8"))
-    ManagerShell(delivery, root, launch=launch, move=move, installed_record=record, **kwargs).run()
+    ManagerShell(delivery, root, prepare=prepare, activate=activate, launch=launch, move=move,
+                 installed_record=record, **kwargs).run()

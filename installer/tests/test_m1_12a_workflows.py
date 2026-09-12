@@ -14,8 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from install_manager.component_catalog import ComponentFacts, ComponentPhase, load_component_catalog
-from install_manager.component_operations import STEPS, discard_cancelled_attempt, inspect_recovery
-from install_manager.journal import OperationJournal
+from install_manager.component_operations import STEPS, inspect_recovery
 from install_manager.provider_discovery import discover_provider_candidates
 
 
@@ -54,20 +53,6 @@ class ProviderFolderDiscoveryTests(unittest.TestCase):
             self.assertEqual(discover_provider_candidates(ROOT / "src/install_manager", definition, split), ())
 
 
-class RecoveryContractsTests(unittest.TestCase):
-    def test_discard_cancelled_attempt_archives_evidence_without_deleting_it(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory); operations = root / "State/operations"
-            journal = OperationJournal.create(operations, "component-body-analysis", target_path=root,
-                                              plan_digest="a" * 64, artifacts=[{}], steps=STEPS,
-                                              inputs={"install_root": str(root)})
-            journal.set_status("cancelled", failure="cancelled for test")
-            archived = discard_cancelled_attempt(root, "body-analysis")
-            self.assertTrue(archived.is_file())
-            self.assertFalse((operations / "component-body-analysis.json").exists())
-            self.assertEqual(json.loads(archived.read_text())["status"], "cancelled")
-
-
 class InPlaceUpdateTests(unittest.TestCase):
     def test_progress_can_update_a_rendered_card_without_page_rebuild(self):
         # The controller boundary is intentionally tested without a Tk display.
@@ -78,8 +63,9 @@ class InPlaceUpdateTests(unittest.TestCase):
         shell.component_facts = {"test-provider": ComponentFacts(ComponentPhase.DOWNLOADING, completed_bytes=5, total_bytes=10)}
         status, progress, button = Mock(), Mock(), Mock()
         shell.component_widgets = {"test-provider": {"status": status, "progress": progress, "primary": button}}
+        shell.operation_queue = Mock()
+        shell.operation_queue.state_for.return_value = "idle"
         shell.review_mode = False
         shell._update_component_card("test-provider")
         status.set.assert_called_once()
         progress.configure.assert_called()
-

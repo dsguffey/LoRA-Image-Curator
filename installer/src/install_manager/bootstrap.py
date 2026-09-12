@@ -320,7 +320,7 @@ def execute(delivery: Path, root: Path, *, cache_source: Path | None = None,
             if current:
                 journal.set_step(current, 'cancelled', error=f'{type(error).__name__}: {error}')
             journal.set_status('cancelled', failure=f'{type(error).__name__}: {error}')
-            emit('Canceled safely. Verified completed work was retained. Unvalidated unfinished files can be kept or deleted.',
+            emit('Paused safely. Verified completed work and operation state were retained for Resume.',
                  terminal='cancelled')
             raise
         except BaseException as error:

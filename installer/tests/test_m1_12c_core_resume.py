@@ -6,14 +6,15 @@ import queue
 import sys
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from install_manager.bootstrap_layout import validate_root
 from install_manager.component_catalog import ComponentFacts, ComponentPhase
-from install_manager.manager_ui import ManagerShell
+from install_manager.manager_ui import ManagerShell, show_installed
+from install_manager.first_launch import show_manager
 from install_manager.recovery import BootstrapRecovery
 
 
@@ -68,3 +69,36 @@ class CoreResumeRecoveryTests(unittest.TestCase):
         self.assertIsNone(shell.recovery)
         self.assertIsNone(shell.recovery_journal_path)
         self.assertTrue(shell.component_facts["lic-core"].verified)
+
+    def test_installed_manager_keeps_core_bootstrap_callbacks_for_new_installation(self):
+        prepare, activate = Mock(), Mock()
+        with patch("install_manager.first_launch.show_installed") as show_installed:
+            show_manager(Path("C:/delivery"), Path("C:/existing"), Mock(), Mock(),
+                         prepare=prepare, activate=activate)
+        self.assertIs(show_installed.call_args.kwargs["prepare"], prepare)
+        self.assertIs(show_installed.call_args.kwargs["activate"], activate)
+
+    def test_installed_shell_receives_core_bootstrap_callbacks(self):
+        prepare, activate = Mock(), Mock()
+        record = {"state": "active"}
+        with patch("install_manager.manager_ui.ManagerShell") as shell_type:
+            show_installed(Path("C:/delivery"), Path("C:/existing"), Mock(), Mock(),
+                           record=record, prepare=prepare, activate=activate)
+        self.assertIs(shell_type.call_args.kwargs["prepare"], prepare)
+        self.assertIs(shell_type.call_args.kwargs["activate"], activate)
+        shell_type.return_value.run.assert_called_once_with()
+
+    def test_missing_callbacks_explain_the_problem_without_attempting_setup(self):
+        shell = ManagerShell.__new__(ManagerShell)
+        shell.prepare = None
+        shell.activate = None
+        shell.application_path = Mock(); shell.application_path.get.return_value = "C:/new-lic"
+        shell.model_path = Mock(); shell.model_path.get.return_value = "C:/new-lic/Shared/Models"
+        shell.component_facts = {"lic-core": ComponentFacts(ComponentPhase.NOT_INSTALLED)}
+        shell.operation_queue = Mock(); shell.show_page = Mock()
+        shell._start_core_operation(Mock(), resume=False)
+        facts = shell.component_facts["lic-core"]
+        self.assertEqual(facts.phase, ComponentPhase.ERROR)
+        self.assertIn("cannot start a new installation", facts.detail)
+        self.assertIn("callbacks", facts.diagnostic)
+        shell.operation_queue.complete.assert_called_once_with("lic-core")

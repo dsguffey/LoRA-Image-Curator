@@ -310,7 +310,7 @@ def execute(delivery: Path, root: Path, *, cache_source: Path | None = None,
             if current:
                 journal.set_step(current, 'cancelled', error=f'{type(error).__name__}: {error}')
             journal.set_status('cancelled', failure=f'{type(error).__name__}: {error}')
-            emit('Canceled safely. Verified completed work was retained. Resume will recheck it; '
+            emit('Installation paused safely. Verified completed work was retained for Resume; '
                  'unverified partial transfer bytes were discarded.', terminal='cancelled')
             raise
         except BaseException as error:

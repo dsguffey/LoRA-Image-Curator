@@ -150,7 +150,7 @@ class ExistingArtifactValidationTests(unittest.TestCase):
             (valid / "det.onnx").write_bytes(b"fixture")
             facts = validate_existing_selection(definition, valid)
             self.assertEqual(facts.phase, ComponentPhase.INCOMPATIBLE)
-            self.assertEqual(component_action(definition, facts), ComponentAction.USE_EXISTING)
+            self.assertEqual(component_action(definition, facts), ComponentAction.REPAIR)
 
     def test_ffmpeg_probe_is_bounded_and_must_identify_itself(self):
         definition = self.by_id["video-extraction"]

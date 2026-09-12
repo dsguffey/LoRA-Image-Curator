@@ -13,9 +13,7 @@ from .bootstrap_layout import validate_root, layout
 from .component_catalog import default_install_root
 from .first_launch import show, show_manager
 from .managed_install import activate, launch
-from .component_operations import (execute as install_managed_component,
-                                   record_existing_selection)
-from .managed_move import move_installation
+from .component_operations import execute as install_managed_component
 from .probe_guard import isolated_environment
 from .release_channel import verify_delivery
 
@@ -40,7 +38,7 @@ def main():
     parser.add_argument('--desktop-shortcut', action='store_true')
     parser.add_argument('--no-start-menu-shortcut', action='store_true')
     parser.add_argument('--ui-review', choices=('first-run', 'installed'))
-    parser.add_argument('--ui-review-page', choices=('Install & Update', 'Details', 'Help', 'Move Installation'))
+    parser.add_argument('--ui-review-page', choices=('Install & Update', 'Details', 'Help'))
     parser.add_argument('--ui-review-state', choices=('core-not-installed', 'core-ready', 'optional-not-installed',
                                                       'optional-installed', 'optional-existing', 'active-download',
                                                       'interrupted', 'florence-parent-discovered', 'mediapipe-existing',
@@ -61,17 +59,14 @@ def main():
                        model_root=model_root, resume=resume, status=status, boundary=lambda step: None,
                        cancel_requested=cancel_requested)
 
-    def move(source, destination, copy_models, new_model_root, status):
-        return move_installation(delivery, source, destination, copy_models=copy_models,
-                                 new_model_root=new_model_root, status=status)
-
     def install_component(component_id, root, model_root, resume, status, cancel_requested):
         return install_managed_component(
             delivery, root, component_id, model_root, cache_source=args.cache_source,
             resume=resume, status=status, cancel_requested=cancel_requested)
 
-    def record_existing(component_id, root, selected_path, facts):
-        return record_existing_selection(delivery, root, component_id, selected_path, facts)
+    def activate_installed_core(chosen, models, start, desktop):
+        return activate(delivery, chosen, Path(sys.executable).parent,
+                        model_root=models, start_menu=start, desktop=desktop)
 
     # Sanitize before any managed subprocess; these are process-local variables, not registry changes.
     system = os.environ.get('SystemRoot', r'C:\Windows')
@@ -93,7 +88,6 @@ def main():
             show(delivery, proposed, prepare,
                  lambda chosen, models, start, desktop: None, lambda chosen: None,
                  install_component=install_component,
-                 record_existing_component=record_existing,
                  review_mode=True, initial_page=page, review_scenario=args.ui_review_state,
                  initial_model_root=args.model_root)
         else:
@@ -104,9 +98,9 @@ def main():
                       'model_root': str(args.model_root or layout(proposed)['models']),
                       'choices': {'start_menu': True, 'desktop': False}, 'shortcuts': {},
                       'channel': {'version': '0.28.4+m17.1'}}
-            show_manager(delivery, proposed, lambda chosen: None, lambda *values: None,
+            show_manager(delivery, proposed, lambda chosen: None,
+                         prepare=prepare, activate=lambda chosen, models, start, desktop: None,
                          install_component=install_component,
-                         record_existing_component=record_existing,
                          record=record, review_mode=True, initial_page=page,
                          review_scenario=args.ui_review_state or 'core-ready')
         return 0
@@ -114,8 +108,8 @@ def main():
         launch(proposed)
         return 0
     if args.manage:
-        show_manager(delivery, proposed, launch, move, install_component=install_component,
-                     record_existing_component=record_existing)
+        show_manager(delivery, proposed, launch, prepare=prepare, activate=activate_installed_core,
+                     install_component=install_component)
         return 0
     if args.self_test or args.plan or args.ui_probe:
         root = validate_root(proposed, delivery=delivery.parent)
@@ -141,7 +135,6 @@ def main():
                      lambda chosen, models, start, desktop: activate(delivery, chosen, Path(sys.executable).parent,
                                                                     model_root=models, start_menu=start, desktop=desktop),
                      lambda chosen: launch(chosen), install_component=install_component,
-                     record_existing_component=record_existing,
                      ui_probe=root / 'ui.json', quiet=True)
             except Exception as error:
                 (root / 'failure.json').write_text(json.dumps({'error': str(error)}), encoding='utf-8')
@@ -155,14 +148,12 @@ def main():
         prepare(proposed, args.model_root or layout(proposed)['models'], args.resume, lambda message: None)
     else:
         if (proposed / 'State/installations/lic-lite.json').is_file():
-            show_manager(delivery, proposed, launch, move, install_component=install_component,
-                         record_existing_component=record_existing)
+            show_manager(delivery, proposed, launch, prepare=prepare, activate=activate_installed_core,
+                         install_component=install_component)
         else:
             show(delivery, proposed, prepare,
-                 lambda chosen, models, start, desktop: activate(delivery, chosen, Path(sys.executable).parent,
-                                                                 model_root=models, start_menu=start, desktop=desktop),
-                 lambda chosen: launch(chosen), install_component=install_component,
-                 record_existing_component=record_existing)
+                 activate_installed_core,
+                 lambda chosen: launch(chosen), install_component=install_component)
 
     return 0
 

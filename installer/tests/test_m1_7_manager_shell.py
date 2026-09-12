@@ -31,7 +31,7 @@ def fixture_model(content=b"verified-model"):
 
 class ManagerShellContractTests(unittest.TestCase):
     def test_persistent_navigation_orders_are_workflow_ordered(self):
-        expected = ("Install & Update", "Move Installation", "Help")
+        expected = ("Install & Update", "Help")
         self.assertEqual(FIRST_RUN_SECTIONS, expected)
         self.assertEqual(INSTALLED_SECTIONS, expected)
 

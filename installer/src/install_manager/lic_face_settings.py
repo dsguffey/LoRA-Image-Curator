@@ -1,4 +1,4 @@
-"""Narrow adapter for LIC's canonical shared Face Analysis preference."""
+"""Narrow adapters from managed resources to LIC's canonical settings."""
 from __future__ import annotations
 
 import json
@@ -43,18 +43,10 @@ def read_face_model_root(appdata: Path) -> str:
 
 
 def read_provider_location(appdata: Path, component_id: str) -> str:
-    """Read a confirmed optional-provider preference without treating it as install state."""
+    """Compatibility reader; only LIC's canonical Face setting remains active."""
     if component_id == "face-analysis":
         return read_face_model_root(appdata)
-    target = settings_path(appdata)
-    if not target.is_file():
-        return ""
-    try:
-        value = json.loads(target.read_text(encoding="utf-8"))
-        paths = value.get("install_manager_provider_paths", {}) if isinstance(value, dict) else {}
-    except (OSError, json.JSONDecodeError):
-        return ""
-    return str(paths.get(component_id, "")) if isinstance(paths, dict) else ""
+    return ""
 
 
 def write_face_model_root(appdata: Path, model_root: Path | str) -> Path:
@@ -74,10 +66,8 @@ def write_face_model_root(appdata: Path, model_root: Path | str) -> Path:
     return target
 
 
-def write_provider_location(appdata: Path, component_id: str, provider_root: Path | str) -> Path:
-    """Atomically retain only a successfully validated provider-facing location."""
-    if component_id == "face-analysis":
-        return write_face_model_root(appdata, provider_root)
+def write_body_model_path(appdata: Path, model_path: Path | str) -> Path:
+    """Point LIC at its manager-owned MediaPipe task without external-path state."""
     target = settings_path(appdata)
     with _write_lock(target):
         value: dict[str, object] = {}
@@ -86,12 +76,15 @@ def write_provider_location(appdata: Path, component_id: str, provider_root: Pat
             if not isinstance(candidate, dict):
                 raise ValueError("LIC settings document is not an object")
             value = candidate
-        paths = value.get("install_manager_provider_paths")
-        if not isinstance(paths, dict):
-            paths = {}
-            value["install_manager_provider_paths"] = paths
-        paths[component_id] = str(provider_root)
+        value["body_model_path"] = str(model_path)
         temporary = target.with_name(target.name + f".{uuid.uuid4().hex}.tmp")
         temporary.write_text(json.dumps(value, indent=4, ensure_ascii=False) + "\n", encoding="utf-8")
         os.replace(temporary, target)
     return target
+
+
+def write_provider_location(appdata: Path, component_id: str, provider_root: Path | str) -> Path:
+    """Compatibility writer; arbitrary provider-path preferences are retired."""
+    if component_id == "face-analysis":
+        return write_face_model_root(appdata, provider_root)
+    raise ValueError("arbitrary provider-path preferences are no longer supported; use Import")

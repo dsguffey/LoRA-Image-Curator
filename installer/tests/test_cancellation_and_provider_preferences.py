@@ -1,4 +1,4 @@
-"""Focused 0.7.1 cancellation and optional-provider preference contracts."""
+"""Focused safe-boundary Pause and managed Face-setting contracts."""
 from __future__ import annotations
 
 import json
@@ -16,8 +16,6 @@ sys.path.insert(0, str(ROOT / "src"))
 from install_manager.acquisition import (AcquisitionCancelled, AcquisitionPolicy,
                                          acquire_artifact)
 from install_manager.artifacts import ArtifactDescriptor
-from install_manager.cancellation_cleanup import (delete_unfinished_acquisitions,
-                                                   unfinished_acquisitions)
 from install_manager.component_catalog import (ComponentFacts, ComponentOperationQueue,
                                                ComponentPhase, OperationRequest, load_component_catalog)
 from install_manager.journal import OperationJournal
@@ -50,26 +48,9 @@ class CancellationContractsTests(unittest.TestCase):
         self.assertEqual(queue.state_for("face-analysis"), "queued")
         self.assertEqual(queue.cancel("lic-core"), "canceling")
         self.assertEqual(queue.cancel("face-analysis"), "queue-canceled")
-        self.assertEqual(primary_label(catalog["lic-core"], ComponentFacts(ComponentPhase.CANCELING)), "Canceling…")
+        self.assertEqual(primary_label(catalog["lic-core"], ComponentFacts(ComponentPhase.CANCELING)), "Pausing…")
 
-    def test_keep_and_delete_are_limited_to_attempt_owned_unvalidated_paths(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary) / "install"
-            journal = OperationJournal.create(root / "State/operations", "bootstrap", target_path=root,
-                                              plan_digest="a" * 64, artifacts=[], steps=("one",))
-            partial = root / "Cache/partial/download.partial"; partial.parent.mkdir(parents=True)
-            partial.write_bytes(b"unfinished")
-            verified = root / "Cache/verified/keep.whl"; verified.parent.mkdir(parents=True)
-            verified.write_bytes(b"verified")
-            journal.record_unvalidated_acquisition(partial)
-            journal.record_unvalidated_acquisition(verified)  # rejected by bounded cleanup predicate
-            self.assertEqual(unfinished_acquisitions(journal), (partial.resolve(),))
-            self.assertEqual(delete_unfinished_acquisitions(journal), (partial.resolve(),))
-            self.assertFalse(partial.exists())
-            self.assertTrue(verified.exists())
-            self.assertEqual(journal.data["unvalidated_acquisitions"], [str(verified.resolve())])
-
-    def test_cancelled_download_keeps_only_its_explicit_partial_for_user_choice(self):
+    def test_paused_download_preserves_its_explicit_partial_for_resume(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             descriptor = ArtifactDescriptor("fixture", "1", "fixture.bin", "https://example.com/fixture.bin",
@@ -116,25 +97,22 @@ class CancellationContractsTests(unittest.TestCase):
 
 
 class ProviderPreferenceTests(unittest.TestCase):
-    def test_all_optional_provider_preferences_preserve_unrelated_lic_settings(self):
+    def test_only_managed_face_bridge_remains_and_other_preferences_are_retired(self):
         with tempfile.TemporaryDirectory() as temporary:
             appdata = Path(temporary)
             target = appdata / "LoRAImageCurator/settings.json"; target.parent.mkdir()
             target.write_text(json.dumps({"video_last_destination": "keep", "other": {"value": 1}}), encoding="utf-8")
-            roots = {
-                "florence-captioning": r"D:\Models\Florence",
-                "face-analysis": r"D:\Models\Face",
-                "body-analysis": r"D:\Models\Body",
-                "video-extraction": r"D:\Tools\FFmpeg",
-            }
-            for component_id, value in roots.items():
-                write_provider_location(appdata, component_id, value)
-            self.assertEqual(read_face_model_root(appdata), roots["face-analysis"])
-            for component_id, value in roots.items():
-                self.assertEqual(read_provider_location(appdata, component_id), value)
+            face = r"D:\Managed\Data\Models\OpenCV"
+            write_provider_location(appdata, "face-analysis", face)
+            self.assertEqual(read_face_model_root(appdata), face)
+            for component_id in ("florence-captioning", "body-analysis", "video-extraction"):
+                self.assertEqual(read_provider_location(appdata, component_id), "")
+                with self.assertRaisesRegex(ValueError, "no longer supported"):
+                    write_provider_location(appdata, component_id, r"D:\External")
             raw = json.loads(target.read_text(encoding="utf-8"))
             self.assertEqual(raw["video_last_destination"], "keep")
             self.assertEqual(raw["other"], {"value": 1})
+            self.assertNotIn("install_manager_provider_paths", raw)
 
     def test_inventory_resource_projects_to_the_human_provider_folder(self):
         self.assertEqual(provider_root_from_resource("body-analysis", r"D:\Models\Body\pose_landmarker_full.task"),

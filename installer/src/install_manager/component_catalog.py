@@ -36,8 +36,9 @@ class ComponentAction(StrEnum):
     CHECK_UPDATES = "Check for updates"
     UPDATE = "Update"
     REPAIR = "Repair"
-    CANCEL = "Cancel"
-    CANCEL_QUEUE = "Cancel queued"
+    # Internal cancellation mechanics remain useful; customer language is Pause.
+    CANCEL = "Pause"
+    CANCEL_QUEUE = "Remove from queue"
     USE_EXISTING = "Use existing files"
     NONE = ""
 
@@ -156,9 +157,9 @@ def component_action(definition: ComponentDefinition, facts: ComponentFacts) -> 
         return (ComponentAction.CHECK_UPDATES
                 if definition.update_policy != "no-approved-channel" else ComponentAction.NONE)
     if facts.phase in {ComponentPhase.INCOMPATIBLE, ComponentPhase.ERROR}:
-        return ComponentAction.USE_EXISTING if definition.selector_type != "none" else ComponentAction.REPAIR
+        return ComponentAction.REPAIR if definition.managed_install else ComponentAction.NONE
     if not definition.managed_install:
-        return ComponentAction.USE_EXISTING if definition.selector_type != "none" else ComponentAction.NONE
+        return ComponentAction.NONE
     return ComponentAction.INSTALL
 
 

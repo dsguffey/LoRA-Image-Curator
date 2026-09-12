@@ -222,21 +222,6 @@ class ExplicitAcquisitionTests(unittest.TestCase):
         self.assertEqual(component_action(florence, facts), ComponentAction.INSTALL)
         self.assertEqual(acquire.call_count, 0)
 
-    def test_browse_validates_existing_florence_without_starting_install(self):
-        with tempfile.TemporaryDirectory() as directory:
-            base = Path(directory); selected = base / "existing-model"; selected.mkdir()
-            shell = self._shell(base)
-            with patch("install_manager.manager_ui.filedialog.askdirectory", return_value=str(selected)), \
-                 patch("install_manager.manager_ui.discover_provider_candidates", return_value=(
-                     SimpleNamespace(provider_root=selected, resource_path=selected),)), \
-                 patch("install_manager.manager_ui.inspect_model_storage",
-                       return_value={"status": "compatible", "snapshot": str(selected),
-                                     "expected_bytes": 42, "message": "compatible"}) as inspect_local:
-                shell.choose_component_path(self.components["florence-captioning"])
-            inspect_local.assert_called_once()
-            shell.install_component.assert_not_called()
-            self.assertEqual(shell.component_facts["florence-captioning"].phase, ComponentPhase.PARTIAL)
-
     def test_florence_install_starts_only_from_explicit_primary_action(self):
         with tempfile.TemporaryDirectory() as directory:
             shell = self._shell(Path(directory))
