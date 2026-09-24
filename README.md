@@ -4,6 +4,19 @@ LoRA Image Curator (LIC) is a local-first Windows desktop application for turnin
 
 LIC prepares image datasets; it does **not** train a LoRA itself. Its SQLite catalog keeps image identity, provider evidence, and review decisions durable while source images remain outside destructive application control during analysis and export.
 
+## Download and install LIC
+
+**[Download LIC Install Manager 0.7.1](https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/lic-install-manager-v0.7.1)** — the normal, recommended way to install LIC.
+
+On that release page, under **Assets**, choose **[LIC-Install-Manager-0.7.1.zip](https://github.com/dsguffey/LoRA-Image-Curator/releases/download/lic-install-manager-v0.7.1/LIC-Install-Manager-0.7.1.zip)**. Do **not** choose GitHub's automatic `Source code (zip)` or `Source code (tar.gz)` archives; they are source snapshots, not the Install Manager.
+
+1. Download and extract `LIC-Install-Manager-0.7.1.zip`.
+2. Run the included **LIC Install Manager**.
+3. Choose where LIC should be installed, then select **Install Core**.
+4. Launch LIC from the Manager. Add optional capabilities only if you want them.
+
+LIC itself is installed and managed through LIC Install Manager; there is no separate LIC application installer to locate in this repository.
+
 ## Project demo
 
 [![Watch the LoRA Image Curator project demo](https://img.youtube.com/vi/YiKs0tyUasY/maxresdefault.jpg)](https://youtu.be/YiKs0tyUasY)
@@ -35,7 +48,7 @@ Provider results are evidence for a person to review; they do not replace human 
 
 ## Installation and downloads
 
-LIC Core is the only required download. The initial package comes from GitHub Releases. Optional dependencies are downloaded through **LIC Install Manager** (shown as **Manager** below) only when you explicitly choose a capability that needs them. Shared dependencies download once and are reused by every capability that needs them.
+LIC Core is the only required capability. Download the package above from the official GitHub Release; it includes LIC Install Manager and LIC Core. Optional dependencies are downloaded through **LIC Install Manager** (shown as **Manager** below) only when you explicitly choose a capability that needs them. Shared dependencies download once and are reused by every capability that needs them.
 
 | Download | Required? | Source | Size | Used by | Feature |
 | --- | --- | --- | ---: | --- | --- |
@@ -54,11 +67,10 @@ The 72.4 MB ZIP includes everything required to launch provider-neutral LIC Core
 
 ### Install LIC Core
 
-1. Download `LIC-Install-Manager-0.7.1.zip` from the official GitHub Release.
-2. Extract the ZIP.
-3. Run `LIC Install Manager.exe`.
-4. Choose **Install Core**.
-5. Add only the optional capabilities you want from the Manager.
+1. From the [official 0.7.1 release](https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/lic-install-manager-v0.7.1), download [LIC-Install-Manager-0.7.1.zip](https://github.com/dsguffey/LoRA-Image-Curator/releases/download/lic-install-manager-v0.7.1/LIC-Install-Manager-0.7.1.zip) under **Assets**.
+2. Extract the ZIP, then run `LIC Install Manager.exe`.
+3. Choose where LIC should be installed, then select **Install Core**.
+4. Launch LIC from the Manager. Add only the optional capabilities you want from the Manager.
 
 LIC Install Manager is not currently code-signed. Windows may show an Unknown Publisher or SmartScreen warning. Download it only from the official project GitHub Release and keep Windows security protections enabled.
 
