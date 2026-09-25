@@ -125,7 +125,11 @@ def main():
         raise AssertionError('Frozen TLS context did not load the delivered strict CA trust bundle')
     run(['--root', str(root / 'UI Test'), '--ui-probe'])
     ui = json.loads((root / 'UI Test/ui.json').read_text())
-    assert ui['visible'] and not ui['consent_default'] and not ui['installation_started']
+    # The auto-closing UI probe deliberately runs withdrawn so repeated
+    # qualification does not steal focus. It still constructs the real shell.
+    assert (ui['quiet'] and not ui['visible'] and
+            not ui['consent_default'] and not ui['installation_started'] and
+            ui['component_actions']['lic-core'] == 'Install')
     result = {'standard_user': True, 'isolation': 'Sanitized disposable root under existing nonadministrator sandbox account; not a VM or fresh account',
               'no_system_python_on_path': True, 'no_source_imports': True, 'ui': ui,
               'activation_preflight_passed': False, 'activated': False,
