@@ -296,10 +296,9 @@ def synchronize_resource_library(delivery: Path, root: Path) -> Path:
 def promote_package(delivery: Path, root: Path, source: Path, artifact_id: str,
                     version: str, sha256: str) -> Path:
     """Atomically promote one verified package artifact into Data/Packages."""
+    identity = _approved_package_identity(delivery, artifact_id, version, sha256)
     matches = [spec for spec in approved_resource_specs(delivery, root)
-               if spec.kind == "package" and spec.artifact.get("artifact_id") == artifact_id
-               and spec.artifact.get("version") == version
-               and ("sha256", sha256) in spec.hashes]
+               if spec.kind == "package" and spec.identity == identity]
     if len(matches) != 1:
         raise ValueError("verified package is not in the approved managed-resource profile")
     candidate = ImportCandidate(matches[0], source.resolve(), _destination_state(matches[0]))
@@ -460,9 +459,25 @@ def component_resource_status(delivery: Path, root: Path, component_id: str) -> 
 
 def managed_artifact_path(delivery: Path, root: Path, artifact_id: str,
                           version: str, sha256: str) -> Path | None:
+    package_identity = _approved_package_identity(delivery, artifact_id, version, sha256)
     for spec in approved_resource_specs(delivery, root):
-        if (spec.artifact.get("artifact_id") == artifact_id and spec.artifact.get("version") == version
-                and any(kind == "sha256" and value == sha256 for kind, value in spec.hashes)
+        if ((spec.kind == "package" and spec.identity == package_identity or
+             spec.kind != "package" and spec.artifact.get("artifact_id") == artifact_id
+             and spec.artifact.get("version") == version
+             and any(kind == "sha256" and value == sha256 for kind, value in spec.hashes))
                 and _destination_state(spec) == "already-present"):
             return spec.destination
     return None
+
+
+def _approved_package_identity(delivery: Path, artifact_id: str,
+                               version: str, sha256: str) -> str | None:
+    """Resolve exact approved aliases for one immutable wheel across components."""
+    profile = recommended_profile(delivery / "recipes/compatibility/profiles")
+    identities = {
+        f"wheel:{package.name}:{package.version}:{package.sha256}"
+        for component in profile.components.values() for package in component.packages
+        if (package.artifact_id == artifact_id and package.version == version
+            and package.sha256 == sha256)
+    }
+    return next(iter(identities)) if len(identities) == 1 else None

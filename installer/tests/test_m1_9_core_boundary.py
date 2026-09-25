@@ -321,11 +321,20 @@ class FlorenceRecoveryAndReuseTests(unittest.TestCase):
             snapshot = models / "snapshot"; snapshot.mkdir(parents=True)
             fake_profile = self._fake_profile()
             validation = {"passed": True}
-            approved = SimpleNamespace(components={"lic-core": SimpleNamespace(component_id="lic-core", tier="core")})
+            approved = SimpleNamespace(components={"lic-core": SimpleNamespace(component_id="lic-core", tier="core")},
+                                       component_by_id=lambda _: SimpleNamespace(component_id='florence-captioning'))
             installed = SimpleNamespace(installed_component_ids={"lic-core"})
             with patch("install_manager.florence_component.profile", return_value=fake_profile), \
                  patch("install_manager.florence_component.recommended_profile", return_value=approved), \
                  patch("install_manager.florence_component.load_or_project_inventory", return_value=installed), \
+                 patch("install_manager.florence_component.with_profile", return_value=installed), \
+                 patch("install_manager.florence_component.replace_component", return_value=installed), \
+                 patch("install_manager.florence_component.inventory_for_generation", return_value=installed), \
+                 patch("install_manager.florence_component.component_from_manifest"), \
+                 patch("install_manager.florence_component.record_candidate"), \
+                 patch("install_manager.florence_component.promote_generation"), \
+                 patch("install_manager.florence_component.create_final_path_venv", return_value=python), \
+                 patch("install_manager.florence_component.synchronize_resource_library"), \
                  patch("install_manager.florence_component.dependency_profile_for_components",
                        return_value=SimpleNamespace(profile="fixture", python_version="3.14.6",
                                                     platform="win_amd64", wheels=(), expected_inventory={})), \

@@ -130,9 +130,9 @@ class CompatibilityProfileTests(unittest.TestCase):
 
     def test_only_locally_approved_profile_can_be_recommended(self):
         profiles = load_approved_profiles(PROFILE_ROOT)
-        self.assertEqual([item.profile_id for item in profiles], ["2026-09-06", "2026-09-07", "2026-09-10", "2026-09-11"])
+        self.assertEqual([item.profile_id for item in profiles], ["2026-09-06", "2026-09-07", "2026-09-10", "2026-09-11", "2026-09-25"])
         with patch("urllib.request.urlopen", side_effect=AssertionError("network is forbidden")):
-            self.assertEqual(recommended_profile(PROFILE_ROOT).profile_id, "2026-09-11")
+            self.assertEqual(recommended_profile(PROFILE_ROOT).profile_id, "2026-09-25")
 
     def test_profile_loading_and_selection_perform_no_acquisition(self):
         before = {path: hashlib.sha256(path.read_bytes()).hexdigest()

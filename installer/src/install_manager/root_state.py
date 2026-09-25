@@ -8,7 +8,7 @@ from pathlib import Path
 from .active_venv import managed_venv
 from .bootstrap import STEPS as BOOTSTRAP_STEPS, profile as delivery_profile, verify_extracted
 from .bootstrap_layout import layout
-from .compatibility_profiles import dependency_profile_for_components, recommended_profile
+from .compatibility_profiles import accepted_installed_profile, dependency_profile_for_components
 from .component_state import load_inventory
 from .core_repair import inspect_recovery as inspect_repair_recovery
 from .journal import OperationJournal
@@ -47,10 +47,9 @@ def inspect_selected_root(delivery: Path, root: Path) -> SelectedRootState:
             inventory = load_inventory(root)
             if inventory is None:
                 raise ValueError("Managed component inventory is missing")
-            approved = recommended_profile(delivery / "recipes/compatibility/profiles")
-            if inventory.selected_profile != {"profile_id": approved.profile_id,
-                                              "digest": approved.digest}:
-                raise ValueError("Installed component profile differs from this manager")
+            approved = accepted_installed_profile(
+                delivery / "recipes/compatibility/profiles", inventory.selected_profile,
+                inventory.installed_component_ids)
             core_id = next(c.component_id for c in approved.components.values() if c.tier == "core")
             selected = set(inventory.installed_component_ids) | {core_id}
             lock = dependency_profile_for_components(approved, selected)

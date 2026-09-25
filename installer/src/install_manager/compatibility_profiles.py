@@ -364,6 +364,37 @@ def recommended_profile(directory: Path) -> CompatibilityProfile:
     return load_approved_profiles(directory)[-1]
 
 
+def accepted_installed_profile(directory: Path, selected_profile: dict[str, str],
+                               installed_ids: set[str]) -> CompatibilityProfile:
+    """Keep exact 0.7.1 installations usable across the FFmpeg notice-hash correction.
+
+    The 2026-09-11 profile remains immutable. Its FFmpeg archive's LICENSE.txt
+    member had a one-character manifest typo, but its ZIP and executable hashes
+    were correct. Existing installs without FFmpeg retain their exact wheel set.
+    This is deliberately not a general profile migration rule.
+    """
+    profiles = load_approved_profiles(directory)
+    current = profiles[-1]
+    identity = {"profile_id": current.profile_id, "digest": current.digest}
+    if selected_profile == identity:
+        return current
+    historical = next((item for item in profiles if item.profile_id == "2026-09-11"), None)
+    if (historical is None or selected_profile != {"profile_id": "2026-09-11",
+                                                   "digest": "ddd947d8dd52c28d4cb2ccae9ae998683807dd24dd5d1f42ebc95331886db6dd"}
+            or historical.digest != selected_profile["digest"]
+            or "video-extraction" in installed_ids):
+        raise ValueError("Installed component profile differs from this manager")
+    old_lock = dependency_profile_for_components(historical, installed_ids)
+    new_lock = dependency_profile_for_components(current, installed_ids)
+    old_wheels = {(wheel.name, wheel.version, wheel.artifact.expected_sha256)
+                  for wheel in old_lock.wheels}
+    new_wheels = {(wheel.name, wheel.version, wheel.artifact.expected_sha256)
+                  for wheel in new_lock.wheels}
+    if old_wheels != new_wheels:
+        raise ValueError("Historical installed package closure differs from this manager")
+    return historical
+
+
 def plan_dependency_operation(profile: CompatibilityProfile, *, checked: set[str],
                               installed: set[str]) -> dict[str, tuple[str, ...]]:
     """Describe user decisions only; this function never acquires or removes content."""

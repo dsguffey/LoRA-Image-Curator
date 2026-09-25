@@ -20,7 +20,8 @@ from .active_venv import managed_venv
 from .artifacts import ArtifactDescriptor
 from .bootstrap import profile as delivery_profile, verify_extracted
 from .bootstrap_layout import layout
-from .compatibility_profiles import dependency_profile_for_components, recommended_profile
+from .compatibility_profiles import (accepted_installed_profile,
+                                     dependency_profile_for_components, recommended_profile)
 from .component_adapters import validate_resource
 from .component_operations import _acquire, _resources
 from .component_state import ComponentInventory, InstalledComponent, load_inventory, write_inventory
@@ -48,7 +49,7 @@ def _generation(root: Path, path: Path) -> Path:
     path = Path(path).absolute()
     parent = layout(root)["venv"].parent.resolve()
     if (path.parent.resolve() != parent or
-            not (path.name == "venv" or path.name.startswith("venv-repair-")) or
+            not (path.name == "venv" or path.name.startswith(("venv-repair-", "venv-provider-"))) or
             path.is_symlink() or getattr(path, "is_junction", lambda: False)()):
         raise ValueError("Repair environment is outside the managed LIC layout")
     return path
@@ -129,7 +130,9 @@ def inspect_recovery(delivery: Path, root: Path) -> dict | None:
         data = journal.data
         repair = data["repair"]
         same_root = Path(data["target_path"]).resolve() == root.resolve()
-        profile = recommended_profile(delivery / "recipes/compatibility/profiles")
+        profile = accepted_installed_profile(
+            delivery / "recipes/compatibility/profiles", repair["profile"],
+            {"lic-core", *repair.get("intended_optional", ())})
         valid = (same_root and repair["profile"] == {"profile_id": profile.profile_id,
                   "digest": profile.digest} and
                  tuple(s["name"] for s in data["steps"]) == STEPS and
@@ -243,9 +246,11 @@ def execute(delivery: Path, root: Path, *, resume: bool = False,
         if active.get("channel", {}).get("release_id") != channel["release_id"]:
             raise ValueError("This manager delivery cannot repair a different LIC release")
         inventory = load_inventory(root)
-        if inventory is None or inventory.selected_profile != {"profile_id": profile.profile_id,
-                                                                 "digest": profile.digest}:
+        if inventory is None:
             raise ValueError("Core repair needs a matching durable component inventory")
+        profile = accepted_installed_profile(
+            delivery / "recipes/compatibility/profiles", inventory.selected_profile,
+            inventory.installed_component_ids)
         core_id = next(c.component_id for c in profile.components.values() if c.tier == "core")
         core_profile = dependency_profile_for_components(profile, {core_id})
         identity = lambda wheels: {(normalize_distribution(w.name), w.version,

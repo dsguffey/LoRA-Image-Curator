@@ -13,6 +13,7 @@ from .acquisition import (AcquisitionCancelled, AcquisitionPolicy, acquire_artif
 from .bootstrap_layout import layout, reject_reparse_entries
 from .artifacts import AcquiredArtifact
 from .dependencies import install_locked_wheels
+from .environment import create_final_path_venv
 from .dependency_lock import load_dependency_lock
 from .hf_source import HuggingFaceSource, hf_snapshot_target
 from .journal import OperationJournal
@@ -24,9 +25,14 @@ from .process_lock import process_lock
 from .storage import inspect_model_storage, validate_model_root
 from .validation import validate_environment
 from .active_venv import managed_venv
+from .provider_venv import (inventory_for_generation, new_generation,
+                            promote_generation, record_candidate,
+                            restore_incomplete_promotion)
 from .compatibility_profiles import (ResolvedDependencyProfile, dependency_profile_for_components,
                                      recommended_profile)
-from .component_state import load_or_project_inventory
+from .component_state import (ResourceState, component_from_manifest,
+                              load_or_project_inventory, replace_component,
+                              with_profile)
 from .artifacts import ArtifactDescriptor
 from .dependency_lock import normalize_distribution
 
@@ -70,21 +76,18 @@ def inspect_recovery(delivery: Path, root: Path,
                         data.get('plan_digest') == operation_digest(
                             delivery, recorded_root, recorded_models))
     locations_match = recorded_root == current_root and recorded_models == current_models
-    unsafe_mutation = any(step.get('name') == 'install_dependencies' and
-                          step.get('status') in {'running', 'failed'}
-                          for step in data.get('steps', ()))
     completed = sum(step.get('status') == 'completed' for step in data.get('steps', ()))
-    blocked = not identity_matches or not locations_match or unsafe_mutation
-    resumable = status in {'planned', 'running', 'cancelled', 'failed'} and not blocked
+    blocked = not identity_matches or not locations_match
+    resumable = status in {'planned', 'running', 'cancelled'} and not blocked
     if not identity_matches:
         summary = ('This interrupted Florence setup belongs to a different approved recipe. '
                    'Its journal was preserved for review.')
     elif not locations_match:
         summary = ('This interrupted Florence setup is bound to its recorded application and model '
                    'locations. Restore those selections before resuming.')
-    elif unsafe_mutation:
-        summary = ('Florence package installation was interrupted. Files were preserved, but this '
-                   'environment requires a reviewed repair before acquisition can continue.')
+    elif status == 'failed':
+        summary = ('Florence setup failed. Review its diagnostic, then choose Repair for a fresh '
+                   'attempt. Core remains on its previous environment.')
     else:
         summary = ('Florence setup was interrupted. Resume continues only the previously authorized '
                    'recipe and reuses verified work.')
@@ -146,6 +149,10 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
     """Install only after the caller's explicit Florence Install/Resume action."""
     root = root.resolve()
     paths = layout(root)
+    journal_path = root / 'State/operations/florence.json'
+    if journal_path.is_file():
+        with process_lock(root):
+            restore_incomplete_promotion(root, OperationJournal.load(journal_path))
     active_venv = managed_venv(root)
     model_root = validate_model_root(model_root, max_length=240)
     core, delta, combined, model = profile(delivery)
@@ -162,7 +169,7 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
     if active.get('state') != 'active' or Path(active.get('root', '')).resolve() != root:
         raise ValueError('Core activation record is missing or belongs to another location')
     compatibility = recommended_profile(delivery / 'recipes/compatibility/profiles')
-    inventory = load_or_project_inventory(delivery, root, active)
+    inventory = with_profile(load_or_project_inventory(delivery, root, active), compatibility)
     core_id = next(item.component_id for item in compatibility.components.values() if item.tier == 'core')
     installed_ids = set(inventory.installed_component_ids) | {core_id}
     prior_lock = dependency_profile_for_components(compatibility, installed_ids)
@@ -173,10 +180,11 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
                                       tuple(wheel for wheel in final_lock.wheels
                                             if normalize_distribution(wheel.name) not in prior_names))
     identity = operation_digest(delivery, root, model_root)
-    journal_path = root / 'State/operations/florence.json'
     with process_lock(root):
         if resume:
             journal = OperationJournal.load(journal_path)
+            if journal.data.get('status') not in {'planned', 'running', 'cancelled'}:
+                raise ValueError('This Florence attempt failed or finished; choose Repair for a fresh attempt')
             if (journal.data.get('plan_digest') != identity or
                     tuple(s.get('name') for s in journal.data.get('steps', ())) != STEPS):
                 raise ValueError('Florence journal does not match this exact authorized plan')
@@ -190,8 +198,6 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
                     prior, recovery = None, None
                 if prior is not None and prior.data.get('status') != 'succeeded' and recovery and recovery.resumable:
                     raise ValueError('An interrupted Florence plan exists; use Resume with its recorded location')
-                if recovery and 'package installation was interrupted' in recovery.summary:
-                    raise ValueError('Florence package installation was interrupted in the active environment. Repair Core before restarting Florence.')
                 history = journal_path.parent / 'history'
                 history.mkdir(parents=True, exist_ok=True)
                 archived = history / f'florence-stale-{datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")}.json'
@@ -215,6 +221,8 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
         current = ''
         results = {}
         current_number = 0
+        candidate_venv = None
+        acquired_wheels = ()
 
         def emit(message, *, terminal=None):
             with log_path.open('a', encoding='utf-8') as stream:
@@ -227,17 +235,51 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
                 raise AcquisitionCancelled('Cancellation requested')
             status({**event, 'step': current_number, 'total_steps': len(STEPS), 'terminal': None})
 
-        def acquire(descriptor):
+        def record_failure_diagnostic(error):
+            try:
+                process_exit_code = json.loads(str(error)).get('exit_code')
+            except (ValueError, TypeError, AttributeError):
+                process_exit_code = None
+            try:
+                report = validate_environment(
+                    active_venv / 'Scripts/python.exe', active_venv,
+                    paths['runtime'], prior_lock,
+                    require_cuda=any(w.name == 'torch' for w in prior_lock.wheels))
+                core_status = {'passed': bool(report.get('passed'))}
+            except Exception as check_error:
+                core_status = {'passed': False, 'error_class': type(check_error).__name__}
+            journal.data['provider_diagnostic'] = {
+                'component': 'florence-captioning', 'install_root': str(root),
+                'step': current, 'old_venv': str(active_venv),
+                'candidate_venv': str(candidate_venv or ''),
+                'python_executable': str((candidate_venv or active_venv) / 'Scripts/python.exe'),
+                'command_category': 'package-install' if current == 'install_dependencies' else current,
+                'process_exit_code': process_exit_code,
+                'exception_class': type(error).__name__,
+                'core_validation_after_failure': core_status,
+                'journal_status_after_failure': journal.data.get('status'),
+            }
+            try:
+                journal._write()
+            except OSError:
+                pass
+
+        def acquire(descriptor, *, allow_network=True):
             managed = managed_artifact_path(delivery, root, descriptor.artifact_id,
                                             descriptor.version, descriptor.expected_sha256)
             if managed is not None and managed.is_file():
                 return AcquiredArtifact(descriptor, managed.as_posix(), descriptor.expected_sha256,
                                         managed.stat().st_size, 'verified', True, True, 0)
             downloads = managed_data_layout(root)['downloads']
-            if cache_source:
-                candidate = cache_source / 'verified' / descriptor.artifact_id / descriptor.version / descriptor.filename
+            for source in (cache_source, root / 'Cache', delivery / 'offline-artifacts'):
+                if source is None:
+                    continue
+                candidate = source / 'verified' / descriptor.artifact_id / descriptor.version / descriptor.filename
                 if candidate.is_file():
                     return admit_local_artifact(descriptor, candidate, downloads, policy)
+            if not allow_network:
+                raise FileNotFoundError(
+                    f'Previously installed package {descriptor.artifact_id} {descriptor.version} is absent from verified local storage')
             return acquire_artifact(descriptor, downloads, policy,
                                     ca_bundle=delivery / 'trust/cacert.pem', progress=progress,
                                     partial_observer=lambda path, state: (
@@ -261,21 +303,25 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
                     if not result['passed']:
                         raise RuntimeError('Core must be healthy before Florence is installed')
                 elif current == 'acquire_dependencies':
-                    wheels = tuple(acquire(ArtifactDescriptor.from_dict(w.artifact.as_dict())) for w in delta.wheels)
-                    result = {'verified': True, 'count': len(wheels),
-                              'reused': sum(item.reused for item in wheels)}
+                    disclosed_hashes = {w.artifact.expected_sha256 for w in delta.wheels}
+                    acquired_wheels = tuple(acquire(ArtifactDescriptor.from_dict(w.artifact.as_dict()),
+                                                    allow_network=w.artifact.expected_sha256 in disclosed_hashes)
+                                            for w in final_lock.wheels)
+                    result = {'verified': True, 'count': len(acquired_wheels),
+                              'reused': sum(item.reused for item in acquired_wheels)}
                 elif current == 'install_dependencies':
-                    for acquired in wheels:
+                    for acquired in acquired_wheels:
                         promote_package(delivery, root, Path(acquired.cache_path),
                                         acquired.descriptor.artifact_id,
                                         acquired.descriptor.version, acquired.actual_sha256)
-                    if prior['status'] in {'running', 'failed'}:
-                        raise ValueError('Interrupted package mutation requires reviewed repair; files were preserved')
-                    if prior['status'] == 'completed':
-                        result = prior['evidence']
-                    else:
-                        result = install_locked_wheels(active_venv / 'Scripts/python.exe', delta, wheels,
-                                                       paths['logs'] / 'florence-dependencies.log')
+                    candidate_venv = new_generation(root)
+                    record_candidate(journal, root, active, inventory, active_venv, candidate_venv)
+                    candidate_python = create_final_path_venv(
+                        paths['runtime'] / 'python.exe', candidate_venv, approved_root=root,
+                        log_path=paths['logs'] / 'florence-create.log')
+                    result = install_locked_wheels(candidate_python, final_lock, acquired_wheels,
+                                                   paths['logs'] / 'florence-dependencies.log')
+                    result['candidate_venv'] = str(candidate_venv)
                 elif current == 'ensure_model':
                     model_state = inspect_model_storage(delivery, model_root)
                     if model_state.get('status') == 'compatible':
@@ -288,14 +334,14 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
                         result = ensure_model(model, snapshot, approved_root=model_root,
                                               fetch_file=provider.fetch_file)
                 elif current == 'validate':
-                    result = validate_environment(active_venv / 'Scripts/python.exe', active_venv,
+                    if candidate_venv is None:
+                        raise RuntimeError('Florence replacement environment was not built')
+                    result = validate_environment(candidate_venv / 'Scripts/python.exe', candidate_venv,
                                                   paths['runtime'], final_lock, require_cuda=True)
                     if not result['passed']:
                         raise RuntimeError('Florence runtime validation failed')
                 elif current == 'caption':
-                    if prior['status'] != 'planned':
-                        raise ValueError('Prior inference evidence is never automatically repeated')
-                    result = run_probe('caption', active_venv / 'Scripts/python.exe',
+                    result = run_probe('caption', candidate_venv / 'Scripts/python.exe',
                                        paths['application'] / 'extracted', snapshot,
                                        paths['probes'] / 'florence-caption',
                                        model_root / 'huggingface/hub')
@@ -313,10 +359,42 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
                       'caption': results['caption']}
             target = root / 'State/components/florence.json'
             target.parent.mkdir(parents=True, exist_ok=True)
-            temporary = target.with_suffix('.json.tmp')
-            temporary.write_text(json.dumps(record, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-            os.replace(temporary, target)
-            synchronize_resource_library(delivery, root)
+            previous_record = target.read_bytes() if target.is_file() else None
+            resource = ResourceState(
+                'florence-model', 'model', 'huggingface-snapshot-v1', str(snapshot),
+                'manager-owned', 'copy-and-verify', {'digest': model.digest()},
+                {'kind': 'huggingface', 'repository': 'florence-community/Florence-2-large-ft'},
+                {'version': 'florence-caption-v1', 'passed': True})
+            component = component_from_manifest(
+                compatibility.component_by_id('florence-captioning'),
+                state='installed', enabled=True,
+                readiness={'version': 'florence-caption-v1', 'passed': True},
+                resources=(resource,))
+            updated_inventory = inventory_for_generation(
+                replace_component(inventory, component), candidate_venv)
+
+            def validate_and_publish():
+                report = validate_environment(candidate_venv / 'Scripts/python.exe', candidate_venv,
+                                              paths['runtime'], final_lock, require_cuda=True)
+                if not report['passed']:
+                    raise RuntimeError('Promoted Florence environment did not pass validation')
+                temporary = target.with_suffix('.json.tmp')
+                temporary.write_text(json.dumps(record, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+                os.replace(temporary, target)
+                synchronize_resource_library(delivery, root)
+
+            try:
+                promote_generation(root, journal, candidate_venv, active,
+                                   inventory, updated_inventory, validate_and_publish)
+            except BaseException:
+                if previous_record is None:
+                    target.unlink(missing_ok=True)
+                else:
+                    temporary = target.with_suffix('.json.tmp')
+                    temporary.write_bytes(previous_record)
+                    os.replace(temporary, target)
+                raise
+            record['component_inventory'] = str(root / 'State/components/inventory.json')
             journal.set_validation({'passed': True, 'optional_capability_ready': True})
             journal.set_status('succeeded')
             emit('Florence is installed and verified.', terminal='success')
@@ -325,11 +403,13 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
             if current:
                 journal.set_step(current, 'cancelled', error=f'{type(error).__name__}: {error}')
             journal.set_status('cancelled', failure=f'{type(error).__name__}: {error}')
+            record_failure_diagnostic(error)
             emit('Florence installation paused safely. Verified work was preserved for Resume.', terminal='cancelled')
             raise
         except BaseException as error:
             if current:
                 journal.set_step(current, 'failed', error=f'{type(error).__name__}: {error}')
             journal.set_status('failed', failure=f'{type(error).__name__}: {error}')
+            record_failure_diagnostic(error)
             emit(f'Florence installation stopped safely: {error}', terminal='error')
             raise

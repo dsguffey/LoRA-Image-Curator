@@ -10,8 +10,7 @@ from .acquisition import (AcquisitionCancelled, AcquisitionPolicy, acquire_artif
                           admit_local_artifact, sha256_file)
 from .artifacts import AcquiredArtifact, ArtifactDescriptor
 from .bootstrap_layout import layout, reject_reparse_entries
-from .compatibility_profiles import (ResolvedDependencyProfile, canonical_digest,
-                                     dependency_profile_for_components,
+from .compatibility_profiles import (canonical_digest, dependency_profile_for_components,
                                      recommended_profile)
 from .component_adapters import (acquisition_hosts, artifact_descriptor, install_resource,
                                  resource_destination, validate_resource)
@@ -20,12 +19,16 @@ from .component_state import (ComponentInventory, ResourceState, component_from_
                               load_or_project_inventory, replace_component, with_profile,
                               write_inventory)
 from .dependencies import install_locked_wheels
+from .environment import create_final_path_venv
 from .journal import OperationJournal
 from .managed_resources import (managed_artifact_path, managed_data_layout, promote_package,
                                 synchronize_resource_library)
 from .process_lock import process_lock
 from .validation import validate_environment
 from .active_venv import managed_venv
+from .provider_venv import (inventory_for_generation, new_generation,
+                            promote_generation, record_candidate,
+                            restore_incomplete_promotion)
 
 
 STEPS = ("verify_core", "acquire_dependencies", "install_dependencies",
@@ -78,11 +81,6 @@ def _artifact_from_package(package) -> ArtifactDescriptor:
         package.artifact_id, package.version, package.filename, package.url,
         package.sha256, package.publisher, package.source_name, package.license_id,
         package.size)
-
-
-def _lock_from_wheels(profile_id: str, python_version: str, platform: str,
-                      wheels) -> ResolvedDependencyProfile:
-    return ResolvedDependencyProfile(profile_id, python_version, platform, tuple(wheels))
 
 
 def _plan(delivery: Path, root: Path, component_id: str,
@@ -195,26 +193,35 @@ def inspect_recovery(delivery: Path, root: Path, component_id: str,
                    "Its diagnostic record was preserved; managed resources remain available for a new Install.")
     elif not steps_match:
         summary = "The interrupted operation uses an unsupported journal step contract."
+    elif journal.data.get("status") == "failed":
+        summary = ("The previous provider attempt failed. Review its diagnostic, then choose Repair to start "
+                   "a fresh attempt with verified artifacts. Core remains on its prior environment.")
     else:
         summary = "Work was paused or interrupted. Resume continues only the same authorized artifact plan."
     status = str(journal.data.get("status", ""))
     return ComponentRecovery(journal_path, component_id, status, completed, len(STEPS),
-                             status in {"planned", "running", "cancelled", "failed"} and not blocked,
+                             status in {"planned", "running", "cancelled"} and not blocked,
                              blocked, summary, str(selected_path) if selected_path else None)
 
 
 def _acquire(descriptor: ArtifactDescriptor, delivery: Path, root: Path, cache: Path,
-             cache_source: Path | None, progress, journal: OperationJournal) -> object:
+             cache_source: Path | None, progress, journal: OperationJournal, *,
+             allow_network: bool = True) -> object:
     managed = managed_artifact_path(delivery, root, descriptor.artifact_id,
                                     descriptor.version, descriptor.expected_sha256)
     if managed is not None and managed.is_file():
         return AcquiredArtifact(descriptor, managed.as_posix(), descriptor.expected_sha256,
                                 managed.stat().st_size, "verified", True, True, 0)
     policy = AcquisitionPolicy(acquisition_hosts(descriptor))
-    if cache_source:
-        candidate = cache_source / "verified" / descriptor.artifact_id / descriptor.version / descriptor.filename
+    for source in (cache_source, root / "Cache", delivery / "offline-artifacts"):
+        if source is None:
+            continue
+        candidate = source / "verified" / descriptor.artifact_id / descriptor.version / descriptor.filename
         if candidate.is_file():
             return admit_local_artifact(descriptor, candidate, cache, policy)
+    if not allow_network:
+        raise FileNotFoundError(
+            f"Previously installed package {descriptor.artifact_id} {descriptor.version} is absent from verified local storage")
     return acquire_artifact(
         descriptor, cache, policy, ca_bundle=delivery / "trust/cacert.pem", progress=progress,
         partial_observer=lambda path, state: (
@@ -293,35 +300,25 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
         legacy = execute_florence(delivery, root, model_root, cache_source=cache_source,
                                   resume=resume, status=status,
                                   cancel_requested=cancel_requested)
-        profile = _profile(delivery)
-        manifest = profile.component_by_id(component_id)
-        active = json.loads((root / "State/installations/lic-lite.json").read_text(encoding="utf-8"))
-        inventory = with_profile(load_or_project_inventory(delivery, root, active), profile)
-        resource = ResourceState(
-            "florence-model", "model", "huggingface-snapshot-v1", str(legacy["snapshot"]),
-            "manager-owned", "preserve-managed-resource", {"digest": legacy["model_digest"]},
-            {"kind": "huggingface", "repository": "florence-community/Florence-2-large-ft"},
-            {"version": "florence-caption-v1", "passed": True})
-        component = component_from_manifest(
-            manifest, state="installed", enabled=True,
-            readiness={"version": "florence-caption-v1", "passed": True},
-            resources=(resource,))
-        write_inventory(root, replace_component(inventory, component))
-        synchronize_resource_library(delivery, root)
-        return {**legacy, "component_inventory": str(root / "State/components/inventory.json")}
+        return legacy
 
     root = root.resolve()
+    journal_path = root / f"State/operations/component-{component_id}.json"
+    if journal_path.is_file():
+        with process_lock(root):
+            restore_incomplete_promotion(root, OperationJournal.load(journal_path))
     plan = _plan(delivery, root, component_id, selected_path)
     digest = canonical_digest(plan)
     profile = _profile(delivery)
     manifest = profile.component_by_id(component_id)
     resources = _resources(manifest)
     paths = layout(root)
-    active_venv = managed_venv(root)
-    journal_path = root / f"State/operations/component-{component_id}.json"
     with process_lock(root):
+        active_venv = managed_venv(root)
         if resume:
             journal = OperationJournal.load(journal_path)
+            if journal.data.get("status") not in {"planned", "running", "cancelled"}:
+                raise ValueError("This provider attempt failed or finished; choose Repair for a fresh attempt")
             if (journal.data.get("plan_digest") != digest or
                     tuple(item.get("name") for item in journal.data.get("steps", ())) != STEPS):
                 raise ValueError("component journal does not match this exact authorized plan")
@@ -329,8 +326,6 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
         else:
             if journal_path.exists():
                 previous = OperationJournal.load(journal_path)
-                if previous.data.get("status") != "succeeded":
-                    raise ValueError("an interrupted component operation exists; use Resume")
                 history = journal_path.parent / "history"
                 history.mkdir(parents=True, exist_ok=True)
                 stem = f"component-{component_id}-{str(previous.data.get('plan_digest', 'unknown'))[:12]}"
@@ -345,7 +340,6 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                 plan_digest=digest, artifacts=[plan], steps=STEPS,
                 inputs={"install_root": str(root), "component_id": component_id,
                         "resource_destinations": plan["resource_destinations"]})
-        initial = {item["name"]: dict(item) for item in journal.data["steps"]}
         acquired_dependencies = []
         acquired_resources: list[object | None] = [None] * len(resources)
         installed_paths = [Path(value) for value in plan["resource_destinations"]]
@@ -356,10 +350,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
         current_ids = inventory.installed_component_ids or {
             next(item.component_id for item in profile.components.values() if item.tier == "core")}
         prior_lock = dependency_profile_for_components(profile, current_ids)
-        missing_names = set(final_lock.expected_inventory) - set(prior_lock.expected_inventory)
-        delta = _lock_from_wheels(final_lock.profile + "-delta", final_lock.python_version,
-                                  final_lock.platform,
-                                  (item for item in final_lock.wheels if item.name in missing_names))
+        candidate_venv = None
         current = ""
         current_number = 0
 
@@ -378,7 +369,6 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
             for current_number, current in enumerate(STEPS, 1):
                 if cancel_requested():
                     raise AcquisitionCancelled("Cancellation requested")
-                prior = initial[current]
                 journal.set_step(current, "running")
                 emit(f"[{current_number}/{len(STEPS)}] {current.replace('_', ' ').title()}")
                 if current == "verify_core":
@@ -386,12 +376,20 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                     application = paths["application"] / "extracted"
                     if not python.is_file() or not (application / "app.py").is_file():
                         raise RuntimeError("Core must be active before an optional component is installed")
+                    core_check = validate_environment(
+                        python, active_venv, paths["runtime"], prior_lock,
+                        require_cuda=any(item.name == "torch" for item in prior_lock.wheels),
+                        lic_source_root=application)
+                    if not core_check.get("passed"):
+                        raise RuntimeError("The existing Core environment needs repair before installing a provider")
                     result = {"passed": True, "active_record": str(root / "State/installations/lic-lite.json")}
                 elif current == "acquire_dependencies":
+                    disclosed_hashes = {item["expected_sha256"] for item in plan["dependency_artifacts"]}
                     acquired_dependencies = [
                         _acquire(ArtifactDescriptor.from_dict(item.artifact.as_dict()), delivery,
-                                 root, managed_data_layout(root)["downloads"], cache_source, progress, journal)
-                        for item in delta.wheels]
+                                 root, managed_data_layout(root)["downloads"], cache_source, progress, journal,
+                                 allow_network=item.artifact.expected_sha256 in disclosed_hashes)
+                        for item in final_lock.wheels]
                     result = {"verified": True, "count": len(acquired_dependencies),
                               "reused": sum(item.reused for item in acquired_dependencies)}
                 elif current == "install_dependencies":
@@ -399,11 +397,16 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                         promote_package(delivery, root, Path(acquired.cache_path),
                                         acquired.descriptor.artifact_id,
                                         acquired.descriptor.version, acquired.actual_sha256)
-                    result = (prior.get("evidence", {}) if prior["status"] == "completed" else
-                              install_locked_wheels(active_venv / "Scripts/python.exe", delta,
-                                                    tuple(acquired_dependencies),
-                                                    paths["logs"] / f"component-{component_id}-dependencies.log")
-                              if delta.wheels else {"wheel_count": 0, "offline": True})
+                    candidate_venv = new_generation(root)
+                    record_candidate(journal, root, active, inventory, active_venv, candidate_venv)
+                    candidate_python = create_final_path_venv(
+                        paths["runtime"] / "python.exe", candidate_venv,
+                        approved_root=root,
+                        log_path=paths["logs"] / f"component-{component_id}-create.log")
+                    result = install_locked_wheels(
+                        candidate_python, final_lock, tuple(acquired_dependencies),
+                        paths["logs"] / f"component-{component_id}-dependencies.log")
+                    result["candidate_venv"] = str(candidate_venv)
                 elif current == "acquire_resource":
                     acquired_resources = []
                     result = []
@@ -439,19 +442,25 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                     installed_paths = [Path(item["path"]) for item in installed]
                     synchronize_resource_library(delivery, root)
                 elif current == "validate":
+                    if candidate_venv is None:
+                        raise RuntimeError("Provider replacement environment was not built")
                     environment = validate_environment(
-                        active_venv / "Scripts/python.exe", active_venv, paths["runtime"],
+                        candidate_venv / "Scripts/python.exe", candidate_venv, paths["runtime"],
                         final_lock, require_cuda=any(item.name == "torch"
                                                      for item in final_lock.wheels),
                         lic_source_root=paths["application"] / "extracted")
                     if not environment.get("passed"):
                         raise RuntimeError("selected component dependency profile failed validation")
                     runtimes = [validate_resource(resource, installed_path,
-                                                  python=active_venv / "Scripts/python.exe",
+                                                  python=candidate_venv / "Scripts/python.exe",
                                                   application=paths["application"] / "extracted")
                                 for resource, installed_path in zip(resources, installed_paths)]
                     result = {"passed": True, "environment": environment, "resources": runtimes}
                 elif current == "publish":
+                    if candidate_venv is None:
+                        raise RuntimeError("Provider replacement environment was not validated")
+                    if cancel_requested():
+                        raise AcquisitionCancelled("Cancellation requested before provider promotion")
                     resource_states = tuple(
                         _resource_state(manifest, resource, installed_path, runtime,
                                         external=False)
@@ -461,16 +470,26 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                         manifest, state="installed", enabled=True,
                         readiness={"version": "component-resource-set-v1", "passed": True},
                         resources=resource_states)
-                    inventory = replace_component(inventory, component)
-                    target = write_inventory(root, inventory)
+                    updated_inventory = inventory_for_generation(
+                        replace_component(inventory, component), candidate_venv)
+                    def validate_active():
+                        report = validate_environment(
+                            candidate_venv / "Scripts/python.exe", candidate_venv,
+                            paths["runtime"], final_lock,
+                            require_cuda=any(item.name == "torch" for item in final_lock.wheels),
+                            lic_source_root=paths["application"] / "extracted")
+                        if not report.get("passed"):
+                            raise RuntimeError("Promoted provider environment did not pass validation")
+                    promote_generation(root, journal, candidate_venv, active,
+                                       inventory, updated_inventory, validate_active)
+                    inventory = updated_inventory
+                    target = root / "State/components/inventory.json"
                     result = {"inventory": str(target), "component": component_id,
                               "resource": str(installed_paths[0]),
                               "resources": [str(item) for item in installed_paths]}
                 results[current] = result
                 journal.set_step(current, "completed", evidence=result)
                 current = ""
-            if cancel_requested():
-                raise AcquisitionCancelled("Cancellation requested at the final safe boundary")
             journal.set_validation({"passed": True, "optional_capability_ready": True,
                                     "profile": inventory.selected_profile})
             journal.set_status("succeeded")
@@ -482,11 +501,48 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
             if current:
                 journal.set_step(current, "cancelled", error=f"{type(error).__name__}: {error}")
             journal.set_status("cancelled", failure=f"{type(error).__name__}: {error}")
+            _record_provider_failure_diagnostic(
+                journal, component_id, root, active_venv, candidate_venv,
+                current, error, paths, prior_lock)
             emit("Installation paused safely. Verified work was preserved for Resume.", terminal="cancelled")
             raise
         except BaseException as error:
             if current:
                 journal.set_step(current, "failed", error=f"{type(error).__name__}: {error}")
             journal.set_status("failed", failure=f"{type(error).__name__}: {error}")
+            _record_provider_failure_diagnostic(
+                journal, component_id, root, active_venv, candidate_venv,
+                current, error, paths, prior_lock)
             emit(f"Installation stopped safely: {error}", terminal="error")
             raise
+
+
+def _record_provider_failure_diagnostic(journal, component_id, root, old_venv,
+                                        candidate_venv, step, error, paths, prior_lock):
+    """Record bounded failure context and whether the old Core still validates."""
+    try:
+        process_exit_code = json.loads(str(error)).get("exit_code")
+    except (ValueError, TypeError, AttributeError):
+        process_exit_code = None
+    try:
+        report = validate_environment(
+            old_venv / "Scripts/python.exe", old_venv, paths["runtime"], prior_lock,
+            require_cuda=any(item.name == "torch" for item in prior_lock.wheels),
+            lic_source_root=paths["application"] / "extracted")
+        core_status = {"passed": bool(report.get("passed"))}
+    except Exception as check_error:
+        core_status = {"passed": False, "error_class": type(check_error).__name__}
+    journal.data["provider_diagnostic"] = {
+        "component": component_id, "install_root": str(root), "step": step,
+        "old_venv": str(old_venv), "candidate_venv": str(candidate_venv or ""),
+        "python_executable": str((candidate_venv or old_venv) / "Scripts/python.exe"),
+        "command_category": "package-install" if step == "install_dependencies" else step,
+        "process_exit_code": process_exit_code,
+        "exception_class": type(error).__name__,
+        "core_validation_after_failure": core_status,
+        "journal_status_after_failure": journal.data.get("status"),
+    }
+    try:
+        journal._write()
+    except OSError:
+        pass

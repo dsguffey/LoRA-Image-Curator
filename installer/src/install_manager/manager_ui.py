@@ -34,6 +34,7 @@ from .lic_face_settings import (read_face_model_root, read_provider_location,
 from .managed_resources import (component_resource_status, import_resources,
                                 managed_data_layout)
 from .provider_discovery import discover_provider_candidates, discovery_message
+from .provider_venv import recover_pending_provider_promotions
 from .root_state import inspect_selected_root
 from .core_repair import (inspect_recovery as inspect_core_repair_recovery,
                           retry_cleanup as retry_core_repair_cleanup)
@@ -598,6 +599,13 @@ class ManagerShell:
         self.record_existing_component = record_existing_component
         self.record, self.review_mode, self.quiet = installed_record, review_mode, quiet
         self.review_scenario = review_scenario
+        if not review_mode:
+            try:
+                recover_pending_provider_promotions(root)
+            except (OSError, ValueError, KeyError, TypeError):
+                # Selected-root and provider journal inspection will explain
+                # an unsafe snapshot without preventing the Manager from opening.
+                pass
         self.selected_state = (None if review_mode else inspect_selected_root(delivery, root))
         if self.selected_state is not None:
             installed_record = self.selected_state.record
@@ -766,6 +774,10 @@ class ManagerShell:
         if self.operation_queue.active is not None:
             raise RuntimeError("Pause the current operation before choosing another installation")
         root = selected.expanduser().resolve()
+        try:
+            recover_pending_provider_promotions(root)
+        except (OSError, ValueError, KeyError, TypeError):
+            pass
         state = inspect_selected_root(self.delivery, root)
         self.root, self.selected_state, self.record = root, state, state.record
         self.plan = disclosure(self.delivery, root)
@@ -895,14 +907,16 @@ class ManagerShell:
                     florence.phase, florence.verified = ComponentPhase.INSTALLED, True
                     florence.detail = ("✓ Florence is installed and verified" +
                                        (" (recognized legacy installation)" if state["legacy"] else ""))
-            if self.florence_recovery:
+            if self.florence_recovery and not florence.verified:
                 recovery = self.florence_recovery
-                if recovery.blocked and 'package installation was interrupted' not in recovery.summary:
+                if recovery.blocked:
                     florence.phase, florence.resumable = ComponentPhase.NOT_INSTALLED, False
                     florence.detail = (recovery.summary + ' Choose Install to start the current approved setup; '
                                        'the older record will be kept in history.')
                 else:
-                    florence.phase = ComponentPhase.PARTIAL
+                    florence.phase = (ComponentPhase.REPAIR_REQUIRED
+                                      if getattr(recovery, 'status', None) == 'failed'
+                                      else ComponentPhase.PARTIAL)
                     florence.resumable = recovery.resumable
                     florence.recovery_blocked = recovery.blocked
                     florence.completed_bytes = recovery.completed_steps
@@ -910,12 +924,13 @@ class ManagerShell:
                     florence.detail = recovery.summary
         elif florence is not None and self.florence_recovery:
             recovery = self.florence_recovery
-            if recovery.blocked and 'package installation was interrupted' not in recovery.summary:
+            if recovery.blocked:
                 florence.phase = ComponentPhase.NOT_INSTALLED
                 florence.detail = (recovery.summary + ' Choose Install to start the current approved setup; '
                                    'the older record will be kept in history.')
             else:
-                florence.phase = ComponentPhase.PARTIAL
+                florence.phase = (ComponentPhase.REPAIR_REQUIRED if getattr(recovery, 'status', None) == 'failed'
+                                  else ComponentPhase.PARTIAL)
                 florence.resumable = recovery.resumable
                 florence.recovery_blocked = recovery.blocked
                 florence.detail = recovery.summary
@@ -928,9 +943,10 @@ class ManagerShell:
             # but never replace current resource evidence with it.
             if item.selected_path:
                 continue
-            item.phase = ComponentPhase.PARTIAL
+            item.phase = (ComponentPhase.ERROR if recovery.status == "failed" or recovery.blocked
+                          else ComponentPhase.PARTIAL)
             item.resumable = recovery.resumable
-            item.recovery_blocked = recovery.blocked
+            item.recovery_blocked = False
             item.completed_bytes = recovery.completed_steps
             item.total_bytes = recovery.total_steps
             item.detail = recovery.summary
@@ -1388,11 +1404,16 @@ class ManagerShell:
                 detail="Florence setup records could not be read safely. Repair may reacquire the disclosed approved files.")
         self.florence_recovery = recovery
         if recovery:
-            if recovery.blocked and 'package installation was interrupted' not in recovery.summary:
+            if recovery.blocked:
                 self.florence_recovery = None
                 self.component_facts["florence-captioning"] = ComponentFacts(
                     ComponentPhase.NOT_INSTALLED,
                     detail=recovery.summary + ' Choose Install to begin the current approved setup; the older record will be kept in history.',
+                    diagnostic=str(recovery.journal_path))
+            elif getattr(recovery, "status", None) == "failed":
+                self.florence_recovery = None
+                self.component_facts["florence-captioning"] = ComponentFacts(
+                    ComponentPhase.REPAIR_REQUIRED, detail=recovery.summary,
                     diagnostic=str(recovery.journal_path))
             else:
                 self.component_facts["florence-captioning"] = ComponentFacts(
@@ -2421,8 +2442,10 @@ class ManagerShell:
                         recovery = self._load_component_recovery(component_id, None)
                         if recovery:
                             self.component_recoveries[component_id] = recovery
-                            facts.phase, facts.resumable = ComponentPhase.PARTIAL, recovery.resumable
-                            facts.recovery_blocked, facts.detail = recovery.blocked, recovery.summary
+                            facts.phase = (ComponentPhase.ERROR if recovery.status == "failed" or recovery.blocked
+                                           else ComponentPhase.PARTIAL)
+                            facts.resumable, facts.recovery_blocked = recovery.resumable, False
+                            facts.detail = recovery.summary
                     else:
                         self._refresh_recovery_state()
                     recovered = (self.florence_recovery if component_id == "florence-captioning" else

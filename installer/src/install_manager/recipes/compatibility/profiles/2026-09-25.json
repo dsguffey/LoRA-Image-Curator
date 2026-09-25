@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "profile_id": "2026-09-25",
+  "status": "approved",
+  "approval_basis": "Candidate correction of the exact BtbN LGPL archive LICENSE.txt member hash; package and executable identities unchanged",
+  "python_version": "3.14.6",
+  "platform": "win_amd64",
+  "hardware_profile": "Windows x64 / NVIDIA CUDA 13 / RTX 5070 Ti qualified",
+  "components": {
+    "core": {
+      "path": "core-windows-x64-base-v1.json",
+      "sha256": "67b10c0bae66c50d0944b2437ea8ebaa3ad97b2f8f557896b147883da87d6831"
+    },
+    "florence": {
+      "path": "florence-windows-nvidia-cu130-base-v1.json",
+      "sha256": "2d8b16742b792daf976bb2f6c73201bf8f66d185a24f757284a4b064494402b4"
+    },
+    "legacy-insightface-runtime": {
+      "path": "legacy-insightface-runtime-windows-nvidia-cu130-v1.json",
+      "sha256": "1d5c6a726b713220a986b0de97223a76fa8b881a3cc3e8a10130d148e64e81a4"
+    },
+    "face-analysis": {
+      "path": "opencv-yunet-sface-windows-x64-v2.json",
+      "sha256": "737bb6d8bbe52f332b3937ff16610c89fc11813786b47453495ab45d86aebbbe"
+    },
+    "mediapipe": {
+      "path": "mediapipe-windows-x64-base-v2.json",
+      "sha256": "75d368cc58e341bbc94ecd809034f3f34770687ec8d105d8687d57c4251d4485"
+    },
+    "ffmpeg": {
+      "path": "ffmpeg-btbn-n8.1.2-50-lgpl-v2.json",
+      "sha256": "e868314424115eb6082702e2a7fa198c2bd60cdaae74e16eb03a6fe9e14d390f"
+    }
+  },
+  "reference_environment": {
+    "package_inventory": {
+      "absl-py": "2.5.0",
+      "certifi": "2026.7.22",
+      "cffi": "2.1.0",
+      "charset-normalizer": "3.4.9",
+      "colorama": "0.4.6",
+      "contourpy": "1.3.3",
+      "cycler": "0.12.1",
+      "einops": "0.8.2",
+      "filelock": "3.32.2",
+      "flatbuffers": "25.12.19",
+      "fonttools": "4.63.0",
+      "fsspec": "2026.7.0",
+      "huggingface-hub": "0.36.2",
+      "idna": "3.18",
+      "imageio": "2.37.4",
+      "insightface": "1.0.1+lic.cuda13.1",
+      "jinja2": "3.1.6",
+      "kiwisolver": "1.5.0",
+      "lazy-loader": "0.5",
+      "markupsafe": "3.0.3",
+      "matplotlib": "3.11.1",
+      "mediapipe": "0.10.35",
+      "ml-dtypes": "0.5.4",
+      "mpmath": "1.3.0",
+      "networkx": "3.6.1",
+      "numpy": "2.5.1",
+      "onnx": "1.22.0",
+      "onnxruntime-gpu": "1.28.0",
+      "opencv-contrib-python": "5.0.0.93",
+      "packaging": "26.2",
+      "pillow": "12.3.0",
+      "pip": "26.2",
+      "protobuf": "7.35.1",
+      "pycparser": "3.0",
+      "pyparsing": "3.3.2",
+      "python-dateutil": "2.9.0.post0",
+      "pyyaml": "6.0.3",
+      "regex": "2026.7.19",
+      "requests": "2.34.2",
+      "safetensors": "0.8.0",
+      "scikit-image": "0.26.0",
+      "scipy": "1.18.0",
+      "send2trash": "2.1.0",
+      "setuptools": "83.0.0",
+      "six": "1.17.0",
+      "sounddevice": "0.5.5",
+      "sympy": "1.14.0",
+      "tifffile": "2026.7.31",
+      "timm": "1.0.28",
+      "tokenizers": "0.22.2",
+      "torch": "2.13.0+cu130",
+      "torchvision": "0.28.0+cu130",
+      "tqdm": "4.70.0",
+      "transformers": "4.56.2",
+      "typing-extensions": "4.16.0",
+      "urllib3": "2.7.0",
+      "wheel": "0.47.0"
+    },
+    "forbidden_distributions": [
+      "onnxruntime",
+      "opencv-python",
+      "opencv-python-headless",
+      "opencv-contrib-python-headless"
+    ],
+    "accepted_lic_commit": "fe1c0dc436b133f063e26842f5332f14cc136509",
+    "canonical_profile": "windows-nvidia-cu130"
+  },
+  "distributions": {
+    "LIC Lite": [
+      "core"
+    ],
+    "LIC Full": [
+      "core",
+      "florence",
+      "legacy-insightface-runtime",
+      "face-analysis",
+      "mediapipe",
+      "ffmpeg"
+    ]
+  },
+  "policy": {
+    "profile_selection": "approved-only",
+    "user_selects": "capabilities-not-package-versions",
+    "unchecked_installed": "preserve",
+    "checked_not_installed": "confirm-before-acquisition",
+    "passive_loading": "no-acquisition",
+    "internal_wheel_browse": "not-exposed"
+  },
+  "validation": {
+    "dependency_integrity": "pip check passed; 438 selected native files hashed; no duplicate ownership",
+    "full_stack": "M1.10 universal Python environment retained; Face Analysis adds the exact OpenCV YuNet + SFace resource pair without changing Python packages.",
+    "evidence": [
+      "docs/M1_10_VERIFICATION.md",
+      "docs/M1_11A_VERIFICATION.md",
+      "docs/M1_11B_PHASE_2B.md"
+    ],
+    "candidate_search": "YuNet and SFace immutable OpenCV Zoo revision 47534e27c9851bb1128ccc0102f1145e27f23f98 passed Phase 1/2A qualification."
+  }
+}

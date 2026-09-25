@@ -26,7 +26,7 @@ def managed_venv(root: Path, record: dict | None = None) -> Path:
     parent = layout(root)["venv"].parent
     if (python.name.casefold() != "python.exe" or python.parent.name.casefold() != "scripts"
             or generation.parent.resolve() != parent.resolve()
-            or not (generation.name == "venv" or generation.name.startswith("venv-repair-"))
+            or not (generation.name == "venv" or generation.name.startswith(("venv-repair-", "venv-provider-")))
             or generation.is_symlink() or getattr(generation, "is_junction", lambda: False)()
             or python.resolve() != generation.resolve() / "Scripts/python.exe"):
         raise ValueError("Core activation record names an unmanaged Python environment")
