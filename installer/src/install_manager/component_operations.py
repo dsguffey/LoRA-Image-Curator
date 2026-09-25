@@ -25,6 +25,7 @@ from .managed_resources import (managed_artifact_path, managed_data_layout, prom
                                 synchronize_resource_library)
 from .process_lock import process_lock
 from .validation import validate_environment
+from .active_venv import managed_venv
 
 
 STEPS = ("verify_core", "acquire_dependencies", "install_dependencies",
@@ -316,6 +317,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
     manifest = profile.component_by_id(component_id)
     resources = _resources(manifest)
     paths = layout(root)
+    active_venv = managed_venv(root)
     journal_path = root / f"State/operations/component-{component_id}.json"
     with process_lock(root):
         if resume:
@@ -380,7 +382,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                 journal.set_step(current, "running")
                 emit(f"[{current_number}/{len(STEPS)}] {current.replace('_', ' ').title()}")
                 if current == "verify_core":
-                    python = paths["venv"] / "Scripts/python.exe"
+                    python = active_venv / "Scripts/python.exe"
                     application = paths["application"] / "extracted"
                     if not python.is_file() or not (application / "app.py").is_file():
                         raise RuntimeError("Core must be active before an optional component is installed")
@@ -398,7 +400,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                                         acquired.descriptor.artifact_id,
                                         acquired.descriptor.version, acquired.actual_sha256)
                     result = (prior.get("evidence", {}) if prior["status"] == "completed" else
-                              install_locked_wheels(paths["venv"] / "Scripts/python.exe", delta,
+                              install_locked_wheels(active_venv / "Scripts/python.exe", delta,
                                                     tuple(acquired_dependencies),
                                                     paths["logs"] / f"component-{component_id}-dependencies.log")
                               if delta.wheels else {"wheel_count": 0, "offline": True})
@@ -438,14 +440,14 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                     synchronize_resource_library(delivery, root)
                 elif current == "validate":
                     environment = validate_environment(
-                        paths["venv"] / "Scripts/python.exe", paths["venv"], paths["runtime"],
+                        active_venv / "Scripts/python.exe", active_venv, paths["runtime"],
                         final_lock, require_cuda=any(item.name == "torch"
                                                      for item in final_lock.wheels),
                         lic_source_root=paths["application"] / "extracted")
                     if not environment.get("passed"):
                         raise RuntimeError("selected component dependency profile failed validation")
                     runtimes = [validate_resource(resource, installed_path,
-                                                  python=paths["venv"] / "Scripts/python.exe",
+                                                  python=active_venv / "Scripts/python.exe",
                                                   application=paths["application"] / "extracted")
                                 for resource, installed_path in zip(resources, installed_paths)]
                     result = {"passed": True, "environment": environment, "resources": runtimes}

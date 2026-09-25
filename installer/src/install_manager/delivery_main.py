@@ -13,6 +13,7 @@ from .bootstrap_layout import validate_root, layout
 from .component_catalog import default_install_root
 from .first_launch import show, show_manager
 from .managed_install import activate, launch
+from .core_repair import execute as repair_activated_core
 from .component_operations import execute as install_managed_component
 from .probe_guard import isolated_environment
 from .release_channel import verify_delivery
@@ -69,6 +70,11 @@ def main():
         return activate(delivery, chosen, Path(sys.executable).parent,
                         model_root=models, start_menu=start, desktop=desktop)
 
+    def repair_core(root, resume, status, pause_requested):
+        return repair_activated_core(delivery, root, resume=resume,
+                                     cache_source=args.cache_source,
+                                     status=status, pause_requested=pause_requested)
+
     # Sanitize before any managed subprocess; these are process-local variables, not registry changes.
     system = os.environ.get('SystemRoot', r'C:\Windows')
     keep = {k: v for k, v in os.environ.items() if k.upper() in
@@ -88,7 +94,7 @@ def main():
         if args.ui_review == 'first-run':
             show(delivery, proposed, prepare,
                  lambda chosen, models, start, desktop: None, lambda chosen: None,
-                 install_component=install_component,
+                 install_component=install_component, repair_core=repair_core,
                  review_mode=True, initial_page=page, review_scenario=args.ui_review_state,
                  initial_model_root=args.model_root)
         else:
@@ -101,7 +107,7 @@ def main():
                       'channel': {'version': '0.28.4+m17.1'}}
             show_manager(delivery, proposed, lambda chosen: None,
                          prepare=prepare, activate=lambda chosen, models, start, desktop: None,
-                         install_component=install_component,
+                         install_component=install_component, repair_core=repair_core,
                          record=record, review_mode=True, initial_page=page,
                          review_scenario=args.ui_review_state or 'core-ready')
         return 0
@@ -110,7 +116,7 @@ def main():
         return 0
     if args.manage:
         show_manager(delivery, proposed, launch, prepare=prepare, activate=activate_installed_core,
-                     install_component=install_component)
+                     install_component=install_component, repair_core=repair_core)
         return 0
     if args.self_test or args.plan or args.ui_probe:
         root = validate_root(proposed, delivery=delivery.parent)
@@ -136,6 +142,7 @@ def main():
                      lambda chosen, models, start, desktop: activate(delivery, chosen, Path(sys.executable).parent,
                                                                     model_root=models, start_menu=start, desktop=desktop),
                      lambda chosen: launch(chosen), install_component=install_component,
+                     repair_core=repair_core,
                      ui_probe=root / 'ui.json', quiet=True)
             except Exception as error:
                 (root / 'failure.json').write_text(json.dumps({'error': str(error)}), encoding='utf-8')
@@ -150,11 +157,12 @@ def main():
     else:
         if (proposed / 'State/installations/lic-lite.json').is_file():
             show_manager(delivery, proposed, launch, prepare=prepare, activate=activate_installed_core,
-                         install_component=install_component)
+                         install_component=install_component, repair_core=repair_core)
         else:
             show(delivery, proposed, prepare,
                  activate_installed_core,
-                 lambda chosen: launch(chosen), install_component=install_component)
+                 lambda chosen: launch(chosen), install_component=install_component,
+                 repair_core=repair_core)
 
     return 0
 

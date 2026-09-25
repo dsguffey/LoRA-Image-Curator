@@ -218,7 +218,7 @@ class ComponentOperationQueue:
         if existing:
             return existing, False
         request = OperationRequest(component_id, operation)
-        if self.active is None:
+        if self.active is None and not self.pending:
             self.active = request
             return request, True
         self.pending.append(request)
@@ -245,7 +245,14 @@ class ComponentOperationQueue:
     def complete(self, component_id: str) -> OperationRequest | None:
         if self.active is None or self.active.component_id != component_id:
             raise ValueError("only the active component can complete")
-        self.active = self.pending.pop(0) if self.pending else None
+        self.active = None
+        return self.pending[0] if self.pending else None
+
+    def start_next(self) -> OperationRequest | None:
+        """Promote only when the caller is ready to launch its worker."""
+        if self.active is not None or not self.pending:
+            return None
+        self.active = self.pending.pop(0)
         return self.active
 
 

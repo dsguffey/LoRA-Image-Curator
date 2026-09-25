@@ -313,11 +313,22 @@ class FlorenceRecoveryAndReuseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory); root = base / "LIC"; models = base / "Models"
             active = root / "State/installations/lic-lite.json"; active.parent.mkdir(parents=True)
-            active.write_text(json.dumps({"state": "active", "root": str(root.resolve())}), encoding="utf-8")
+            python = root / "Apps/LIC-Lite/candidate-1/venv/Scripts/python.exe"
+            python.parent.mkdir(parents=True)
+            python.write_bytes(b"fixture")
+            active.write_text(json.dumps({"state": "active", "root": str(root.resolve()),
+                                          "python": str(python)}), encoding="utf-8")
             snapshot = models / "snapshot"; snapshot.mkdir(parents=True)
             fake_profile = self._fake_profile()
             validation = {"passed": True}
+            approved = SimpleNamespace(components={"lic-core": SimpleNamespace(component_id="lic-core", tier="core")})
+            installed = SimpleNamespace(installed_component_ids={"lic-core"})
             with patch("install_manager.florence_component.profile", return_value=fake_profile), \
+                 patch("install_manager.florence_component.recommended_profile", return_value=approved), \
+                 patch("install_manager.florence_component.load_or_project_inventory", return_value=installed), \
+                 patch("install_manager.florence_component.dependency_profile_for_components",
+                       return_value=SimpleNamespace(profile="fixture", python_version="3.14.6",
+                                                    platform="win_amd64", wheels=(), expected_inventory={})), \
                  patch("install_manager.florence_component.process_lock", return_value=nullcontext()), \
                  patch("install_manager.florence_component.validate_environment", return_value=validation), \
                  patch("install_manager.florence_component.install_locked_wheels", return_value={"installed": []}), \

@@ -34,6 +34,9 @@ from .lic_face_settings import (read_face_model_root, read_provider_location,
 from .managed_resources import (component_resource_status, import_resources,
                                 managed_data_layout)
 from .provider_discovery import discover_provider_candidates, discovery_message
+from .root_state import inspect_selected_root
+from .core_repair import (inspect_recovery as inspect_core_repair_recovery,
+                          retry_cleanup as retry_core_repair_cleanup)
 from .product import (PRODUCT_EXPANDED_NAME, PRODUCT_NAME as PRODUCT_DISPLAY_NAME,
                       PRODUCT_VERSION, DEPENDENCY_PROFILE_ID)
 
@@ -582,7 +585,7 @@ class DetailsDialog:
 
 class ManagerShell:
     def __init__(self, delivery: Path, root: Path, *, prepare=None, activate=None, launch=None,
-                 install_component=None,
+                 install_component=None, repair_core=None,
                  record_existing_component=None,
                  move=None, installed_record: dict | None = None, review_mode=False,
                  initial_page: str | None = None, ui_probe: Path | None = None,
@@ -590,10 +593,15 @@ class ManagerShell:
                  initial_model_root: Path | None = None):
         self.delivery, self.root = delivery, root
         self.prepare, self.activate, self.launch, self.move = prepare, activate, launch, move
+        self.repair_core = repair_core
         self.install_component = install_component
         self.record_existing_component = record_existing_component
         self.record, self.review_mode, self.quiet = installed_record, review_mode, quiet
         self.review_scenario = review_scenario
+        self.selected_state = (None if review_mode else inspect_selected_root(delivery, root))
+        if self.selected_state is not None:
+            installed_record = self.selected_state.record
+            self.record = installed_record
         self.mode = "installed" if installed_record else "first-run"
         self.plan = disclosure(delivery, root)
         self.components = load_component_catalog(delivery / "recipes/lic-components.json")
@@ -602,7 +610,9 @@ class ManagerShell:
                            Path(installed_record.get("model_root"))
                            if installed_record and installed_record.get("model_root") else
                            default_model_root(root))
-        self.recovery_journal_path: Path | None = root / "State/operations/bootstrap.json"
+        self.recovery_journal_path: Path | None = (root / "State/operations/bootstrap.json"
+                                                    if review_mode or self.selected_state.action == "resume-bootstrap"
+                                                    else None)
         self.recovery = self._load_recovery(root, selected_models)
         managed_models = managed_data_layout(root)["models"]
         self.florence_recovery = self._load_florence_recovery(root, managed_models)
@@ -671,6 +681,10 @@ class ManagerShell:
             # Historical review entry point: normal product UI no longer exposes generic Details.
             page = "Install & Update"
         self.show_page(page)
+        if not review_mode and self.selected_state and self.selected_state.action == "ready":
+            repair = inspect_core_repair_recovery(delivery, root)
+            if repair and repair.get("cleanup_pending"):
+                self.window.after(300, self._retry_repair_cleanup)
         if review_scenario == "insightface-existing":
             self.window.after(450, lambda: self.canvas.yview_moveto(0.26))
         elif review_scenario and (review_scenario.startswith("optional-") or review_scenario in
@@ -747,6 +761,61 @@ class ManagerShell:
         except (OSError, ValueError, TypeError, KeyError):
             return None
 
+    def _reconcile_selected_root(self, selected: Path) -> None:
+        """Replace every root-bound UI fact from the selected installation."""
+        if self.operation_queue.active is not None:
+            raise RuntimeError("Pause the current operation before choosing another installation")
+        root = selected.expanduser().resolve()
+        state = inspect_selected_root(self.delivery, root)
+        self.root, self.selected_state, self.record = root, state, state.record
+        self.plan = disclosure(self.delivery, root)
+        self.mode = "installed" if state.record else "first-run"
+        self.application_path.set(str(root))
+        self.lic_appdata = root / "State/User/AppData/Roaming"
+        self.model_path.set(str(Path(state.record.get("model_root")) if state.record and
+                                state.record.get("model_root") else default_model_root(root)))
+        self.recovery_journal_path = (root / "State/operations/bootstrap.json"
+                                      if state.action == "resume-bootstrap" else None)
+        self.recovery = self._load_recovery(root, Path(self.model_path.get()))
+        canonical_models = managed_data_layout(root)["models"]
+        self.florence_recovery = self._load_florence_recovery(root, canonical_models)
+        self.component_recoveries = {}
+        for definition in self.components:
+            if definition.managed_install and definition.component_id not in {"lic-core", "florence-captioning"}:
+                recovery = self._load_component_recovery(definition.component_id, None)
+                if recovery:
+                    self.component_recoveries[definition.component_id] = recovery
+        try:
+            self.model_evidence = inspect_model_storage(self.delivery, canonical_models)
+        except (OSError, ValueError):
+            self.model_evidence = None
+        self.component_facts = self._initial_component_facts()
+        for component_id in OPTIONAL_PROVIDER_IDS:
+            facts = self.component_facts.get(component_id)
+            if facts is None or not facts.verified:
+                continue
+            try:
+                resources = component_resource_status(self.delivery, root, component_id)
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+            if resources["missing"]:
+                facts.phase, facts.verified = ComponentPhase.REPAIR_REQUIRED, False
+                facts.detail = ("Previously installed provider files are missing or changed. "
+                                "Choose Repair to restore this optional feature.")
+        for component_id, variable in self.component_paths.items():
+            variable.set(self.component_facts[component_id].selected_path)
+        self._refresh_managed_resource_facts()
+
+    def _retry_repair_cleanup(self) -> None:
+        root = self.root
+        def worker():
+            try:
+                removed = retry_core_repair_cleanup(root)
+                self.events.put(("repair-cleanup", {"root": str(root), "removed": removed}))
+            except Exception as error:
+                self.events.put(("repair-cleanup", {"root": str(root), "error": str(error)}))
+        threading.Thread(target=worker, daemon=False).start()
+
     def _apply_review_recovery(self, root: Path, selected_models: Path) -> None:
         scenario = self.review_scenario
         if scenario not in {"recovery-matching", "recovery-mismatch", "recovery-restored"}:
@@ -797,6 +866,8 @@ class ManagerShell:
                                           for resource in component.resources)
                     item.phase = (ComponentPhase.INSTALLED if component.state == "installed" and
                                   component.readiness.get("passed") and not legacy_external
+                                  else ComponentPhase.REPAIR_REQUIRED if component.state in {"installed", "partial"} and
+                                  not component.readiness.get("passed") and not legacy_external
                                   else ComponentPhase.PARTIAL)
                     item.verified = item.phase == ComponentPhase.INSTALLED
                     item.detail = ("✓ Installed and verified" if item.verified else
@@ -825,12 +896,29 @@ class ManagerShell:
                     florence.detail = ("✓ Florence is installed and verified" +
                                        (" (recognized legacy installation)" if state["legacy"] else ""))
             if self.florence_recovery:
+                recovery = self.florence_recovery
+                if recovery.blocked and 'package installation was interrupted' not in recovery.summary:
+                    florence.phase, florence.resumable = ComponentPhase.NOT_INSTALLED, False
+                    florence.detail = (recovery.summary + ' Choose Install to start the current approved setup; '
+                                       'the older record will be kept in history.')
+                else:
+                    florence.phase = ComponentPhase.PARTIAL
+                    florence.resumable = recovery.resumable
+                    florence.recovery_blocked = recovery.blocked
+                    florence.completed_bytes = recovery.completed_steps
+                    florence.total_bytes = recovery.total_steps or None
+                    florence.detail = recovery.summary
+        elif florence is not None and self.florence_recovery:
+            recovery = self.florence_recovery
+            if recovery.blocked and 'package installation was interrupted' not in recovery.summary:
+                florence.phase = ComponentPhase.NOT_INSTALLED
+                florence.detail = (recovery.summary + ' Choose Install to start the current approved setup; '
+                                   'the older record will be kept in history.')
+            else:
                 florence.phase = ComponentPhase.PARTIAL
-                florence.resumable = self.florence_recovery.resumable
-                florence.recovery_blocked = self.florence_recovery.blocked
-                florence.completed_bytes = self.florence_recovery.completed_steps
-                florence.total_bytes = self.florence_recovery.total_steps or None
-                florence.detail = self.florence_recovery.summary
+                florence.resumable = recovery.resumable
+                florence.recovery_blocked = recovery.blocked
+                florence.detail = recovery.summary
         for component_id, recovery in self.component_recoveries.items():
             item = facts.get(component_id)
             if item is None:
@@ -912,7 +1000,22 @@ class ManagerShell:
             target = facts["body-analysis"]
             target.phase, target.resumable = ComponentPhase.PARTIAL, True
             target.detail = "Paused safely. Verified work was preserved. Choose Resume to continue."
+        if self.selected_state is not None:
+            self._apply_selected_core_state(facts, self.selected_state)
         return facts
+
+    @staticmethod
+    def _apply_selected_core_state(facts, state) -> None:
+        core = facts["lic-core"]
+        core.diagnostic = state.diagnostic
+        core.detail = state.detail
+        core.verified = state.action == "ready"
+        core.resumable = state.action in {"resume-bootstrap", "resume-repair"}
+        core.phase = ({"ready": ComponentPhase.INSTALLED,
+                       "repair": ComponentPhase.REPAIR_REQUIRED,
+                       "resume-bootstrap": ComponentPhase.PARTIAL,
+                       "resume-repair": ComponentPhase.PARTIAL,
+                       "install": ComponentPhase.NOT_INSTALLED})[state.action]
 
     def _styles(self):
         style = ttk.Style(self.window)
@@ -993,14 +1096,16 @@ class ManagerShell:
             child.destroy()
 
     def show_page(self, page: str):
+        same_page = page == self.current_page
+        position = self.canvas.yview()[0] if same_page else 0.0
         self.current_page = page
-        self.canvas.yview_moveto(0)
         for name, button in self.nav_buttons.items():
             button.configure(bg=NAVY_ACTIVE if name == page else NAVY,
                              fg=WHITE if name == page else "#d8e4ec")
         self.clear()
         method = getattr(self, "page_" + page.lower().replace(" ", "_").replace("&", "and"))
         method()
+        self.canvas.after_idle(lambda: self.canvas.yview_moveto(position))
 
     def title(self, heading: str, description: str):
         ttk.Label(self.content, text=heading, style="PageTitle.TLabel", wraplength=900,
@@ -1130,8 +1235,8 @@ class ManagerShell:
         if definition.component_id == "lic-core":
             identity_editable = identity_controls_editable(facts.phase)
             self._card_path_control(frame, "Application location", self.application_path, self.choose_application,
-                                    "Select a parent folder. LoRA Image Curator will be created inside it.",
-                                    editable=identity_editable)
+                                    "Choose the installation folder or its parent. Existing installations are checked before any action.",
+                                    editable=identity_editable, commit=self.commit_application_path)
             if not identity_editable:
                 ttk.Label(frame, text="Locations cannot be changed while Core setup is active.",
                           style="CardBody.TLabel", foreground=AMBER).pack(anchor="w", pady=(4, 0))
@@ -1244,6 +1349,9 @@ class ManagerShell:
                    command=self.begin_new_installation, state=state).pack(side="left", padx=(8, 0))
 
     def _refresh_recovery_state(self):
+        if not getattr(self, "review_mode", False) and hasattr(self, "selected_state"):
+            self._reconcile_selected_root(Path(self.application_path.get()))
+            return
         if self.recovery_journal_path is None:
             return
         try:
@@ -1272,7 +1380,7 @@ class ManagerShell:
     def _refresh_florence_recovery(self):
         try:
             recovery = inspect_florence_recovery(
-                self.delivery, Path(self.application_path.get()), Path(self.model_path.get()))
+                self.delivery, self.root, managed_data_layout(self.root)["models"])
         except (OSError, ValueError, TypeError, KeyError):
             recovery = None
             self.component_facts["florence-captioning"] = ComponentFacts(
@@ -1280,14 +1388,18 @@ class ManagerShell:
                 detail="Florence setup records could not be read safely. Repair may reacquire the disclosed approved files.")
         self.florence_recovery = recovery
         if recovery:
-            self.component_facts["florence-captioning"] = ComponentFacts(
-                ComponentPhase.PARTIAL,
-                resumable=recovery.resumable,
-                completed_bytes=recovery.completed_steps,
-                total_bytes=recovery.total_steps or None,
-                detail=recovery.summary,
-                recovery_blocked=recovery.blocked,
-            )
+            if recovery.blocked and 'package installation was interrupted' not in recovery.summary:
+                self.florence_recovery = None
+                self.component_facts["florence-captioning"] = ComponentFacts(
+                    ComponentPhase.NOT_INSTALLED,
+                    detail=recovery.summary + ' Choose Install to begin the current approved setup; the older record will be kept in history.',
+                    diagnostic=str(recovery.journal_path))
+            else:
+                self.component_facts["florence-captioning"] = ComponentFacts(
+                    ComponentPhase.PARTIAL, resumable=recovery.resumable,
+                    completed_bytes=recovery.completed_steps,
+                    total_bytes=recovery.total_steps or None,
+                    detail=recovery.summary, recovery_blocked=recovery.blocked)
 
     def restore_recorded_locations(self):
         if not self.recovery:
@@ -1321,6 +1433,8 @@ class ManagerShell:
         self.recovery_journal_path = None
         self.model_evidence = None
         self.component_facts["lic-core"] = ComponentFacts()
+        if not getattr(self, "review_mode", False) and hasattr(self, "selected_state"):
+            self._reconcile_selected_root(candidate)
         self.component_primary_action(self.component_by_id["lic-core"])
 
     def show_technical_details(self, definition):
@@ -1524,6 +1638,11 @@ class ManagerShell:
         os.startfile(target)
 
     def component_primary_action(self, definition):
+        if (definition.component_id == "lic-core" and hasattr(self, "selected_state") and
+                not getattr(self, "review_mode", False) and
+                self.operation_queue.active is None and
+                Path(self.application_path.get()).expanduser().resolve() != self.root.resolve()):
+            self._reconcile_selected_root(Path(self.application_path.get()))
         if getattr(self, "global_import_active", False):
             self.global_import_detail = "Import is active. Pause or let it finish before starting another operation."
             if self.global_import_widgets:
@@ -1571,12 +1690,54 @@ class ManagerShell:
             self.show_page("Install & Update")
             return
         if definition.component_id == "lic-core":
-            self._start_core_operation(
-                request, resume=action in {ComponentAction.RESUME, ComponentAction.REPAIR,
-                                           ComponentAction.UPDATE})
+            if self.selected_state and self.selected_state.action in {"repair", "resume-repair"}:
+                recovery = inspect_core_repair_recovery(self.delivery, self.root)
+                self._start_core_repair(request, resume=self.selected_state.action == "resume-repair" or
+                                        bool(recovery and recovery["status"] == "failed"))
+            else:
+                self._start_core_operation(request, resume=action == ComponentAction.RESUME)
         else:
             self._start_optional_operation(
                 definition, request, resume=action == ComponentAction.RESUME)
+
+    def _start_next_queued(self) -> None:
+        request = self.operation_queue.start_next()
+        if request is None:
+            return
+        definition = self.component_by_id[request.component_id]
+        action = ComponentAction(request.operation)
+        if request.component_id == "lic-core":
+            if self.selected_state and self.selected_state.action in {"repair", "resume-repair"}:
+                recovery = inspect_core_repair_recovery(self.delivery, self.root)
+                self._start_core_repair(request, resume=self.selected_state.action == "resume-repair" or
+                                        bool(recovery and recovery["status"] == "failed"))
+            else:
+                self._start_core_operation(request, resume=action == ComponentAction.RESUME)
+        else:
+            self._start_optional_operation(definition, request, resume=action == ComponentAction.RESUME)
+
+    def _start_core_repair(self, request, *, resume: bool) -> None:
+        if self.repair_core is None:
+            self.component_facts["lic-core"] = ComponentFacts(
+                ComponentPhase.ERROR, detail="This manager copy cannot repair Core. Open the current installer package.")
+            self.operation_queue.complete("lic-core")
+            return
+        facts = self.component_facts["lic-core"]
+        facts.phase, facts.detail = ComponentPhase.PREPARING, "Checking the existing installation before repair…"
+        self.busy = True
+        self.show_page("Install & Update")
+        def worker():
+            try:
+                result = self.repair_core(
+                    self.root, resume,
+                    lambda event: self.events.put(("component-progress", "lic-core", event)),
+                    request.token.requested)
+                self.events.put(("component-repaired", "lic-core", result))
+            except AcquisitionCancelled as error:
+                self.events.put(("component-canceled", "lic-core", str(error)))
+            except Exception as error:
+                self.events.put(("component-failed", "lic-core", error))
+        threading.Thread(target=worker, daemon=False).start()
 
     def _start_optional_operation(self, definition, request, *, resume: bool):
         component_id = definition.component_id
@@ -1623,7 +1784,6 @@ class ManagerShell:
             self.show_page("Install & Update")
             return
         if resume and self.recovery_journal_path is not None:
-            self._refresh_recovery_state()
             if self.recovery and self.recovery.blocked:
                 self.operation_queue.complete("lic-core")
                 self.show_page("Install & Update")
@@ -1739,10 +1899,26 @@ class ManagerShell:
     def choose_application(self):
         if self.component_facts["lic-core"].phase in IDENTITY_LOCKED_PHASES:
             return
-        parent = filedialog.askdirectory(title="Choose a parent folder for LoRA Image Curator")
+        parent = filedialog.askdirectory(title="Choose an existing LoRA Image Curator installation or a parent folder")
         if parent:
-            self.application_path.set(str(Path(parent) / "LoRA Image Curator"))
-            self._refresh_recovery_state()
+            picked = Path(parent)
+            selected = (picked if picked.name.casefold() == "lora image curator" or
+                        (picked / "State/installations/lic-lite.json").is_file() or
+                        (picked / "Apps/LIC-Lite").is_dir()
+                        else picked / "LoRA Image Curator")
+            if self.review_mode:
+                self.application_path.set(str(selected))
+                self._refresh_recovery_state()
+            else:
+                self._reconcile_selected_root(selected)
+            self.show_page("Install & Update")
+
+    def commit_application_path(self):
+        if self.component_facts["lic-core"].phase in IDENTITY_LOCKED_PHASES:
+            return
+        value = self.application_path.get().strip()
+        if value and not self.review_mode:
+            self._reconcile_selected_root(Path(value))
             self.show_page("Install & Update")
 
     def choose_models(self):
@@ -2201,6 +2377,16 @@ class ManagerShell:
                             write_body_model_path(self.lic_appdata, Path(event["resource"]))
                     self.busy = False
                     self.operation_queue.complete(component_id)
+                    if not getattr(self, "review_mode", False) and hasattr(self, "selected_state"):
+                        self._reconcile_selected_root(self.root)
+                elif kind == "component-repaired":
+                    self.busy = False
+                    self.operation_queue.complete(component_id)
+                    if hasattr(self, "selected_state"):
+                        self._reconcile_selected_root(self.root)
+                    core = self.component_facts["lic-core"]
+                    if core.verified and event.get("cleanup_pending"):
+                        core.detail = "Core is repaired and ready. Old files are still in use and will be cleaned up later."
                 elif kind == "component-canceled":
                     self.busy = False
                     self.operation_queue.complete(component_id)
@@ -2221,7 +2407,7 @@ class ManagerShell:
                     self.busy = False
                     self.operation_queue.complete(component_id)
                     self._refresh_recovery_state()
-                    if not self.recovery:
+                    if not self.recovery and getattr(self, "review_mode", False):
                         self.component_facts[component_id] = ComponentFacts(
                             ComponentPhase.PARTIAL, recovery_blocked=True,
                             detail=("This interrupted setup belongs to a different approved installer "
@@ -2242,7 +2428,10 @@ class ManagerShell:
                     recovered = (self.florence_recovery if component_id == "florence-captioning" else
                                  self.recovery if component_id == "lic-core" else
                                  self.component_recoveries.get(component_id))
-                    if component_id == "lic-core" and recovered and recovered.status == "succeeded":
+                    if component_id == "lic-core" and not getattr(self, "review_mode", False) and hasattr(self, "selected_state"):
+                        self.component_facts[component_id].diagnostic = str(event)
+                        self.component_facts[component_id].detail += " Review technical details if this repeats."
+                    elif component_id == "lic-core" and recovered and recovered.status == "succeeded":
                         # Bootstrap succeeded, but the separate activation transaction
                         # failed.  Do not hide that failure behind a generic Resume card.
                         self.component_facts[component_id] = ComponentFacts(
@@ -2261,11 +2450,21 @@ class ManagerShell:
                     if kind in {"component-progress", "component-import-progress"}:
                         self._update_component_card(component_id)
                     else:
+                        if not getattr(self, "review_mode", False) and hasattr(self, "selected_state") and kind in {"component-failed", "component-canceled",
+                                                             "component-preflight-blocked"} and component_id != "lic-core":
+                            self._reconcile_selected_root(self.root)
+                        self._start_next_queued()
                         # Completion/failure changes available actions and may
                         # need structural recovery controls; progress never does.
                         self.show_page("Install & Update")
                 continue
             kind, event = item
+            if kind == "repair-cleanup":
+                if (Path(event["root"]).resolve() == self.root.resolve() and
+                        self.current_page == "Install & Update" and self.operation_queue.active is None):
+                    self._reconcile_selected_root(self.root)
+                    self.show_page("Install & Update")
+                continue
             view = progress_view(event)
             if hasattr(self, "progress_message"):
                 self.progress_message.set(view["message"])
@@ -2342,6 +2541,11 @@ def show_first_run(delivery: Path, root: Path, prepare, activate, launch, **kwar
 def show_installed(delivery: Path, root: Path, launch, move=None, *, record: dict | None = None,
                    prepare=None, activate=None, **kwargs):
     if record is None:
-        record = json.loads((root / "State/installations/lic-lite.json").read_text(encoding="utf-8"))
+        path = root / "State/installations/lic-lite.json"
+        if path.is_file():
+            try:
+                record = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                record = None
     ManagerShell(delivery, root, prepare=prepare, activate=activate, launch=launch, move=move,
                  installed_record=record, **kwargs).run()

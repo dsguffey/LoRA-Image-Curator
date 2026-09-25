@@ -9,7 +9,7 @@ from pathlib import Path
 from .storage import default_model_root
 
 
-RESUMABLE_STATUSES = frozenset({"cancelled", "failed", "running", "succeeded"})
+RESUMABLE_STATUSES = frozenset({"planned", "cancelled", "failed", "running", "succeeded"})
 
 
 def _path(value: str | Path) -> Path:
