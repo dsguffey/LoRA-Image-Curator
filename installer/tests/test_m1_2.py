@@ -13,7 +13,7 @@ from unittest.mock import patch
 import urllib.error
 import zipfile
 
-from install_manager.acquisition import AcquisitionPolicy, acquire_artifact, admit_local_artifact
+from install_manager.acquisition import AcquisitionFailure, AcquisitionPolicy, acquire_artifact, admit_local_artifact
 from install_manager.artifacts import AcquiredArtifact, ArtifactDescriptor
 from install_manager.dependency_lock import DependencyLock, LockedWheel
 from install_manager.environment import build_environment_plan, create_final_path_venv, extract_runtime
@@ -137,10 +137,12 @@ class AcquisitionTests(unittest.TestCase):
                 calls += 1
                 raise OSError("interrupted")
 
-            with self.assertRaisesRegex(OSError, "3 attempts"):
+            with self.assertRaises(AcquisitionFailure) as failure:
                 acquire_artifact(descriptor(), Path(temporary),
                                  AcquisitionPolicy(("www.python.org",), 3, 0.25, 0),
                                  opener=opener, sleep=sleeps.append)
+            self.assertEqual(failure.exception.attempts, 3)
+            self.assertEqual(failure.exception.category, "network-unavailable")
             self.assertEqual(calls, 3)
             self.assertEqual(sleeps, [0.25, 0.5])
 

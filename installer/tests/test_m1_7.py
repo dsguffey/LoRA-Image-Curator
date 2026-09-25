@@ -64,7 +64,7 @@ class CapabilityUxTests(unittest.TestCase):
     def test_primary_error_is_actionable_without_raw_exception(self):
         message = friendly_error(RuntimeError("urlopen failed with secret low-level detail"))
         self.assertIn("download", message.lower())
-        self.assertIn("retry", message.lower())
+        self.assertIn("try again", message.lower())
         self.assertNotIn("urlopen", message.lower())
 
 

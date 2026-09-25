@@ -29,8 +29,10 @@ class CompatibilityProfileTests(unittest.TestCase):
         cls.profile = load_compatibility_profile(BASE)
 
     def test_base_manifest_exactly_represents_accepted_environment(self):
-        accepted = json.loads((ROOT / "reports/lic-venv-rebuild-2026-09-02/gpu-validation.json")
-                              .read_text(encoding="utf-8"))["inventory"]
+        report = ROOT / "reports/lic-venv-rebuild-2026-09-02/gpu-validation.json"
+        if not report.is_file():
+            self.skipTest("Private accepted-environment report is absent from public staging")
+        accepted = json.loads(report.read_text(encoding="utf-8"))["inventory"]
         self.assertEqual(self.profile.approval_basis, "accepted-canonical-environment")
         self.assertEqual(self.profile.python_version, "3.14.6")
         self.assertEqual(self.profile.package_inventory, accepted)
