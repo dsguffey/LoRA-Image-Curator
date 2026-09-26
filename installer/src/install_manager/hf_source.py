@@ -152,37 +152,56 @@ class HuggingFaceSource:
         for attempt in range(1, self.policy.max_attempts + 1):
             try:
                 _rate_limit(host, self.policy, self.sleep)
-                request = urllib.request.Request(url, headers={'User-Agent': self.policy.user_agent})
+                offset = destination.stat().st_size if destination.is_file() else 0
+                if offset >= max_bytes:
+                    destination.unlink(missing_ok=True)
+                    offset = 0
+                headers = {'User-Agent': self.policy.user_agent}
+                if offset:
+                    headers['Range'] = f'bytes={offset}-'
+                request = urllib.request.Request(url, headers=headers)
                 request._im_original_url = url
                 request._im_identity = identity
                 request._im_redirect_hop = 0
                 with self.opener(request, timeout=self.policy.timeout_seconds) as response:
-                    if getattr(response, 'status', 200) != 200:
+                    status = getattr(response, 'status', 200)
+                    if status not in (200, 206):
                         raise OSError('unexpected provider response status')
+                    if status == 206:
+                        content_range = response.headers.get('Content-Range', '')
+                        match = re.fullmatch(r'bytes (\d+)-(\d+)/(\d+)', content_range)
+                        if (not offset or not match or int(match[1]) != offset
+                                or int(match[2]) < offset or int(match[3]) != max_bytes):
+                            raise OSError('invalid provider range response')
+                    else:
+                        # A storage endpoint may ignore Range. Restart instead of
+                        # appending an entire response to an unverified prefix.
+                        offset = 0
                     header = response.headers.get('Content-Length', '') if getattr(response, 'headers', None) else ''
                     total = int(header) if header.isdigit() else None
-                    if total is not None and total > min(max_bytes, self.policy.max_artifact_bytes):
+                    if total is not None and total > min(max_bytes - offset, self.policy.max_artifact_bytes - offset):
                         raise ValueError('provider response exceeds size bound')
-                    size = 0
-                    last_report = -8 * 1024 * 1024
-                    with destination.open('wb') as stream:
+                    size = offset
+                    last_report = offset - 8 * 1024 * 1024
+                    with destination.open('ab' if offset else 'wb') as stream:
                         while chunk := response.read(1024 * 1024):
                             size += len(chunk)
                             if size > min(max_bytes, self.policy.max_artifact_bytes):
                                 raise ValueError('provider response exceeds size bound')
                             stream.write(chunk)
-                            if size - last_report >= 8 * 1024 * 1024 or (total is not None and size == total):
+                            if size - last_report >= 8 * 1024 * 1024 or size == max_bytes:
                                 self.progress({'kind': 'download', 'artifact': identity,
-                                               'downloaded_bytes': size, 'total_bytes': total})
+                                               'downloaded_bytes': size, 'total_bytes': max_bytes})
                                 last_report = size
+                    if size != max_bytes:
+                        raise OSError('incomplete provider response')
                 self.progress({'kind': 'download', 'artifact': identity,
-                               'downloaded_bytes': size, 'total_bytes': total, 'complete': True})
+                               'downloaded_bytes': size, 'total_bytes': max_bytes, 'complete': True})
                 return
             except SourcePolicyError:
                 destination.unlink(missing_ok=True)
                 raise
             except (OSError, urllib.error.URLError) as error:
-                destination.unlink(missing_ok=True)
                 delay = self.policy.base_backoff_seconds * 2 ** (attempt - 1)
                 retryable = True
                 if isinstance(error, urllib.error.HTTPError):
@@ -192,6 +211,7 @@ class HuggingFaceSource:
                         delay = max(delay, min(float(retry_after), 300))
                     error.close()
                 if attempt == self.policy.max_attempts or not retryable:
+                    destination.unlink(missing_ok=True)
                     # Signed storage URLs can contain credentials: omit the raw exception URL.
                     raise OSError(f'provider acquisition failed ({type(error).__name__}, attempt {attempt})') from None
                 self.sleep(delay)

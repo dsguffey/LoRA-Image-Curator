@@ -1,6 +1,7 @@
 """Local-only model identity, protection, offline/readiness and journal failure tests."""
 from concurrent.futures import ThreadPoolExecutor
 import hashlib
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -189,6 +190,130 @@ class ModelTests(unittest.TestCase):
 
 
 class ProviderTests(unittest.TestCase):
+    def test_pinned_florence_uses_exact_revision_and_file_identities(self):
+        model = load_model(RECIPES / 'florence2-large-ft.json')
+        self.assertEqual(model.repository, 'florence-community/Florence-2-large-ft')
+        self.assertEqual(model.revision, '26b734a54fdfbf9c398351eedfabb7f27fc470b7')
+        self.assertEqual(sum(item.size for item in model.files), 1546333353)
+        self.assertEqual(next(item.digest for item in model.files
+                              if item.path == 'model.safetensors'),
+                         '58a76f4be257b0dd03ddd6b16c2bb05f4e1910c550047c8fbc4d85de638c619e')
+        captured = []
+        provider = HuggingFaceSource(policy=AcquisitionPolicy(HOSTS, 1, 1, 0),
+                                     opener=lambda *_args, **_kwargs: None)
+        provider.download = lambda url, *_args, **_kwargs: captured.append(url)
+        provider.fetch_file(model, next(item for item in model.files
+                                        if item.path == 'model.safetensors'), Path('unused'))
+        self.assertEqual(captured, [
+            'https://huggingface.co/florence-community/Florence-2-large-ft/resolve/'
+            '26b734a54fdfbf9c398351eedfabb7f27fc470b7/model.safetensors'])
+
+    def test_interrupted_download_resumes_only_with_valid_range(self):
+        class Response:
+            def __init__(self, data, status, headers, fail=False):
+                self.data = io.BytesIO(data)
+                self.status = status
+                self.headers = headers
+                self.fail = fail
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                pass
+
+            def read(self, count):
+                if self.fail and self.data.tell() == len(self.data.getvalue()):
+                    raise OSError('interrupted stream')
+                return self.data.read(count)
+
+        payload = b'abcdefghij'
+        requests = []
+
+        def opener(request, timeout):
+            requests.append(request.get_header('Range'))
+            if len(requests) == 1:
+                return Response(payload[:4], 200, {'Content-Length': '10'}, True)
+            return Response(payload[4:], 206,
+                            {'Content-Range': 'bytes 4-9/10', 'Content-Length': '6'})
+
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / 'weight'
+            client = HuggingFaceSource(policy=AcquisitionPolicy(HOSTS, 2, 1, 0),
+                                       opener=opener, sleep=lambda _: None)
+            with patch('install_manager.hf_source._rate_limit'):
+                client.download('https://huggingface.co/example/model', destination, 10)
+            self.assertEqual(requests, [None, 'bytes=4-'])
+            self.assertEqual(destination.read_bytes(), payload)
+
+    def test_range_ignored_restarts_without_appending_prefix(self):
+        class Response(io.BytesIO):
+            status = 200
+            headers = {'Content-Length': '10'}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                self.close()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / 'weight'
+            destination.write_bytes(b'abcd')
+            requests = []
+
+            def opener(request, timeout):
+                requests.append(request.get_header('Range'))
+                return Response(b'abcdefghij')
+
+            client = HuggingFaceSource(policy=AcquisitionPolicy(HOSTS, 1, 1, 0),
+                                       opener=opener)
+            with patch('install_manager.hf_source._rate_limit'):
+                client.download('https://huggingface.co/example/model', destination, 10)
+            self.assertEqual(requests, ['bytes=4-'])
+            self.assertEqual(destination.read_bytes(), b'abcdefghij')
+
+    def test_incorrect_range_never_publishes_partial(self):
+        class Response(io.BytesIO):
+            status = 206
+            headers = {'Content-Range': 'bytes 3-9/10', 'Content-Length': '7'}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                self.close()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / 'weight'
+            destination.write_bytes(b'abcd')
+            client = HuggingFaceSource(policy=AcquisitionPolicy(HOSTS, 1, 1, 0),
+                                       opener=lambda *_args, **_kwargs: Response(b'defghij'))
+            with patch('install_manager.hf_source._rate_limit'):
+                with self.assertRaisesRegex(OSError, 'attempt 1'):
+                    client.download('https://huggingface.co/example/model', destination, 10)
+            self.assertFalse(destination.exists())
+
+    def test_truncated_response_never_counts_as_complete(self):
+        class Response(io.BytesIO):
+            status = 200
+            headers = {'Content-Length': '10'}
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                self.close()
+
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / 'weight'
+            client = HuggingFaceSource(policy=AcquisitionPolicy(HOSTS, 1, 1, 0),
+                                       opener=lambda *_args, **_kwargs: Response(b'abc'))
+            with patch('install_manager.hf_source._rate_limit'):
+                with self.assertRaisesRegex(OSError, 'attempt 1'):
+                    client.download('https://huggingface.co/example/model', destination, 10)
+            self.assertFalse(destination.exists())
+
     def metadata(self):
         model=fixture_model()
         return {'id':model.repository,'sha':REV,'private':False,'gated':False,
