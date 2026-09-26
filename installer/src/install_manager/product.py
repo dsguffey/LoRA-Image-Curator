@@ -2,6 +2,6 @@
 
 PRODUCT_NAME = "LIC Install Manager"
 PRODUCT_EXPANDED_NAME = "LoRA Image Curator Install Manager"
-PRODUCT_VERSION = "0.7.1"
+PRODUCT_VERSION = "0.7.2"
 DEPENDENCY_PROFILE_ID = "2026-09-26.1"
 PRODUCT_EXECUTABLE = "LIC Install Manager.exe"

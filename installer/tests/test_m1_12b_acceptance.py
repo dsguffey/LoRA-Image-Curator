@@ -67,5 +67,5 @@ class AcceptanceCorrectionTests(unittest.TestCase):
         self.assertEqual(runner.call_args.kwargs["timeout"], 30)
 
     def test_product_version_is_canonical(self):
-        self.assertEqual(PRODUCT_VERSION, "0.7.1")
+        self.assertEqual(PRODUCT_VERSION, "0.7.2")
         self.assertEqual(DEPENDENCY_PROFILE_ID, "2026-09-26.1")

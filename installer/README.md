@@ -4,9 +4,9 @@ LIC Install Manager is the recommended Windows installation and maintenance tool
 
 ## Release build
 
-The 0.7.1 release candidate uses **LIC Install Manager** as its normal product name and **LoRA Image Curator Install Manager** as its expanded name. The dependency profile is `2026-09-11`.
+The 0.7.2 release candidate uses **LIC Install Manager** as its normal product name and **LoRA Image Curator Install Manager** as its expanded name. The dependency profile is `2026-09-26.1`.
 
-The 0.7.1 package contains LIC, CPython, and the exact Core dependency artifacts. It can prepare LIC Core without downloading those Core artifacts. Optional providers remain opt-in and are never downloaded merely by opening, importing, or inspecting the manager. Import copies exact compatible local resources into the selected LIC root's managed `Data` library; Install downloads only what is missing, and Pause preserves work for Resume.
+The 0.7.2 package contains LIC, CPython, and the exact Core dependency artifacts. It can prepare LIC Core without downloading those Core artifacts. Optional providers remain opt-in and are never downloaded merely by opening, importing, or inspecting the manager. Import copies exact compatible local resources into the selected LIC root's managed `Data` library; Install downloads only what is missing, and Pause preserves work for Resume. The Manager remembers the last successfully validated LIC location and rechecks it before enabling installation actions.
 
 Do not treat historical Portable packages as a supported current installation route.
 

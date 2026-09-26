@@ -17,6 +17,15 @@ from .core_repair import execute as repair_activated_core
 from .component_operations import execute as install_managed_component
 from .probe_guard import isolated_environment
 from .release_channel import verify_delivery
+from .last_valid_root import read_last_valid_root
+
+
+def startup_root(explicit_root: Path | None, *, allow_remembered: bool = True,
+                 manage_mode: bool = False) -> Path:
+    """Manager shortcuts carry their original root; the latest validated root wins there."""
+    if explicit_root is not None and not manage_mode:
+        return explicit_root
+    return (read_last_valid_root() if allow_remembered else None) or explicit_root or default_install_root()
 
 
 def main():
@@ -52,7 +61,9 @@ def main():
     args = parser.parse_args()
     if ctypes.windll.shell32.IsUserAnAdmin():
         raise RuntimeError('Run this qualification as a standard user, without elevation')
-    proposed = args.root or default_install_root()
+    proposed = startup_root(args.root, manage_mode=args.manage, allow_remembered=not
+                            (args.self_test or args.plan or args.ui_probe or args.ui_review or
+                             args.accept or args.activate or args.launch))
 
     def prepare(root, model_root, resume, status, cancel_requested=lambda: False):
         root = validate_root(root, delivery=delivery.parent, resume=resume)

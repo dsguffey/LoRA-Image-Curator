@@ -6,11 +6,11 @@ LIC prepares image datasets; it does **not** train a LoRA itself. Its SQLite cat
 
 ## Download and install LIC
 
-**[Download LIC Install Manager 0.7.1](https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/lic-install-manager-v0.7.1)** — the normal, recommended way to install LIC.
+**[Download LIC Install Manager 0.7.2](https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/lic-install-manager-v0.7.2)** — the normal, recommended way to install LIC.
 
-On that release page, under **Assets**, choose **[LIC-Install-Manager-0.7.1.zip](https://github.com/dsguffey/LoRA-Image-Curator/releases/download/lic-install-manager-v0.7.1/LIC-Install-Manager-0.7.1.zip)**. Do **not** choose GitHub's automatic `Source code (zip)` or `Source code (tar.gz)` archives; they are source snapshots, not the Install Manager.
+On that release page, under **Assets**, choose **[LIC-Install-Manager-0.7.2.zip](https://github.com/dsguffey/LoRA-Image-Curator/releases/download/lic-install-manager-v0.7.2/LIC-Install-Manager-0.7.2.zip)**. Do **not** choose GitHub's automatic `Source code (zip)` or `Source code (tar.gz)` archives; they are source snapshots, not the Install Manager.
 
-1. Download and extract `LIC-Install-Manager-0.7.1.zip`.
+1. Download and extract `LIC-Install-Manager-0.7.2.zip`.
 2. Run the included **LIC Install Manager**.
 3. Choose where LIC should be installed, then select **Install Core**.
 4. Launch LIC from the Manager. Add optional capabilities only if you want them.
@@ -52,7 +52,7 @@ LIC Core is the only required capability. Download the package above from the of
 
 | Download | Required? | Source | Size | Used by | Feature |
 | --- | --- | --- | ---: | --- | --- |
-| LIC Install Manager + LIC Core | Yes | GitHub Releases | 72.4 MB | LIC | Core application |
+| LIC Install Manager + LIC Core | Yes | GitHub Releases | About 73 MB | LIC | Core application |
 | CUDA PyTorch | No | Manager | ~1.923 GB | Florence Captioning | GPU AI runtime |
 | Florence model | No | Manager | ~1.546 GB | Florence Captioning | Image captioning and understanding |
 | Florence supporting libraries | No | Manager | ~37.6 MB | Florence Captioning | Florence runtime libraries |
@@ -63,11 +63,11 @@ LIC Core is the only required capability. Download the package above from the of
 | YuNet + SFace models | No | Manager | ~38.9 MB | Face Analysis | Face detection and reference-similarity analysis |
 | FFmpeg | No | Manager | ~146.1 MB | Video extraction | Video frame extraction |
 
-The 72.4 MB ZIP includes everything required to launch provider-neutral LIC Core; **the Manager needs 0 B of additional Core dependencies** after that download. From a clean Core installation, Florence Captioning needs about 3.5 GB, Body/Pose Analysis needs about 87.5 MB, and Face Analysis needs about 92.7 MB. Shared dependencies are reused, so installing one optional capability can reduce the download needed by another. LIC Install Manager shows the actual remaining download before installation.
+The roughly 73 MB ZIP includes everything required to launch provider-neutral LIC Core; **the Manager needs 0 B of additional Core dependencies** after that download. From a clean Core installation, Florence Captioning needs about 3.5 GB, Body/Pose Analysis needs about 87.5 MB, and Face Analysis needs about 92.7 MB. Shared dependencies are reused, so installing one optional capability can reduce the download needed by another. LIC Install Manager shows the actual remaining download before installation.
 
 ### Install LIC Core
 
-1. From the [official 0.7.1 release](https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/lic-install-manager-v0.7.1), download [LIC-Install-Manager-0.7.1.zip](https://github.com/dsguffey/LoRA-Image-Curator/releases/download/lic-install-manager-v0.7.1/LIC-Install-Manager-0.7.1.zip) under **Assets**.
+1. From the [official 0.7.2 release](https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/lic-install-manager-v0.7.2), download [LIC-Install-Manager-0.7.2.zip](https://github.com/dsguffey/LoRA-Image-Curator/releases/download/lic-install-manager-v0.7.2/LIC-Install-Manager-0.7.2.zip) under **Assets**.
 2. Extract the ZIP, then run `LIC Install Manager.exe`.
 3. Choose where LIC should be installed, then select **Install Core**.
 4. Launch LIC from the Manager. Add only the optional capabilities you want from the Manager.

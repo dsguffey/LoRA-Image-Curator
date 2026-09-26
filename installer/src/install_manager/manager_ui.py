@@ -9,6 +9,7 @@ import threading
 import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
+from types import SimpleNamespace
 from typing import Callable
 import webbrowser
 
@@ -38,6 +39,9 @@ from .managed_resources import (component_resource_status, import_resources,
 from .provider_discovery import discover_provider_candidates, discovery_message
 from .provider_venv import recover_pending_provider_promotions
 from .root_state import inspect_selected_root
+from .root_state import SelectedRootState
+from .root_validation import RootValidation
+from .last_valid_root import write_last_valid_root
 from .core_repair import (inspect_recovery as inspect_core_repair_recovery,
                           retry_cleanup as retry_core_repair_cleanup)
 from .product import (PRODUCT_EXPANDED_NAME, PRODUCT_NAME as PRODUCT_DISPLAY_NAME,
@@ -644,14 +648,12 @@ class ManagerShell:
         self.record_existing_component = record_existing_component
         self.record, self.review_mode, self.quiet = installed_record, review_mode, quiet
         self.review_scenario = review_scenario
-        if not review_mode:
-            try:
-                recover_pending_provider_promotions(root)
-            except (OSError, ValueError, KeyError, TypeError):
-                # Selected-root and provider journal inspection will explain
-                # an unsafe snapshot without preventing the Manager from opening.
-                pass
-        self.selected_state = (None if review_mode else inspect_selected_root(delivery, root))
+        self.root_validation = RootValidation()
+        self.validation_in_progress = not review_mode
+        self.validation_message = "Validating existing LIC installation…" if not review_mode else ""
+        self.validation_started = time.monotonic() if not review_mode else None
+        self.selected_state = (None if review_mode else
+                               SelectedRootState(root, "validating", self.validation_message))
         if self.selected_state is not None:
             installed_record = self.selected_state.record
             self.record = installed_record
@@ -666,22 +668,30 @@ class ManagerShell:
         self.recovery_journal_path: Path | None = (root / "State/operations/bootstrap.json"
                                                     if review_mode or self.selected_state.action == "resume-bootstrap"
                                                     else None)
-        self.recovery = self._load_recovery(root, selected_models)
+        self.recovery = None if self.validation_in_progress else self._load_recovery(root, selected_models)
         managed_models = managed_data_layout(root)["models"]
-        self.florence_recovery = self._load_florence_recovery(root, managed_models)
+        self.florence_recovery = (None if self.validation_in_progress else
+                                  self._load_florence_recovery(root, managed_models))
         self.component_recoveries = {}
-        for definition in self.components:
+        for definition in (() if self.validation_in_progress else self.components):
             if definition.managed_install and definition.component_id not in {"lic-core", "florence-captioning"}:
                 recovered = self._load_component_recovery(definition.component_id, None)
                 if recovered is not None:
                     self.component_recoveries[definition.component_id] = recovered
         self._apply_review_recovery(root, selected_models)
         self.model_evidence = None
-        try:
-            self.model_evidence = inspect_model_storage(delivery, managed_models)
-        except (OSError, ValueError):
-            pass
-        self.component_facts = self._initial_component_facts()
+        if not self.validation_in_progress:
+            try:
+                self.model_evidence = inspect_model_storage(delivery, managed_models)
+            except (OSError, ValueError):
+                pass
+        self.component_facts = ({item.component_id: ComponentFacts() for item in self.components}
+                                if self.validation_in_progress else self._initial_component_facts())
+        self.download_summaries = {}
+        self.resource_statuses = {}
+        if self.validation_in_progress:
+            self.component_facts["lic-core"].phase = ComponentPhase.PREPARING
+            self.component_facts["lic-core"].detail = self.validation_message
         self.operation_queue = ComponentOperationQueue()
         self.component_widgets = {}
         self.activity_started = {}
@@ -737,6 +747,8 @@ class ManagerShell:
             # Historical review entry point: normal product UI no longer exposes generic Details.
             page = "Install & Update"
         self.show_page(page)
+        if self.validation_in_progress:
+            self._begin_root_validation(root, render=False)
         if not review_mode and self.selected_state and self.selected_state.action == "ready":
             repair = inspect_core_repair_recovery(delivery, root)
             if repair and repair.get("cleanup_pending"):
@@ -765,6 +777,8 @@ class ManagerShell:
 
     def _refresh_managed_resource_facts(self) -> None:
         """Reflect resource availability without claiming feature readiness."""
+        if getattr(self, "validation_in_progress", False):
+            return
         for component_id in OPTIONAL_PROVIDER_IDS:
             facts = self.component_facts.get(component_id)
             if (facts is None or facts.verified or facts.resumable or
@@ -792,6 +806,157 @@ class ManagerShell:
         if state == "queued":
             return ComponentAction.CANCEL_QUEUE
         return component_action(definition, facts)
+
+    def _action_enabled(self, definition, facts: ComponentFacts) -> bool:
+        return (not self.review_mode and not getattr(self, "validation_in_progress", False) and
+                facts.phase != ComponentPhase.CANCELING and
+                (definition.component_id == "lic-core" or self.component_facts["lic-core"].verified))
+
+    def _begin_root_validation(self, selected: Path, *, render: bool = True) -> None:
+        if (self.review_mode or self.operation_queue.active is not None or
+                getattr(self, "global_import_active", False)):
+            return
+        selected = selected.expanduser().resolve()
+        generation = self.root_validation.begin(selected)
+        self.validation_in_progress = True
+        self.validation_started = time.monotonic()
+        self.validation_message = "Validating existing LIC installation…"
+        self.application_path.set(str(selected))
+        self.component_facts = {item.component_id: ComponentFacts() for item in self.components}
+        self.component_facts["lic-core"].phase = ComponentPhase.PREPARING
+        self.component_facts["lic-core"].detail = self.validation_message
+        if render:
+            self.show_page(self.current_page or "Install & Update", anchor_id="lic-core")
+
+        def worker():
+            try:
+                recover_pending_provider_promotions(selected)
+                state = inspect_selected_root(self.delivery, selected)
+                snapshot = self._inspect_root_snapshot(selected, state)
+            except Exception as error:
+                state = SelectedRootState(selected, "repair", "Could not validate this installation.",
+                                          diagnostic=str(error))
+                snapshot = None
+            self.events.put(("root-validation", generation, state, snapshot))
+        # Let Tk paint the selected path, disabled controls and activity before disk work.
+        self.window.after(25, lambda: threading.Thread(target=worker, daemon=False).start())
+
+    def _inspect_root_snapshot(self, root: Path, state: SelectedRootState) -> dict:
+        """Perform all root-bound provider/model reads in the validation worker."""
+        record = state.record
+        model_root = (Path(record["model_root"]) if record and record.get("model_root") else
+                      default_model_root(root))
+        journal_path = root / "State/operations/bootstrap.json" if state.action == "resume-bootstrap" else None
+        try:
+            bootstrap_recovery = (inspect_bootstrap_recovery(journal_path,
+                                  current_install_root=root, current_model_root=model_root)
+                                  if journal_path else None)
+        except (OSError, ValueError, KeyError, TypeError):
+            bootstrap_recovery = None
+        canonical_models = managed_data_layout(root)["models"]
+        try:
+            florence_recovery = inspect_florence_recovery(self.delivery, root, canonical_models)
+        except (OSError, ValueError, KeyError, TypeError):
+            florence_recovery = None
+        component_recoveries = {}
+        for definition in self.components:
+            if definition.managed_install and definition.component_id not in {"lic-core", "florence-captioning"}:
+                try:
+                    recovered = inspect_component_recovery(self.delivery, root, definition.component_id, None)
+                    if recovered is not None:
+                        component_recoveries[definition.component_id] = recovered
+                except (OSError, ValueError, KeyError, TypeError):
+                    pass
+        try:
+            model_evidence = inspect_model_storage(self.delivery, canonical_models)
+        except (OSError, ValueError):
+            model_evidence = None
+        context = SimpleNamespace(components=self.components, component_by_id=self.component_by_id,
+                                  delivery=self.delivery, root=root, record=record, selected_state=state,
+                                  recovery=bootstrap_recovery, recovery_journal_path=journal_path,
+                                  florence_recovery=florence_recovery,
+                                  component_recoveries=component_recoveries,
+                                  model_evidence=model_evidence, review_scenario=None,
+                                  _apply_selected_core_state=self._apply_selected_core_state)
+        facts = ManagerShell._initial_component_facts(context)
+        download_summaries = {}
+        for definition in self.components:
+            if definition.tier == "optional" and definition.managed_install:
+                try:
+                    download_summaries[definition.component_id] = operation_download_summary(
+                        self.delivery, root, definition.component_id)
+                except (OSError, ValueError, KeyError, TypeError):
+                    pass
+        resource_statuses = {}
+        for component_id in OPTIONAL_PROVIDER_IDS:
+            item = facts.get(component_id)
+            if item is None:
+                continue
+            try:
+                resources = component_resource_status(self.delivery, root, component_id)
+                resource_statuses[component_id] = resources
+                if item.verified and resources["missing"]:
+                    item.phase, item.verified = ComponentPhase.REPAIR_REQUIRED, False
+                    item.detail = ("Previously installed provider files are missing or changed. "
+                                   "Choose Repair to restore this optional feature.")
+                elif (not item.verified and not item.resumable and
+                      item.phase not in {ComponentPhase.ERROR, ComponentPhase.REPAIR_REQUIRED,
+                                         ComponentPhase.INCOMPATIBLE} and resources["available"]):
+                    available = resources["available"]
+                    names = ", ".join(entry.display_name for entry in available[:3])
+                    if len(available) > 3:
+                        names += f", and {len(available) - 3} more"
+                    item.phase = ComponentPhase.PARTIAL
+                    item.detail = (f"Managed resources available: {names}. "
+                                   f"{len(resources['missing'])} required resource(s) still missing; "
+                                   "the feature is not ready.")
+            except (OSError, ValueError, KeyError, TypeError):
+                pass
+        return {"root": root, "state": state, "record": record, "model_root": model_root,
+                "journal_path": journal_path, "bootstrap_recovery": bootstrap_recovery,
+                "florence_recovery": florence_recovery, "component_recoveries": component_recoveries,
+                "model_evidence": model_evidence, "facts": facts,
+                "download_summaries": download_summaries,
+                "resource_statuses": resource_statuses,
+                "plan": disclosure(self.delivery, root)}
+
+    def _finish_root_validation(self, generation: int, state: SelectedRootState,
+                                snapshot: dict | None = None) -> None:
+        if not self.root_validation.accept(generation, state.root):
+            return
+        if snapshot is not None:
+            self.root, self.selected_state, self.record = state.root, state, snapshot["record"]
+            self.mode = "installed" if self.record else "first-run"
+            self.plan = snapshot["plan"]
+            self.lic_appdata = self.root / "State/User/AppData/Roaming"
+            self.model_path.set(str(snapshot["model_root"]))
+            self.recovery_journal_path = snapshot["journal_path"]
+            self.recovery = snapshot["bootstrap_recovery"]
+            self.florence_recovery = snapshot["florence_recovery"]
+            self.component_recoveries = snapshot["component_recoveries"]
+            self.model_evidence = snapshot["model_evidence"]
+            self.component_facts = snapshot["facts"]
+            self.download_summaries = snapshot["download_summaries"]
+            self.resource_statuses = snapshot["resource_statuses"]
+            for component_id, variable in self.component_paths.items():
+                variable.set(self.component_facts[component_id].selected_path)
+        else:
+            self.root, self.selected_state, self.record = state.root, state, state.record
+            self.component_facts = {item.component_id: ComponentFacts() for item in self.components}
+            self._apply_selected_core_state(self.component_facts, state)
+        self.validation_in_progress = False
+        if state.action == "ready":
+            try:
+                write_last_valid_root(state.root)
+                self.validation_message = "Existing LIC installation validated."
+            except (OSError, ValueError) as error:
+                self.validation_message = f"Installation validated, but its location could not be remembered: {error}"
+        else:
+            self.validation_message = (("The selected installation folder does not exist; it may have moved or not yet been created. "
+                                        if not state.root.exists() else
+                                        "The selected installation did not validate. ") + state.detail)
+            self.component_facts["lic-core"].detail = self.validation_message
+        self.show_page(self.current_page or "Install & Update", anchor_id="lic-core")
 
     def _load_recovery(self, current_install: Path,
                        current_models: Path) -> BootstrapRecovery | None:
@@ -901,9 +1066,12 @@ class ManagerShell:
         core = facts["lic-core"]
         core.detail = ("Not installed. Nothing will be downloaded until you choose Install Core; that action "
                        "authorizes the missing Core items shown on this card.")
-        if active_launch_contract(self.record, self.root):
+        if (self.selected_state is not None and self.selected_state.action == "ready" and
+                active_launch_contract(self.record, self.root)):
             core.phase, core.verified, core.detail = (ComponentPhase.INSTALLED, True,
                                                       "✓ Installed and verified")
+        elif self.selected_state is not None and self.selected_state.action == "repair":
+            core.phase, core.detail = ComponentPhase.REPAIR_REQUIRED, self.selected_state.detail
         elif self.recovery:
             core.phase = ComponentPhase.PARTIAL
             core.resumable = self.recovery.resumable
@@ -1218,14 +1386,21 @@ class ManagerShell:
         return label
 
     def page_install_and_update(self):
+        if self.validation_in_progress:
+            self.title("Validating existing LIC installation…", "Installation actions are unavailable while this location is checked.")
+            self.validation_status = tk.StringVar(value=self.validation_message)
+            ttk.Label(self.content, textvariable=self.validation_status, style="Body.TLabel").pack(anchor="w")
+            self.validation_bar = ttk.Progressbar(self.content, mode="indeterminate")
+            self.validation_bar.pack(fill="x", pady=(5, 16))
+            self.validation_bar.start(12)
         ready = product_ready(self.components, self.component_facts)
-        if ready:
+        if ready and not self.validation_in_progress:
             self.title("✓ LoRA Image Curator is ready", "All required components are installed and verified.")
             ttk.Button(self.content, text="Launch LoRA Image Curator", style="Accent.TButton",
                        command=self.launch_lic,
-                       state="disabled" if self.review_mode or not active_launch_contract(self.record, self.root)
+                       state="disabled" if self.review_mode or self.validation_in_progress or not active_launch_contract(self.record, self.root)
                        else "normal").pack(anchor="w", pady=(0, 18))
-        else:
+        elif not self.validation_in_progress:
             remaining = sum(1 for item in self.components if item.required_for_readiness
                             and not self.component_facts[item.component_id].verified)
             self.title("Setup required", f"{remaining} required component still needs to be installed."
@@ -1267,7 +1442,7 @@ class ManagerShell:
         button = ttk.Button(actions, text="Pause" if self.global_import_active else "Import",
                             style="Accent.TButton",
                             command=self.pause_global_import if self.global_import_active else self.import_all_resources,
-                            state="disabled" if self.review_mode or import_busy else "normal")
+                            state="disabled" if self.review_mode or self.validation_in_progress or import_busy else "normal")
         button.pack(side="left")
         if self.global_import_diagnostic:
             ttk.Button(actions, text="Show technical details",
@@ -1292,11 +1467,14 @@ class ManagerShell:
         selectable_text(frame, definition.description, background=PALE, width=92, pady=(4, 7), font=("Segoe UI", 9))
         metadata = [("Provider", definition.provider), ("Downloaded from", definition.source_name)]
         if definition.component_id == "lic-core":
-            label, value = component_download_disclosure(definition, self.plan)
+            label, value = (("Download", "Checking selected installation…") if self.validation_in_progress else
+                            component_download_disclosure(definition, self.plan))
             metadata.append((label, value))
-        elif definition.managed_install:
+        elif definition.managed_install and not self.validation_in_progress:
             try:
-                summary = operation_download_summary(self.delivery, self.root, definition.component_id)
+                summary = getattr(self, "download_summaries", {}).get(definition.component_id)
+                if summary is None:
+                    raise ValueError("Download estimate is not yet available")
                 label, value = component_download_disclosure(definition, summary)
                 metadata.append((label, value))
             except (OSError, ValueError, KeyError):
@@ -1320,7 +1498,7 @@ class ManagerShell:
             ttk.Label(third, text="THIRD-PARTY DOWNLOAD", style="ThirdParty.TLabel").pack(side="left")
             self.info(third, "This component comes from the named provider/source. Source, compatibility and terms are in Help.")
         if definition.component_id == "lic-core":
-            identity_editable = identity_controls_editable(facts.phase)
+            identity_editable = identity_controls_editable(facts.phase) and not self.validation_in_progress
             self._card_path_control(frame, "Application location", self.application_path, self.choose_application,
                                     "Choose the installation folder or its parent. Existing installations are checked before any action.",
                                     editable=identity_editable, commit=self.commit_application_path)
@@ -1332,7 +1510,13 @@ class ManagerShell:
         elif definition.tier == "optional":
             managed = managed_data_layout(self.root)
             try:
-                resources = component_resource_status(self.delivery, self.root, definition.component_id)
+                if self.validation_in_progress:
+                    raise ValueError("Resource inspection is still in progress")
+                resources = getattr(self, "resource_statuses", {}).get(definition.component_id)
+                if resources is None and not self.validation_in_progress and self.review_mode:
+                    resources = component_resource_status(self.delivery, self.root, definition.component_id)
+                if resources is None:
+                    raise ValueError("Resource inspection is still in progress")
                 available, missing = resources["available"], resources["missing"]
                 available_names = ", ".join(item.display_name for item in available[:2]) or "None"
                 if len(available) > 2:
@@ -1340,7 +1524,9 @@ class ManagerShell:
                 resource_summary = (f"Managed resources: {len(available)} available ({available_names}); "
                                     f"{len(missing)} still needed. Feature readiness is checked after Install.")
             except (OSError, ValueError, KeyError, TypeError):
-                resource_summary = f"Managed resources are kept under {managed['models'].parent}."
+                resource_summary = ("Provider resources are being checked for the selected installation."
+                                    if self.validation_in_progress else
+                                    f"Managed resources are kept under {managed['models'].parent}.")
             selectable_text(frame, resource_summary, background=PALE, foreground=MUTED,
                             width=92, pady=(5, 0), font=("Segoe UI", 9))
         status = tk.StringVar(value=component_status_text(definition, facts))
@@ -1362,7 +1548,7 @@ class ManagerShell:
         if primary:
             primary_button = ttk.Button(actions, text=primary_label(definition, facts, primary), style="Accent.TButton",
                                         command=lambda item=definition: self.component_primary_action(item),
-                                        state="disabled" if self.review_mode or facts.phase == ComponentPhase.CANCELING else "normal")
+                                        state="normal" if self._action_enabled(definition, facts) else "disabled")
             primary_button.pack(side="left")
         if facts.selected_path:
             ttk.Button(actions, text="Go to directory", command=lambda item=definition: self.open_component_directory(item),
@@ -1396,7 +1582,7 @@ class ManagerShell:
         if button is not None:
             action = self._primary_action_for(definition, facts)
             button.configure(text=primary_label(definition, facts, action),
-                             state="disabled" if self.review_mode or not action or facts.phase == ComponentPhase.CANCELING else "normal")
+                             state="normal" if action and self._action_enabled(definition, facts) else "disabled")
 
     def _card_path_control(self, parent, title, variable, command, hint="", *, editable=True, commit=None):
         ttk.Label(parent, text=title, style="Field.TLabel").pack(anchor="w", pady=(7, 2))
@@ -1410,8 +1596,11 @@ class ManagerShell:
         entry.pack(side="left", fill="x", expand=True)
         if editable and commit:
             entry.bind("<Return>", lambda _event: commit() or "break")
-        ttk.Button(row, text="Browse…", command=command,
-                   state="disabled" if self.review_mode or not editable else "normal").pack(side="left", padx=(8, 0))
+        browse = ttk.Button(row, text="Browse…", command=command,
+                            state="disabled" if self.review_mode or not editable else "normal")
+        browse.pack(side="left", padx=(8, 0))
+        if title == "Application location":
+            self.root_controls = {"entry": entry, "browse": browse}
 
     def _render_recovery_choices(self, parent):
         recovery = self.recovery
@@ -1559,6 +1748,8 @@ class ManagerShell:
 
     def import_all_resources(self) -> None:
         """Scan one selected folder once and import every approved managed resource found."""
+        if self.validation_in_progress:
+            return
         if self.operation_queue.active is not None:
             self.global_import_detail = "Finish or Pause the active operation before importing resources."
             if self.global_import_widgets:
@@ -1737,6 +1928,8 @@ class ManagerShell:
         os.startfile(target)
 
     def component_primary_action(self, definition):
+        if self.validation_in_progress:
+            return
         if (definition.component_id == "lic-core" and hasattr(self, "selected_state") and
                 not getattr(self, "review_mode", False) and
                 self.operation_queue.active is None and
@@ -2003,7 +2196,7 @@ class ManagerShell:
                    state="normal" if editable else "disabled").pack(side="left", padx=(10, 0))
 
     def choose_application(self):
-        if self.component_facts["lic-core"].phase in IDENTITY_LOCKED_PHASES:
+        if self.validation_in_progress or self.component_facts["lic-core"].phase in IDENTITY_LOCKED_PHASES:
             return
         parent = filedialog.askdirectory(title="Choose an existing LoRA Image Curator installation or a parent folder")
         if parent:
@@ -2016,19 +2209,19 @@ class ManagerShell:
                 self.application_path.set(str(selected))
                 self._refresh_recovery_state()
             else:
-                self._reconcile_selected_root(selected)
-            self.show_page("Install & Update")
+                self._begin_root_validation(selected)
+            if self.review_mode:
+                self.show_page("Install & Update")
 
     def commit_application_path(self):
-        if self.component_facts["lic-core"].phase in IDENTITY_LOCKED_PHASES:
+        if self.validation_in_progress or self.component_facts["lic-core"].phase in IDENTITY_LOCKED_PHASES:
             return
         value = self.application_path.get().strip()
         if value and not self.review_mode:
-            self._reconcile_selected_root(Path(value))
-            self.show_page("Install & Update")
+            self._begin_root_validation(Path(value))
 
     def choose_models(self):
-        if self.component_facts["lic-core"].phase in IDENTITY_LOCKED_PHASES:
+        if self.validation_in_progress or self.component_facts["lic-core"].phase in IDENTITY_LOCKED_PHASES:
             return
         current = Path(self.model_path.get())
         selected = filedialog.askdirectory(
@@ -2199,7 +2392,7 @@ class ManagerShell:
         self.show_page("Install & Update")
 
     def launch_lic(self):
-        if self.review_mode:
+        if self.review_mode or self.validation_in_progress:
             return
         try:
             self.launch(self.root)
@@ -2265,7 +2458,7 @@ class ManagerShell:
                               "The manager checks the new copy before using it. Your current installation stays available.")
 
     def begin_move(self):
-        if self.busy:
+        if self.busy or self.validation_in_progress:
             return
         destination = Path(self.move_destination.get())
         copy = self.move_model_choice.get() == "copy"
@@ -2406,6 +2599,9 @@ class ManagerShell:
     def poll(self):
         while not self.events.empty():
             item = self.events.get_nowait()
+            if item[0] == "root-validation":
+                self._finish_root_validation(item[1], item[2], item[3])
+                continue
             if len(item) == 2 and str(item[0]).startswith("global-import-"):
                 self._handle_global_import_event(item[0], item[1])
                 continue
@@ -2494,6 +2690,11 @@ class ManagerShell:
                     self.operation_queue.complete(component_id)
                     if not getattr(self, "review_mode", False) and hasattr(self, "selected_state"):
                         self._reconcile_selected_root(self.root)
+                        if self.selected_state.action == "ready":
+                            try:
+                                write_last_valid_root(self.root)
+                            except (OSError, ValueError):
+                                pass  # Core remains usable; next launch will revalidate its explicit root.
                 elif kind == "component-repaired":
                     self.busy = False
                     self.operation_queue.complete(component_id)
@@ -2605,6 +2806,11 @@ class ManagerShell:
                 self.progress.stop(); self.record = event["record"]
                 self.root = Path(self.record["root"]); self.application_path.set(str(self.root))
                 self.model_path.set(self.record["model_root"]); self.show_completion(self.record)
+                if not self.review_mode and inspect_selected_root(self.delivery, self.root).action == "ready":
+                    try:
+                        write_last_valid_root(self.root)
+                    except (OSError, ValueError):
+                        pass
             elif kind == "failed":
                 self.busy = False
                 if hasattr(self, "progress"):
@@ -2612,6 +2818,9 @@ class ManagerShell:
                 messagebox.showerror("Operation stopped safely", event["message"] +
                                      "\n\nUse Help or the Logs folder for technical details.", parent=self.window)
         active = self.operation_queue.active
+        if getattr(self, "validation_in_progress", False) and hasattr(self, "validation_status"):
+            elapsed = int(time.monotonic() - self.validation_started)
+            self.validation_status.set(f"Validating existing LIC installation… {elapsed}s elapsed")
         if active and active.component_id in getattr(self, "activity_started", {}):
             component_id = active.component_id
             elapsed = int(time.monotonic() - self.activity_started[component_id])
@@ -2624,10 +2833,21 @@ class ManagerShell:
         self.window.after(100, self.poll)
 
     def _write_probe(self, path: Path):
+        if self.validation_in_progress:
+            self.window.after(250, lambda: self._write_probe(path))
+            return
         contract = first_run_contract(str(self.root), model_root=self.model_path.get(),
                                       start_menu=self.start_menu.get(), desktop=self.desktop.get())
         evidence = {"visible": bool(self.window.winfo_viewable()), "title": self.window.title(),
                     "product_version": PRODUCT_VERSION, "dependency_profile": DEPENDENCY_PROFILE_ID,
+                    "selected_root": self.application_path.get(),
+                    "validation_in_progress": self.validation_in_progress,
+                    "validation_message": self.validation_message,
+                    "root_browse_state": (str(self.root_controls["browse"].cget("state"))
+                                          if hasattr(self, "root_controls") and
+                                          self.root_controls["browse"].winfo_exists() else None),
+                    "core_action_state": (str(self.component_widgets["lic-core"]["primary"].cget("state"))
+                                          if self.component_widgets.get("lic-core", {}).get("primary") else None),
                     "mode": self.mode, "navigation": self.sections, "active_section": self.current_page,
                     "persistent_left_navigation": True, "consent_default": False,
                     "installation_started": self.busy, "ux_contract": contract,
@@ -2661,7 +2881,10 @@ class ManagerShell:
         self.window.destroy()
 
     def close(self):
-        if self.busy:
+        if self.validation_in_progress:
+            messagebox.showinfo("Checking installation", "The selected installation is still being checked. "
+                                "Close the Manager after this check finishes.", parent=self.window)
+        elif self.busy:
             messagebox.showinfo("Operation in progress", "Keep this window open while the current step finishes. "
                                 "If interrupted, reopen the manager to inspect recovery.", parent=self.window)
         else:
