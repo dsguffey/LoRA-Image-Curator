@@ -16,7 +16,7 @@ from typing import Callable
 from uuid import uuid4
 
 from .acquisition import AcquisitionCancelled
-from .active_venv import managed_venv
+from .active_venv import managed_generation, managed_venv
 from .artifacts import ArtifactDescriptor
 from .bootstrap import profile as delivery_profile, verify_extracted
 from .bootstrap_layout import layout
@@ -47,10 +47,7 @@ def _generation(root: Path, path: Path) -> Path:
     """Refuse to touch any tree outside the two manager-owned venv name forms."""
     root = root.resolve()
     path = Path(path).absolute()
-    parent = layout(root)["venv"].parent.resolve()
-    if (path.parent.resolve() != parent or
-            not (path.name == "venv" or path.name.startswith(("venv-repair-", "venv-provider-"))) or
-            path.is_symlink() or getattr(path, "is_junction", lambda: False)()):
+    if not managed_generation(root, path):
         raise ValueError("Repair environment is outside the managed LIC layout")
     return path
 

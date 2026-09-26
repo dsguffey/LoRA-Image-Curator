@@ -68,4 +68,4 @@ class AcceptanceCorrectionTests(unittest.TestCase):
 
     def test_product_version_is_canonical(self):
         self.assertEqual(PRODUCT_VERSION, "0.7.1")
-        self.assertEqual(DEPENDENCY_PROFILE_ID, "2026-09-26")
+        self.assertEqual(DEPENDENCY_PROFILE_ID, "2026-09-26.1")

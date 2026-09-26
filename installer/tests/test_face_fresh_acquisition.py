@@ -69,7 +69,7 @@ class FaceFreshAcquisitionTests(unittest.TestCase):
                                 sleep=lambda seconds: None)
 
     def test_approved_pair_is_exact_and_uses_binary_git_lfs_source(self):
-        self.assertEqual(recommended_profile(PROFILES).profile_id, "2026-09-26")
+        self.assertEqual(recommended_profile(PROFILES).profile_id, "2026-09-26.1")
         expected = (
             ("opencv-yunet-2026may", "face_detection_yunet_2026may.onnx", 229738,
              "ebafce4e3c118d6554634be5c27ab333b4c047a9a8c3faf1d7cf93101c22f0f0"),

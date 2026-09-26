@@ -34,6 +34,9 @@ class ProviderTransactionTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
+        home_patch = patch.object(Path, 'home', return_value=Path(self.temp.name) / 'User')
+        home_patch.start()
+        self.addCleanup(home_patch.stop)
         self.root = Path(self.temp.name) / 'LIC Test'
         self.old_venv = self.root / 'Apps/LIC-Lite/candidate-1/venv'
         python = self.old_venv / 'Scripts/python.exe'
@@ -81,7 +84,7 @@ class ProviderTransactionTests(unittest.TestCase):
 
     def _run(self, failure=None, *, component_id='face-analysis', cancel=None, resume=False):
         def validate(*args, **kwargs):
-            if failure == 'validation' and 'venv-provider-' in str(args[1]):
+            if failure == 'validation' and args[1].parent.parent.name == 'LICV':
                 return {'passed': False}
             return {'passed': True}
 
@@ -291,7 +294,7 @@ class ProviderTransactionTests(unittest.TestCase):
 
     def test_corrected_ffmpeg_notice_hash_is_in_new_immutable_profile(self):
         profile = recommended_profile(DELIVERY / 'recipes/compatibility/profiles')
-        self.assertEqual(profile.profile_id, '2026-09-26')
+        self.assertEqual(profile.profile_id, '2026-09-26.1')
         members = profile.component_by_id('video-extraction').raw['resources'][0]['installation']['members']
         notice = next(item for item in members if item['destination'] == 'LICENSE.txt')
         self.assertEqual(notice['sha256'],
@@ -389,7 +392,7 @@ class ProviderTransactionTests(unittest.TestCase):
                 raise RuntimeError('injected Florence package failure')
             return {'passed': True}
         def validate(*args, **kwargs):
-            if failure == 'validate' and 'venv-provider-' in str(args[1]):
+            if failure == 'validate' and args[1].parent.parent.name == 'LICV':
                 return {'passed': False}
             return {'passed': True}
         def probe(*args, **kwargs):

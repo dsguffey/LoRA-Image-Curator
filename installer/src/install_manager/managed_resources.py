@@ -11,7 +11,8 @@ import zipfile
 from typing import Callable
 
 from .bootstrap_layout import layout
-from .compatibility_profiles import recommended_profile
+from .compatibility_profiles import load_approved_profiles, recommended_profile
+from .component_state import load_inventory
 from .component_adapters import artifact_descriptor
 
 
@@ -123,9 +124,9 @@ def _merge_spec(specs: dict[str, ManagedResourceSpec], spec: ManagedResourceSpec
         prior.filename, prior.size, prior.hashes, prior.artifact, prior.archive_members)
 
 
-def approved_resource_specs(delivery: Path, root: Path) -> tuple[ManagedResourceSpec, ...]:
+def approved_resource_specs(delivery: Path, root: Path, *, profile=None) -> tuple[ManagedResourceSpec, ...]:
     """Resolve exact profile resources into one de-duplicated physical library."""
-    profile = recommended_profile(delivery / "recipes/compatibility/profiles")
+    profile = profile or recommended_profile(delivery / "recipes/compatibility/profiles")
     specs: dict[str, ManagedResourceSpec] = {}
     for manifest in profile.components.values():
         for package in manifest.packages:
@@ -442,7 +443,15 @@ def import_resources(delivery: Path, root: Path, selected: Path, *,
 
 
 def component_resource_status(delivery: Path, root: Path, component_id: str) -> dict:
-    specs = tuple(item for item in approved_resource_specs(delivery, root)
+    profile = None
+    if component_id == "video-extraction":
+        inventory = load_inventory(root)
+        installed = next((item for item in inventory.components
+                          if item.component_id == component_id), None) if inventory else None
+        if installed:
+            profile = next((item for item in load_approved_profiles(delivery / "recipes/compatibility/profiles")
+                            if item.component_by_id(component_id).manifest_id == installed.implementation_id), None)
+    specs = tuple(item for item in approved_resource_specs(delivery, root, profile=profile)
                   if component_id in item.component_ids)
     library = load_resource_library(root)
     indexed = {item["identity"]: item for item in library["resources"]}

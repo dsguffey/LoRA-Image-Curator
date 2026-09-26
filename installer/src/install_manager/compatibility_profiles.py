@@ -382,6 +382,7 @@ def accepted_installed_profile(directory: Path, selected_profile: dict[str, str]
     historical_digests = {
         "2026-09-11": "ddd947d8dd52c28d4cb2ccae9ae998683807dd24dd5d1f42ebc95331886db6dd",
         "2026-09-25": "bb5bf432f745da4f2dc613137817044915329c2c03f0b39c3e1bc4f0f2a94671",
+        "2026-09-26": "235b50d01905018046cda02dd93df37efb0adba7d20a81be74f4332bfb6e492e",
     }
     previous_id = selected_profile.get("profile_id")
     expected = historical_digests.get(previous_id)

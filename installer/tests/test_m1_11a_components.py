@@ -85,7 +85,7 @@ class GenericStateTests(unittest.TestCase):
 class ProfileAndArtifactTests(unittest.TestCase):
     def test_historical_profile_is_retained_and_new_profile_is_recommended(self):
         profiles = load_approved_profiles(PROFILE_ROOT)
-        self.assertEqual([item.profile_id for item in profiles], ["2026-09-06", "2026-09-07", "2026-09-10", "2026-09-11", "2026-09-25", "2026-09-26"])
+        self.assertEqual([item.profile_id for item in profiles], ["2026-09-06", "2026-09-07", "2026-09-10", "2026-09-11", "2026-09-25", "2026-09-26", "2026-09-26.1"])
         self.assertEqual(profiles[0].digest,
                          "9f895d3706a3a7d5a5a02be8bc549c05b8d5c892520de8976446bd6f7e5fce96")
         self.assertEqual(profiles[1].digest,
@@ -111,10 +111,11 @@ class ProfileAndArtifactTests(unittest.TestCase):
         manifest = recommended_profile(PROFILE_ROOT).component_by_id("video-extraction").raw
         tool = manifest["resources"][0]
         artifact = tool["artifact"]
-        self.assertEqual(artifact["version"], "n8.1.2-50-g1a748fe2cd-20260905")
-        self.assertEqual(artifact["expected_size"], 146_078_600)
+        self.assertEqual(artifact["version"], "n8.1.2-50-g1a748fe2cd-20260831")
+        self.assertEqual(artifact["expected_size"], 146_078_616)
         self.assertEqual(artifact["expected_sha256"],
-                         "a86187b579310debe4241b4b4f4cefdac3ca294cfde76f775993445d19cf5b1d")
+                         "f6274bbd9c247f9e90c1bbed066b03ed4a3907cece2fb91be6dd352393936365")
+        self.assertIn("autobuild-2026-08-31-13-27", artifact["url"])
         self.assertTrue(artifact["url"].startswith("https://github.com/BtbN/FFmpeg-Builds/releases/"))
         self.assertEqual(artifact["license_id"], "LGPL-3.0-or-later")
         self.assertIn("--enable-gpl", tool["validation"]["forbidden_configuration"])
@@ -348,7 +349,7 @@ class AdapterAndTransactionTests(unittest.TestCase):
                 moved = move_installation(DELIVERY, source, destination)
             inventory = load_inventory(destination)
             self.assertEqual(Path(moved["root"]), destination.resolve())
-            self.assertEqual(inventory.selected_profile["profile_id"], "2026-09-26")
+            self.assertEqual(inventory.selected_profile["profile_id"], "2026-09-26.1")
             self.assertEqual(inventory.installed_component_ids, {"lic-core"})
             self.assertTrue(moved["move"]["component_inventory_driven"])
             self.assertTrue(record_path.is_file())

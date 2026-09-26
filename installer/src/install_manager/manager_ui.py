@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import queue
 import threading
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Callable
@@ -20,6 +21,7 @@ from .component_catalog import (CancellationToken, ComponentAction, ComponentFac
                                 load_component_catalog, product_ready, progress_presentation,
                                 validate_existing_selection)
 from .component_state import load_inventory
+from .dependencies import dependency_failure_details
 from .component_operations import (operation_download_summary,
                                    inspect_recovery as inspect_component_recovery)
 from .managed_move import move_plan
@@ -371,6 +373,22 @@ def acquisition_error_presentation(error: BaseException | str) -> tuple[str, str
 
 def provider_failure_presentation(definition, error: BaseException | str) -> tuple[str, str]:
     """Keep the failed artifact and next action visible after journal reconciliation."""
+    dependency = dependency_failure_details(error)
+    if dependency:
+        cause = str(dependency.get("error_summary") or "pip could not install the approved packages")
+        if "[WinError 206]" in str(dependency.get("output_tail", "")):
+            cause = ("Windows could not create a file because the provider installation path was too long"
+                     + (f" ({dependency['package']})" if dependency.get("package") else ""))
+        message = (f"{definition.capability} setup failed while installing dependencies. Cause: {cause}. "
+                   "Verified downloads were preserved. Repair retries setup using those files.")
+        technical = "\n".join((
+            "Stage: Install dependencies",
+            f"Package: {dependency.get('package') or 'not identified'}",
+            f"Exit code: {dependency.get('exit_code')}",
+            f"Command: {' '.join(map(str, dependency.get('command', ())))}",
+            f"Log: {dependency.get('log_path')}",
+            f"Output tail:\n{dependency.get('output_tail', '')}"))
+        return message, technical
     if isinstance(error, AcquisitionFailure) or "category=" in str(error):
         message, technical = acquisition_error_presentation(error)
         if definition.component_id == "face-analysis":
@@ -666,6 +684,9 @@ class ManagerShell:
         self.component_facts = self._initial_component_facts()
         self.operation_queue = ComponentOperationQueue()
         self.component_widgets = {}
+        self.activity_started = {}
+        self.activity_message = {}
+        self.activity_last_tick = {}
         self.global_import_widgets = {}
         self.global_import_active = False
         self.global_import_progress = 0.0
@@ -951,6 +972,9 @@ class ManagerShell:
                     florence.completed_bytes = recovery.completed_steps
                     florence.total_bytes = recovery.total_steps or None
                     florence.detail = recovery.summary
+                    if recovery.status == "failed" and recovery.failure:
+                        florence.detail, florence.diagnostic = provider_failure_presentation(
+                            self.component_by_id["florence-captioning"], recovery.failure)
         elif florence is not None and self.florence_recovery:
             recovery = self.florence_recovery
             if recovery.blocked:
@@ -963,6 +987,9 @@ class ManagerShell:
                 florence.resumable = recovery.resumable
                 florence.recovery_blocked = recovery.blocked
                 florence.detail = recovery.summary
+                if recovery.status == "failed" and recovery.failure:
+                    florence.detail, florence.diagnostic = provider_failure_presentation(
+                        self.component_by_id["florence-captioning"], recovery.failure)
         for component_id, recovery in self.component_recoveries.items():
             item = facts.get(component_id)
             if item is None:
@@ -1143,9 +1170,14 @@ class ManagerShell:
         for child in self.content.winfo_children():
             child.destroy()
 
-    def show_page(self, page: str):
+    def show_page(self, page: str, *, anchor_id: str | None = None):
         same_page = page == self.current_page
         position = self.canvas.yview()[0] if same_page else 0.0
+        anchor = None
+        if same_page and anchor_id:
+            old = self.component_widgets.get(anchor_id, {}).get("frame")
+            if old is not None and old.winfo_exists():
+                anchor = old.winfo_rooty() - self.canvas.winfo_rooty()
         self.current_page = page
         for name, button in self.nav_buttons.items():
             button.configure(bg=NAVY_ACTIVE if name == page else NAVY,
@@ -1153,7 +1185,14 @@ class ManagerShell:
         self.clear()
         method = getattr(self, "page_" + page.lower().replace(" ", "_").replace("&", "and"))
         method()
-        self.canvas.after_idle(lambda: self.canvas.yview_moveto(position))
+        def restore_view():
+            target = position
+            new = self.component_widgets.get(anchor_id, {}).get("frame") if anchor_id else None
+            if anchor is not None and new is not None and new.winfo_exists():
+                height = max(1, self.canvas.bbox("all")[3]) if self.canvas.bbox("all") else 1
+                target += ((new.winfo_rooty() - self.canvas.winfo_rooty()) - anchor) / height
+            self.canvas.yview_moveto(max(0.0, min(1.0, target)))
+        self.canvas.after_idle(restore_view)
 
     def title(self, heading: str, description: str):
         ttk.Label(self.content, text=heading, style="PageTitle.TLabel", wraplength=900,
@@ -1331,8 +1370,9 @@ class ManagerShell:
         if facts.diagnostic:
             ttk.Button(actions, text="Show technical details",
                        command=lambda item=definition: self.show_technical_details(item)).pack(side="right")
-        self.component_widgets[definition.component_id] = {"status": status, "progress": bar,
-                                                            "primary": primary_button}
+        self.component_widgets[definition.component_id] = {"frame": frame, "status": status,
+                                                            "progress": bar, "primary": primary_button,
+                                                            "bar_running": progress["mode"] == "indeterminate" and progress["active"]}
 
     def _update_component_card(self, component_id: str) -> None:
         """Update an already-rendered card without rebuilding the page or moving scroll."""
@@ -1344,11 +1384,14 @@ class ManagerShell:
         widgets["status"].set(component_status_text(definition, facts))
         progress = progress_presentation(facts)
         bar = widgets["progress"]
-        bar.stop()
+        running = progress["mode"] == "indeterminate" and progress["active"]
+        if widgets["bar_running"] and not running:
+            bar.stop()
         bar.configure(mode=progress["mode"], value=progress["value"],
                       style="Complete.Horizontal.TProgressbar" if progress["value"] >= 100 else "Horizontal.TProgressbar")
-        if progress["mode"] == "indeterminate" and progress["active"]:
+        if running and not widgets["bar_running"]:
             bar.start(12)
+        widgets["bar_running"] = running
         button = widgets.get("primary")
         if button is not None:
             action = self._primary_action_for(definition, facts)
@@ -1444,9 +1487,12 @@ class ManagerShell:
                     diagnostic=str(recovery.journal_path))
             elif getattr(recovery, "status", None) == "failed":
                 self.florence_recovery = None
+                message, diagnostic = provider_failure_presentation(
+                    self.component_by_id["florence-captioning"], recovery.failure) if recovery.failure else (
+                    recovery.summary, str(recovery.journal_path))
                 self.component_facts["florence-captioning"] = ComponentFacts(
-                    ComponentPhase.REPAIR_REQUIRED, detail=recovery.summary,
-                    diagnostic=str(recovery.journal_path))
+                    ComponentPhase.REPAIR_REQUIRED, detail=message,
+                    diagnostic=diagnostic)
             else:
                 self.component_facts["florence-captioning"] = ComponentFacts(
                     ComponentPhase.PARTIAL, resumable=recovery.resumable,
@@ -1722,11 +1768,11 @@ class ManagerShell:
                 facts.phase, facts.detail = ComponentPhase.CANCELING, "Pausing at the next safe boundary…"
             elif result == "queue-canceled":
                 facts.phase, facts.detail = ComponentPhase.NOT_INSTALLED, "Removed from queue."
-            self.show_page("Install & Update")
+            self._update_component_card(definition.component_id)
             return
         if action == ComponentAction.CHECK_UPDATES:
             facts.detail = "No newer manager-approved compatible release is currently available."
-            self.show_page("Install & Update")
+            self._update_component_card(definition.component_id)
             return
         if not definition.managed_install:
             return
@@ -1735,12 +1781,12 @@ class ManagerShell:
                        if not self.component_facts[dependency].verified]
             if missing:
                 facts.detail = "Install and verify LoRA Image Curator Core before installing this optional capability."
-                self.show_page("Install & Update")
+                self._update_component_card(definition.component_id)
                 return
         request, start_now = self.operation_queue.submit(definition.component_id, action.value)
         if not start_now:
             facts.phase, facts.detail = ComponentPhase.QUEUED, "Queued behind the active component operation."
-            self.show_page("Install & Update")
+            self._update_component_card(definition.component_id)
             return
         if definition.component_id == "lic-core":
             if self.selected_state and self.selected_state.action in {"repair", "resume-repair"}:
@@ -1778,7 +1824,7 @@ class ManagerShell:
         facts = self.component_facts["lic-core"]
         facts.phase, facts.detail = ComponentPhase.PREPARING, "Checking the existing installation before repair…"
         self.busy = True
-        self.show_page("Install & Update")
+        self._update_component_card("lic-core")
         def worker():
             try:
                 result = self.repair_core(
@@ -1807,10 +1853,17 @@ class ManagerShell:
             self.show_page("Install & Update")
             return
         facts.phase = ComponentPhase.PREPARING
+        facts.completed_bytes, facts.total_bytes = 0, None
         facts.detail = ("Checking managed resources, downloading only missing items, then installing and "
                         "checking feature readiness.")
+        self.activity_started = getattr(self, "activity_started", {})
+        self.activity_message = getattr(self, "activity_message", {})
+        self.activity_last_tick = getattr(self, "activity_last_tick", {})
+        self.activity_started[component_id] = time.monotonic()
+        self.activity_message[component_id] = facts.detail
+        self.activity_last_tick.pop(component_id, None)
         self.busy = True
-        self.show_page("Install & Update")
+        self._update_component_card(component_id)
 
         def worker():
             try:
@@ -2398,15 +2451,24 @@ class ManagerShell:
                     view = progress_view(event)
                     if event.get("kind") == "download":
                         facts.phase = ComponentPhase.DOWNLOADING
-                        facts.completed_bytes = int(event.get("downloaded_bytes", 0))
-                        facts.total_bytes = event.get("total_bytes")
+                        # A file's byte count is not overall six-stage progress.
+                        if component_id == "lic-core":
+                            facts.completed_bytes = int(event.get("downloaded_bytes", 0))
+                            facts.total_bytes = event.get("total_bytes")
                     else:
                         message = view["message"].casefold()
                         facts.phase = (ComponentPhase.VERIFYING if "verif" in message or "testing" in message
                                        else ComponentPhase.INSTALLING if "install" in message or "creating" in message
                                        else ComponentPhase.PREPARING)
-                    facts.detail = view["message"]
+                    if component_id != "lic-core":
+                        facts.completed_bytes, facts.total_bytes = 0, None
+                    stage = (f"[{view['step']}/{view['total_steps']}] "
+                             if view.get("step") and view.get("total_steps") and
+                             not str(view["message"]).startswith("[") else "")
+                    facts.detail = stage + view["message"]
+                    getattr(self, "activity_message", {})[component_id] = facts.detail
                 elif kind == "component-installed":
+                    getattr(self, "activity_started", {}).pop(component_id, None)
                     facts.phase, facts.verified, facts.detail = (ComponentPhase.INSTALLED, True,
                                                                   "✓ Installed and verified")
                     if component_id == "lic-core":
@@ -2441,6 +2503,7 @@ class ManagerShell:
                     if core.verified and event.get("cleanup_pending"):
                         core.detail = "Core is repaired and ready. Old files are still in use and will be cleaned up later."
                 elif kind == "component-canceled":
+                    getattr(self, "activity_started", {}).pop(component_id, None)
                     self.busy = False
                     self.operation_queue.complete(component_id)
                     if component_id == "florence-captioning":
@@ -2466,6 +2529,7 @@ class ManagerShell:
                             detail=("This interrupted setup belongs to a different approved installer "
                                     "profile. Begin a new installation in a different empty location."))
                 elif kind == "component-failed":
+                    getattr(self, "activity_started", {}).pop(component_id, None)
                     self.busy = False
                     self.operation_queue.complete(component_id)
                     if component_id == "florence-captioning":
@@ -2519,7 +2583,7 @@ class ManagerShell:
                         self._start_next_queued()
                         # Completion/failure changes available actions and may
                         # need structural recovery controls; progress never does.
-                        self.show_page("Install & Update")
+                        self.show_page("Install & Update", anchor_id=component_id)
                 continue
             kind, event = item
             if kind == "repair-cleanup":
@@ -2547,6 +2611,16 @@ class ManagerShell:
                     self.progress.stop()
                 messagebox.showerror("Operation stopped safely", event["message"] +
                                      "\n\nUse Help or the Logs folder for technical details.", parent=self.window)
+        active = self.operation_queue.active
+        if active and active.component_id in getattr(self, "activity_started", {}):
+            component_id = active.component_id
+            elapsed = int(time.monotonic() - self.activity_started[component_id])
+            if elapsed >= 2 and self.activity_last_tick.get(component_id) != elapsed:
+                self.activity_last_tick[component_id] = elapsed
+                facts = self.component_facts[component_id]
+                facts.detail = f"{self.activity_message.get(component_id, facts.detail)} · {elapsed}s elapsed"
+                if self.current_page == "Install & Update":
+                    self._update_component_card(component_id)
         self.window.after(100, self.poll)
 
     def _write_probe(self, path: Path):

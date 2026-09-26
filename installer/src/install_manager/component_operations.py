@@ -412,7 +412,7 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                     record_candidate(journal, root, active, inventory, active_venv, candidate_venv)
                     candidate_python = create_final_path_venv(
                         paths["runtime"] / "python.exe", candidate_venv,
-                        approved_root=root,
+                        approved_root=candidate_venv.parent,
                         log_path=paths["logs"] / f"component-{component_id}-create.log")
                     result = install_locked_wheels(
                         candidate_python, final_lock, tuple(acquired_dependencies),

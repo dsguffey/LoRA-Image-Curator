@@ -1,0 +1,89 @@
+{
+  "schema_version": 2,
+  "manifest_id": "ffmpeg-btbn-n8.1.2-50-lgpl-monthly-20260831-v1",
+  "component_id": "video-extraction",
+  "capability": "Extract frames from video",
+  "tier": "optional",
+  "provider": "FFmpeg / BtbN build",
+  "provider_id": "btbn-ffmpeg",
+  "native_version": "n8.1.2-50-g1a748fe2cd-20260831-win64-lgpl",
+  "python_version": "3.14.6",
+  "platform": "win_amd64",
+  "approved_sources": [
+    "github.com/BtbN/FFmpeg-Builds",
+    "release-assets.githubusercontent.com",
+    "ffmpeg.org"
+  ],
+  "dependency_lock": null,
+  "packages": [],
+  "resources": [
+    {
+      "resource_id": "ffmpeg-n8.1.2-50-win64-lgpl",
+      "kind": "tool-directory",
+      "artifact": {
+        "artifact_id": "ffmpeg-btbn-win64-lgpl",
+        "version": "n8.1.2-50-g1a748fe2cd-20260831",
+        "filename": "ffmpeg-n8.1.2-50-g1a748fe2cd-win64-lgpl-8.1.zip",
+        "url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-08-31-13-27/ffmpeg-n8.1.2-50-g1a748fe2cd-win64-lgpl-8.1.zip",
+        "expected_sha256": "f6274bbd9c247f9e90c1bbed066b03ed4a3907cece2fb91be6dd352393936365",
+        "publisher": "BtbN/FFmpeg-Builds",
+        "source_name": "BtbN retained monthly GitHub release autobuild-2026-08-31-13-27",
+        "license_id": "LGPL-3.0-or-later",
+        "expected_size": 146078616
+      },
+      "installation": {
+        "adapter": "verified-zip-members-v1",
+        "relative_path": "Resources/components/video-extraction/n8.1.2-50-g1a748fe2cd-20260831",
+        "members": [
+          {
+            "source": "ffmpeg-n8.1.2-50-g1a748fe2cd-win64-lgpl-8.1/bin/ffmpeg.exe",
+            "destination": "ffmpeg.exe",
+            "size": 113981440,
+            "sha256": "9c60da6c0b083110d59084ea39f60ae149aa3e031c3b4bb4f573fafa1c1e7cea"
+          },
+          {
+            "source": "ffmpeg-n8.1.2-50-g1a748fe2cd-win64-lgpl-8.1/bin/ffprobe.exe",
+            "destination": "ffprobe.exe",
+            "size": 113775616,
+            "sha256": "67176fa62f89f94c3bcd379fd05677a25651569a2eb8880ec2194e62c82be412"
+          },
+          {
+            "source": "ffmpeg-n8.1.2-50-g1a748fe2cd-win64-lgpl-8.1/LICENSE.txt",
+            "destination": "LICENSE.txt",
+            "size": 7651,
+            "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768"
+          }
+        ]
+      },
+      "ownership": "manager-owned",
+      "disposition": "copy-and-verify",
+      "validation": {
+        "adapter": "ffmpeg-lic-video-v1",
+        "version": "ffmpeg-lic-video-v1",
+        "license": "LGPL-3.0-or-later",
+        "forbidden_configuration": [
+          "--enable-gpl",
+          "--enable-nonfree"
+        ]
+      }
+    }
+  ],
+  "validation": {
+    "probe": "ffmpeg-lic-video-v1",
+    "evidence": "docs/FLORENCE_PATH_FFMPEG_MONTHLY_VERIFICATION.md"
+  },
+  "provenance": {
+    "basis": "BtbN retained monthly GitHub release metadata, SHA-256 archive/member verification, and bounded ffmpeg -version smoke",
+    "classification": "optional-capability",
+    "release_tag": "autobuild-2026-08-31-13-27",
+    "release_asset_id": 538025211,
+    "delivery": "acquired-from-upstream-after-explicit-user-action",
+    "redistribution": "not bundled; any future offline redistribution requires source-and-notice review"
+  },
+  "policy": {
+    "payment": "none-identified",
+    "project_url": "https://github.com/BtbN/FFmpeg-Builds",
+    "license_url": "https://ffmpeg.org/legal.html",
+    "support_url": null
+  }
+}

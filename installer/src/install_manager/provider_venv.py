@@ -5,8 +5,7 @@ from dataclasses import replace
 from pathlib import Path
 from uuid import uuid4
 
-from .active_venv import managed_venv
-from .bootstrap_layout import layout
+from .active_venv import managed_generation, managed_venv, provider_venv_parent
 from .component_state import ComponentInventory, write_inventory
 from .journal import OperationJournal
 from .managed_install import _atomic_json
@@ -19,9 +18,8 @@ RECORD = "State/installations/lic-lite.json"
 def new_generation(root: Path) -> Path:
     """Choose a final-path, manager-owned venv without moving a built Windows venv."""
     root = root.resolve()
-    parent = layout(root)["venv"].parent.resolve()
-    candidate = parent / ("venv-provider-" + uuid4().hex[:12])
-    if candidate.exists() or candidate.parent.resolve() != parent:
+    candidate = provider_venv_parent(root) / ("p" + uuid4().hex[:10])
+    if candidate.exists() or not managed_generation(root, candidate):
         raise ValueError("Provider environment target is not a new managed generation")
     return candidate
 

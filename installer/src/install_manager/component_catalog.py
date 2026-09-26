@@ -169,6 +169,8 @@ def progress_presentation(facts: ComponentFacts) -> dict[str, object]:
                              ComponentPhase.INSTALLING, ComponentPhase.CANCELING}
     if facts.verified and facts.phase in {ComponentPhase.INSTALLED, ComponentPhase.UPDATE_AVAILABLE}:
         return {"mode": "determinate", "value": 100.0, "active": False}
+    if facts.phase in {ComponentPhase.ERROR, ComponentPhase.REPAIR_REQUIRED}:
+        return {"mode": "determinate", "value": 0.0, "active": False}
     if facts.total_bytes and facts.total_bytes > 0:
         value = min(100.0, max(0.0, 100.0 * facts.completed_bytes / facts.total_bytes))
         return {"mode": "determinate", "value": value, "active": active}

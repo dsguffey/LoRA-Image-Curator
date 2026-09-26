@@ -54,6 +54,7 @@ class FlorenceRecovery:
     resumable: bool
     blocked: bool
     summary: str
+    failure: str = ''
 
 
 def inspect_recovery(delivery: Path, root: Path,
@@ -93,7 +94,7 @@ def inspect_recovery(delivery: Path, root: Path,
                    'recipe and reuses verified work.')
     return FlorenceRecovery(journal_path.resolve(), status, recorded_root, recorded_models,
                             current_root, current_models, completed, len(names), resumable,
-                            blocked, summary)
+                            blocked, summary, str(data.get('failure') or ''))
 
 
 def profile(delivery: Path):
@@ -317,7 +318,8 @@ def execute(delivery: Path, root: Path, model_root: Path, *, cache_source: Path 
                     candidate_venv = new_generation(root)
                     record_candidate(journal, root, active, inventory, active_venv, candidate_venv)
                     candidate_python = create_final_path_venv(
-                        paths['runtime'] / 'python.exe', candidate_venv, approved_root=root,
+                        paths['runtime'] / 'python.exe', candidate_venv,
+                        approved_root=candidate_venv.parent,
                         log_path=paths['logs'] / 'florence-create.log')
                     result = install_locked_wheels(candidate_python, final_lock, acquired_wheels,
                                                    paths['logs'] / 'florence-dependencies.log')
