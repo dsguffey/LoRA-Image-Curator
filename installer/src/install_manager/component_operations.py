@@ -5,8 +5,9 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlsplit
 
-from .acquisition import (AcquisitionCancelled, AcquisitionPolicy, acquire_artifact,
+from .acquisition import (AcquisitionCancelled, AcquisitionFailure, AcquisitionPolicy, acquire_artifact,
                           admit_local_artifact, sha256_file)
 from .artifacts import AcquiredArtifact, ArtifactDescriptor
 from .bootstrap_layout import layout, reject_reparse_entries
@@ -46,6 +47,7 @@ class ComponentRecovery:
     blocked: bool
     summary: str
     selected_path: str | None
+    failure: str = ""
 
 
 def _profile(delivery: Path):
@@ -201,7 +203,8 @@ def inspect_recovery(delivery: Path, root: Path, component_id: str,
     status = str(journal.data.get("status", ""))
     return ComponentRecovery(journal_path, component_id, status, completed, len(STEPS),
                              status in {"planned", "running", "cancelled"} and not blocked,
-                             blocked, summary, str(selected_path) if selected_path else None)
+                             blocked, summary, str(selected_path) if selected_path else None,
+                             str(journal.data.get("failure") or ""))
 
 
 def _acquire(descriptor: ArtifactDescriptor, delivery: Path, root: Path, cache: Path,
@@ -222,12 +225,20 @@ def _acquire(descriptor: ArtifactDescriptor, delivery: Path, root: Path, cache: 
     if not allow_network:
         raise FileNotFoundError(
             f"Previously installed package {descriptor.artifact_id} {descriptor.version} is absent from verified local storage")
-    return acquire_artifact(
-        descriptor, cache, policy, ca_bundle=delivery / "trust/cacert.pem", progress=progress,
-        partial_observer=lambda path, state: (
-            journal.record_unvalidated_acquisition(path) if state in {"created", "unvalidated"}
-            else journal.clear_unvalidated_acquisition(path)),
-        keep_partial_on_cancel=True)
+    try:
+        return acquire_artifact(
+            descriptor, cache, policy, ca_bundle=delivery / "trust/cacert.pem", progress=progress,
+            partial_observer=lambda path, state: (
+                journal.record_unvalidated_acquisition(path) if state in {"created", "unvalidated"}
+                else journal.clear_unvalidated_acquisition(path)),
+            keep_partial_on_cancel=True)
+    except ValueError as error:
+        if str(error).startswith(("artifact size mismatch", "artifact SHA-256 mismatch")):
+            raise AcquisitionFailure(
+                "verification-failure", descriptor.artifact_id,
+                urlsplit(descriptor.url).hostname or "", 1, str(error),
+                url=descriptor.url, stage="verification") from error
+        raise
 
 
 def _resource_state(manifest, resource: dict, local_path: Path, validation: dict,
@@ -437,10 +448,23 @@ def execute(delivery: Path, root: Path, component_id: str, selected_path: Path |
                                                 managed_data_layout(root)["downloads"], cache_source,
                                                 progress, journal)
                             acquired_resources[index] = acquired
-                        installed.append(install_resource(root, resource, acquired))
+                        try:
+                            installed.append(install_resource(root, resource, acquired))
+                        except (OSError, ValueError) as error:
+                            descriptor = artifact_descriptor(resource)
+                            raise AcquisitionFailure(
+                                "publication-failure", descriptor.artifact_id,
+                                urlsplit(descriptor.url).hostname or "", 1,
+                                f"{type(error).__name__}: {error}",
+                                url=descriptor.url, stage="publication") from error
                     result = installed
                     installed_paths = [Path(item["path"]) for item in installed]
-                    synchronize_resource_library(delivery, root)
+                    try:
+                        synchronize_resource_library(delivery, root)
+                    except (OSError, ValueError) as error:
+                        raise AcquisitionFailure(
+                            "publication-failure", f"{component_id}-resource-library", "local", 1,
+                            f"{type(error).__name__}: {error}", stage="registry") from error
                 elif current == "validate":
                     if candidate_venv is None:
                         raise RuntimeError("Provider replacement environment was not built")
@@ -539,6 +563,10 @@ def _record_provider_failure_diagnostic(journal, component_id, root, old_venv,
         "command_category": "package-install" if step == "install_dependencies" else step,
         "process_exit_code": process_exit_code,
         "exception_class": type(error).__name__,
+        "failure_category": error.category if isinstance(error, AcquisitionFailure) else "",
+        "artifact_id": error.artifact_id if isinstance(error, AcquisitionFailure) else "",
+        "source_url": error.url if isinstance(error, AcquisitionFailure) else "",
+        "failure_detail": error.detail if isinstance(error, AcquisitionFailure) else "",
         "core_validation_after_failure": core_status,
         "journal_status_after_failure": journal.data.get("status"),
     }

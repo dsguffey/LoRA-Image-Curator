@@ -366,23 +366,30 @@ def recommended_profile(directory: Path) -> CompatibilityProfile:
 
 def accepted_installed_profile(directory: Path, selected_profile: dict[str, str],
                                installed_ids: set[str]) -> CompatibilityProfile:
-    """Keep exact 0.7.1 installations usable across the FFmpeg notice-hash correction.
+    """Keep exact prior 0.7.1 installations usable across source-metadata corrections.
 
     The 2026-09-11 profile remains immutable. Its FFmpeg archive's LICENSE.txt
     member had a one-character manifest typo, but its ZIP and executable hashes
-    were correct. Existing installs without FFmpeg retain their exact wheel set.
-    This is deliberately not a general profile migration rule.
+    were correct. The 2026-09-25 profile used Git LFS pointer URLs for Face;
+    the corrected source returns the same pinned model bytes. This is
+    deliberately not a general profile migration rule.
     """
     profiles = load_approved_profiles(directory)
     current = profiles[-1]
     identity = {"profile_id": current.profile_id, "digest": current.digest}
     if selected_profile == identity:
         return current
-    historical = next((item for item in profiles if item.profile_id == "2026-09-11"), None)
-    if (historical is None or selected_profile != {"profile_id": "2026-09-11",
-                                                   "digest": "ddd947d8dd52c28d4cb2ccae9ae998683807dd24dd5d1f42ebc95331886db6dd"}
-            or historical.digest != selected_profile["digest"]
-            or "video-extraction" in installed_ids):
+    historical_digests = {
+        "2026-09-11": "ddd947d8dd52c28d4cb2ccae9ae998683807dd24dd5d1f42ebc95331886db6dd",
+        "2026-09-25": "bb5bf432f745da4f2dc613137817044915329c2c03f0b39c3e1bc4f0f2a94671",
+    }
+    previous_id = selected_profile.get("profile_id")
+    expected = historical_digests.get(previous_id)
+    historical = next((item for item in profiles if item.profile_id == previous_id), None)
+    if (historical is None or expected is None
+            or selected_profile != {"profile_id": previous_id, "digest": expected}
+            or historical.digest != expected
+            or previous_id == "2026-09-11" and "video-extraction" in installed_ids):
         raise ValueError("Installed component profile differs from this manager")
     old_lock = dependency_profile_for_components(historical, installed_ids)
     new_lock = dependency_profile_for_components(current, installed_ids)

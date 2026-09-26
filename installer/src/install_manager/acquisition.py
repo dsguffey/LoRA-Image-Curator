@@ -28,14 +28,21 @@ class AcquisitionFailure(OSError):
     """Sanitized structured transport failure for later customer-facing UX."""
 
     def __init__(self, category: str, artifact_id: str, host: str, attempts: int,
-                 detail: str):
+                 detail: str, *, url: str = "", stage: str = "download"):
         self.category = category
         self.artifact_id = artifact_id
         self.host = host
         self.attempts = attempts
         self.detail = detail
+        # A source may use signed query parameters. Keep a useful URL in logs
+        # and diagnostics without persisting those credentials.
+        parsed = urllib.parse.urlsplit(url)
+        self.url = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc,
+                                           parsed.path, "", "")) if url else ""
+        self.stage = stage
         super().__init__(f"artifact acquisition failed: category={category} artifact={artifact_id} "
-                         f"host={host} attempts={attempts} detail={detail}")
+                         f"host={host} attempts={attempts} stage={stage} "
+                         f"url={self.url or 'unavailable'} detail={detail}")
 
 
 def classify_acquisition_error(error: BaseException) -> str:
@@ -202,7 +209,7 @@ def acquire_artifact(descriptor: ArtifactDescriptor, cache_root: Path, policy: A
                 if descriptor.expected_size is not None and size != descriptor.expected_size:
                     raise ValueError(f"artifact size mismatch: expected {descriptor.expected_size}, got {size}")
                 if actual != descriptor.expected_sha256:
-                    raise ValueError("artifact SHA-256 mismatch")
+                    raise ValueError(f"artifact SHA-256 mismatch: expected {descriptor.expected_sha256}, got {actual}")
                 progress({'kind': 'download', 'artifact': descriptor.artifact_id,
                           'downloaded_bytes': size, 'total_bytes': total, 'complete': True})
                 os.replace(partial, target)
@@ -241,7 +248,7 @@ def acquire_artifact(descriptor: ArtifactDescriptor, cache_root: Path, policy: A
         detail = (f"HTTP {last_error.code}" if isinstance(last_error, urllib.error.HTTPError)
                   else type(last_error).__name__ if last_error else "unknown")
         raise AcquisitionFailure(category, descriptor.artifact_id, host,
-                                 policy.max_attempts, detail) from None
+                                 policy.max_attempts, detail, url=descriptor.url) from None
 
 
 def admit_local_artifact(descriptor: ArtifactDescriptor, candidate: Path, cache_root: Path,

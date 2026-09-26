@@ -49,6 +49,7 @@ def acquisition_hosts(descriptor: ArtifactDescriptor) -> tuple[str, ...]:
         "files.pythonhosted.org": ("files.pythonhosted.org",),
         "download-r2.pytorch.org": ("download-r2.pytorch.org",),
         "raw.githubusercontent.com": ("raw.githubusercontent.com",),
+        "media.githubusercontent.com": ("media.githubusercontent.com",),
     }
     if host not in policies:
         raise ValueError("resource source has no approved acquisition policy")

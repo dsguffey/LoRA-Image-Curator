@@ -85,7 +85,7 @@ class GenericStateTests(unittest.TestCase):
 class ProfileAndArtifactTests(unittest.TestCase):
     def test_historical_profile_is_retained_and_new_profile_is_recommended(self):
         profiles = load_approved_profiles(PROFILE_ROOT)
-        self.assertEqual([item.profile_id for item in profiles], ["2026-09-06", "2026-09-07", "2026-09-10", "2026-09-11", "2026-09-25"])
+        self.assertEqual([item.profile_id for item in profiles], ["2026-09-06", "2026-09-07", "2026-09-10", "2026-09-11", "2026-09-25", "2026-09-26"])
         self.assertEqual(profiles[0].digest,
                          "9f895d3706a3a7d5a5a02be8bc549c05b8d5c892520de8976446bd6f7e5fce96")
         self.assertEqual(profiles[1].digest,
@@ -348,7 +348,7 @@ class AdapterAndTransactionTests(unittest.TestCase):
                 moved = move_installation(DELIVERY, source, destination)
             inventory = load_inventory(destination)
             self.assertEqual(Path(moved["root"]), destination.resolve())
-            self.assertEqual(inventory.selected_profile["profile_id"], "2026-09-25")
+            self.assertEqual(inventory.selected_profile["profile_id"], "2026-09-26")
             self.assertEqual(inventory.installed_component_ids, {"lic-core"})
             self.assertTrue(moved["move"]["component_inventory_driven"])
             self.assertTrue(record_path.is_file())

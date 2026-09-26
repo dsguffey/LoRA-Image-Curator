@@ -11,7 +11,7 @@ from unittest.mock import patch
 from install_manager import component_operations as operations
 from install_manager import florence_component as florence
 from install_manager import managed_resources
-from install_manager.acquisition import AcquisitionCancelled
+from install_manager.acquisition import AcquisitionCancelled, AcquisitionFailure
 from install_manager.active_venv import managed_venv
 from install_manager.artifacts import AcquiredArtifact
 from install_manager.compatibility_profiles import recommended_profile
@@ -24,6 +24,7 @@ from install_manager.provider_venv import (inventory_for_generation,
                                            recover_pending_provider_promotions,
                                            record_candidate)
 from install_manager.journal import OperationJournal
+from install_manager.manager_ui import ManagerShell, provider_failure_presentation
 
 
 DELIVERY = Path(__file__).resolve().parents[1] / 'src/install_manager'
@@ -97,6 +98,10 @@ class ProviderTransactionTests(unittest.TestCase):
         def acquire(*args, **kwargs):
             if failure == 'acquire':
                 raise RuntimeError('injected acquisition failure')
+            if failure == 'face-model-http' and args[0].artifact_id == 'opencv-sface-2021dec':
+                raise AcquisitionFailure('not-found', args[0].artifact_id,
+                                         'media.githubusercontent.com', 1, 'HTTP 404',
+                                         url=args[0].url)
             return self._fake_acquire(*args, **kwargs)
 
         with ExitStack() as stack:
@@ -104,7 +109,14 @@ class ProviderTransactionTests(unittest.TestCase):
             stack.enter_context(patch.object(operations, 'promote_package'))
             stack.enter_context(patch.object(operations, 'create_final_path_venv', side_effect=self._fake_venv))
             stack.enter_context(patch.object(operations, 'install_locked_wheels', side_effect=install))
-            stack.enter_context(patch.object(operations, 'install_resource', side_effect=self._fake_resource))
+            if failure == 'face-model-publication':
+                def publish(root, resource, acquired):
+                    if resource['artifact']['artifact_id'] == 'opencv-sface-2021dec':
+                        raise PermissionError('managed model destination is locked')
+                    return self._fake_resource(root, resource, acquired)
+                stack.enter_context(patch.object(operations, 'install_resource', side_effect=publish))
+            else:
+                stack.enter_context(patch.object(operations, 'install_resource', side_effect=self._fake_resource))
             stack.enter_context(patch.object(operations, 'validate_resource', side_effect=resource))
             stack.enter_context(patch.object(operations, 'validate_environment', side_effect=validate))
             stack.enter_context(patch.object(operations, 'synchronize_resource_library'))
@@ -217,6 +229,53 @@ class ProviderTransactionTests(unittest.TestCase):
                                recovery_blocked=recovery.blocked)
         self.assertEqual(component_action(definition, facts), ComponentAction.REPAIR)
 
+    def test_face_model_http_failure_remains_visible_and_core_is_unchanged(self):
+        with self.assertRaises(AcquisitionFailure) as failure:
+            self._run('face-model-http')
+        self._assert_core_preserved()
+        recovery = operations.inspect_recovery(DELIVERY, self.root, 'face-analysis')
+        self.assertEqual(recovery.status, 'failed')
+        self.assertFalse(recovery.resumable)
+        definition = next(item for item in load_component_catalog(DELIVERY / 'recipes/lic-components.json')
+                          if item.component_id == 'face-analysis')
+        message, diagnostic = provider_failure_presentation(definition, recovery.failure)
+        self.assertIn('SFace model', message)
+        self.assertIn('404', message)
+        self.assertIn('Repair', message)
+        self.assertIn('Source URL: https://media.githubusercontent.com/', diagnostic)
+        journal = json.loads(recovery.journal_path.read_text(encoding='utf-8'))
+        self.assertEqual(journal['provider_diagnostic']['artifact_id'], 'opencv-sface-2021dec')
+        self.assertTrue(journal['provider_diagnostic']['core_validation_after_failure']['passed'])
+        self.assertEqual(self._run()['state'], 'installed')
+        self.assertIsNone(operations.inspect_recovery(DELIVERY, self.root, 'face-analysis'))
+
+    def test_face_publication_failure_reports_stage_and_preserves_core(self):
+        with self.assertRaises(AcquisitionFailure) as failure:
+            self._run('face-model-publication')
+        self.assertEqual(failure.exception.category, 'publication-failure')
+        self.assertEqual(failure.exception.stage, 'publication')
+        self.assertEqual(failure.exception.artifact_id, 'opencv-sface-2021dec')
+        self._assert_core_preserved()
+        recovery = operations.inspect_recovery(DELIVERY, self.root, 'face-analysis')
+        definition = next(item for item in load_component_catalog(DELIVERY / 'recipes/lic-components.json')
+                          if item.component_id == 'face-analysis')
+        message, diagnostic = provider_failure_presentation(definition, recovery.failure)
+        self.assertIn('SFace model', message)
+        self.assertIn('Stage: publication', diagnostic)
+        self.assertEqual(self._run()['state'], 'installed')
+
+    def test_available_opencv_package_does_not_hide_face_download_error(self):
+        shell = ManagerShell.__new__(ManagerShell)
+        shell.delivery, shell.root = DELIVERY, self.root
+        original = ComponentFacts(ComponentPhase.ERROR, detail='SFace model: HTTP 404',
+                                  diagnostic='Artifact: opencv-sface-2021dec')
+        shell.component_facts = {'face-analysis': original}
+        with patch('install_manager.manager_ui.component_resource_status',
+                   side_effect=AssertionError('failed provider status must stay visible')):
+            shell._refresh_managed_resource_facts()
+        self.assertIs(shell.component_facts['face-analysis'], original)
+        self.assertEqual(original.phase, ComponentPhase.ERROR)
+
     def test_exact_old_profile_keeps_existing_core_usable_without_ffmpeg(self):
         directory = DELIVERY / 'recipes/compatibility/profiles'
         old = accepted_installed_profile(directory, {
@@ -232,11 +291,23 @@ class ProviderTransactionTests(unittest.TestCase):
 
     def test_corrected_ffmpeg_notice_hash_is_in_new_immutable_profile(self):
         profile = recommended_profile(DELIVERY / 'recipes/compatibility/profiles')
-        self.assertEqual(profile.profile_id, '2026-09-25')
+        self.assertEqual(profile.profile_id, '2026-09-26')
         members = profile.component_by_id('video-extraction').raw['resources'][0]['installation']['members']
         notice = next(item for item in members if item['destination'] == 'LICENSE.txt')
         self.assertEqual(notice['sha256'],
                          'da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768')
+
+    def test_previous_face_profile_remains_accepted_with_same_wheel_closure(self):
+        directory = DELIVERY / 'recipes/compatibility/profiles'
+        old = accepted_installed_profile(directory, {
+            'profile_id': '2026-09-25',
+            'digest': 'bb5bf432f745da4f2dc613137817044915329c2c03f0b39c3e1bc4f0f2a94671',
+        }, {'lic-core', 'face-analysis', 'video-extraction'})
+        self.assertEqual(old.profile_id, '2026-09-25')
+        with self.assertRaisesRegex(ValueError, 'differs'):
+            accepted_installed_profile(directory, {
+                'profile_id': '2026-09-25', 'digest': '0' * 64,
+            }, {'lic-core', 'face-analysis'})
 
     def test_relaunch_restores_incomplete_provider_pointer_switch(self):
         old_record = json.loads(self.old_record)

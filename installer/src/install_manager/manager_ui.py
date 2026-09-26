@@ -325,6 +325,7 @@ def acquisition_error_presentation(error: BaseException | str) -> tuple[str, str
     if isinstance(error, AcquisitionFailure):
         category, host, attempts, detail = error.category, error.host, error.attempts, error.detail
         artifact = error.artifact_id
+        url, stage = error.url, error.stage
     else:
         raw = str(error)
         fields = {}
@@ -335,7 +336,8 @@ def acquisition_error_presentation(error: BaseException | str) -> tuple[str, str
         category = fields.get("category", "")
         host, attempts = fields.get("host", "the approved source"), fields.get("attempts", "")
         artifact, detail = fields.get("artifact", ""), raw
-    if not category and any(token in detail.casefold() for token in ("verification", "hash mismatch", "did not match the approved")):
+        url, stage = fields.get("url", ""), fields.get("stage", "")
+    if not category and any(token in detail.casefold() for token in ("verification", "hash mismatch", "size mismatch", "did not match the approved")):
         category = "verification-failure"
     messages = {
         "network-unavailable": ("No internet connection could be detected. Nothing new was installed. "
@@ -351,16 +353,41 @@ def acquisition_error_presentation(error: BaseException | str) -> tuple[str, str
                        "download was installed. Try again later."),
         "verification-failure": ("The file downloaded, but it did not match the approved file. It was not accepted for "
                                  "installation. Retry the download; if it continues, review technical details."),
+        "publication-failure": ("The verified file could not be placed in managed storage. "
+                                "Existing files were preserved. Review technical details and try Repair."),
     }
     normal = messages.get(category, friendly_error(RuntimeError(str(error))))
     technical = "\n".join(part for part in (
         f"Category: {category}" if category else "",
         f"Artifact: {artifact}" if artifact else "",
         f"Host: {host}" if host else "",
+        f"Source URL: {url}" if url and url != "unavailable" else "",
+        f"Stage: {stage}" if stage else "",
         f"Attempts: {attempts}" if attempts else "",
         f"Diagnostic: {detail}",
     ) if part)
     return normal, technical
+
+
+def provider_failure_presentation(definition, error: BaseException | str) -> tuple[str, str]:
+    """Keep the failed artifact and next action visible after journal reconciliation."""
+    if isinstance(error, AcquisitionFailure) or "category=" in str(error):
+        message, technical = acquisition_error_presentation(error)
+        if definition.component_id == "face-analysis":
+            artifact = (error.artifact_id if isinstance(error, AcquisitionFailure) else
+                        next((item.split("=", 1)[1] for item in str(error).split()
+                              if item.startswith("artifact=")), ""))
+            name = {"opencv-yunet-2026may": "YuNet model",
+                    "opencv-sface-2021dec": "SFace model",
+                    "opencv-contrib-python": "OpenCV package"}.get(artifact, "Face Analysis resource")
+            message = (f"{name}: {message} Verified downloads were preserved. "
+                       "Choose Repair to try again.")
+        return message, technical
+    message = component_failure_message(definition, str(error))
+    if definition.component_id == "face-analysis":
+        message = ("Face Analysis could not finish. Verified downloads were preserved. "
+                   "Review technical details, then choose Repair to try again.")
+    return message, str(error)
 
 
 def component_failure_message(definition, error: str) -> str:
@@ -719,7 +746,9 @@ class ManagerShell:
         """Reflect resource availability without claiming feature readiness."""
         for component_id in OPTIONAL_PROVIDER_IDS:
             facts = self.component_facts.get(component_id)
-            if facts is None or facts.verified or facts.resumable:
+            if (facts is None or facts.verified or facts.resumable or
+                    facts.phase in {ComponentPhase.ERROR, ComponentPhase.REPAIR_REQUIRED,
+                                    ComponentPhase.INCOMPATIBLE}):
                 continue
             try:
                 state = component_resource_status(self.delivery, self.root, component_id)
@@ -941,7 +970,7 @@ class ManagerShell:
             # A verified current external selection is independent of an older
             # setup journal. Keep the recovery available as a separate action,
             # but never replace current resource evidence with it.
-            if item.selected_path:
+            if item.verified and item.selected_path:
                 continue
             item.phase = (ComponentPhase.ERROR if recovery.status == "failed" or recovery.blocked
                           else ComponentPhase.PARTIAL)
@@ -950,6 +979,9 @@ class ManagerShell:
             item.completed_bytes = recovery.completed_steps
             item.total_bytes = recovery.total_steps
             item.detail = recovery.summary
+            if recovery.status == "failed" and not recovery.blocked and getattr(recovery, "failure", ""):
+                item.detail, item.diagnostic = provider_failure_presentation(
+                    self.component_by_id[component_id], recovery.failure)
             item.selected_path = recovery.selected_path or ""
         scenario = self.review_scenario
         if scenario in {"core-ready", "core-ready-florence-absent"}:
@@ -2461,6 +2493,14 @@ class ManagerShell:
                             ComponentPhase.PARTIAL, resumable=True,
                             detail=("Core files are ready, but activation could not finish. "
                                     "Resume setup retries activation. Technical details are available if needed."))
+                    elif component_id != "lic-core":
+                        # A failed provider journal is retained for diagnosis, but it
+                        # must not replace the actual failure with a generic summary.
+                        message, diagnostic = provider_failure_presentation(
+                            self.component_by_id[component_id], event)
+                        facts = self.component_facts[component_id]
+                        facts.phase, facts.resumable = ComponentPhase.ERROR, False
+                        facts.detail, facts.diagnostic = message, diagnostic
                     elif not recovered:
                         structured = isinstance(event, AcquisitionFailure) or "category=" in str(event)
                         message, diagnostic = (acquisition_error_presentation(event) if structured else
