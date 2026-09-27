@@ -4,6 +4,8 @@ LoRA Image Curator (LIC) is a local-first Windows desktop application for turnin
 
 LIC prepares image datasets; it does **not** train a LoRA itself. Its SQLite catalog keeps image identity, provider evidence, and review decisions durable while source images remain outside destructive application control during analysis and export.
 
+The LIC application source in this repository is v0.28.4. LIC Install Manager has its own version number.
+
 ## Download and install LIC
 
 **[Download LIC Install Manager 0.7.2](https://github.com/dsguffey/LoRA-Image-Curator/releases/tag/lic-install-manager-v0.7.2)** — the normal, recommended way to install LIC.

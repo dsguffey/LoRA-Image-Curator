@@ -21,7 +21,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from app_identity import APP_NAME, SUPPORTED_CATALOG_APPLICATION_IDS
-from catalog import Catalog
+from catalog import Catalog, SCHEMA_VERSION
 
 
 REQUIRED_CATALOG_TABLES = {
@@ -30,6 +30,25 @@ REQUIRED_CATALOG_TABLES = {
     "files",
     "analysis_results",
 }
+SUPPORTED_CATALOG_SUFFIXES = frozenset({".db", ".sqlite", ".sqlite3"})
+
+
+def normalize_new_catalog_path(database_path: Path) -> Path:
+    """Add the default suffix only when naming a new catalog without one.
+
+    Existing extensionless catalogs are opened by validation, never renamed.
+    """
+    target = database_path.expanduser().resolve()
+    if not target.suffix:
+        if target.exists():
+            raise FileExistsError(
+                f"An extensionless file already exists at {target}. Open it as "
+                "an existing catalog instead of creating a second database."
+            )
+        return target.with_name(target.name + ".db")
+    if target.suffix.casefold() not in SUPPORTED_CATALOG_SUFFIXES:
+        raise ValueError("Use a .db, .sqlite, or .sqlite3 catalog filename.")
+    return target
 
 
 def create_catalog_database(database_path: Path) -> Path:
@@ -106,6 +125,12 @@ def validate_catalog_database(database_path: Path) -> Path:
             raise ValueError(
                 f"The selected database does not identify itself as a {APP_NAME} "
                 "or compatible legacy catalog."
+            )
+        schema_version = int(connection.execute("PRAGMA user_version").fetchone()[0])
+        if schema_version > SCHEMA_VERSION:
+            raise ValueError(
+                f"This catalog uses schema {schema_version}; this version of "
+                f"{APP_NAME} supports up to schema {SCHEMA_VERSION}."
             )
     finally:
         connection.close()

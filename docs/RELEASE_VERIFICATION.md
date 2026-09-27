@@ -13,11 +13,17 @@ python -B -m tools.check_release --regenerate
 python -B -m tools.check_release
 python -B -m unittest tests.test_release_gate
 python -B -m tests.test_clean_install
-python -B -m tests.test_v0282_regression
+python -B -m tests.test_v0284_regression
+python -B -m tests.test_trigger_export_regression
+python -B -m tests.test_export_source_resolution
 python -B tools/audit_project.py
+python -X dev -m tests.test_golden_build
 ```
 
 The default gate is non-mutating. Regeneration computes hashes for the existing approved source inventory; it does not discover or approve new files, create an archive, or turn generated/private material into release content. Tracked source omissions fail. When Git metadata is available, coverage is also checked against the tracked tree. An extracted full source tree can run the gate without Git.
+
+The golden command uses temporary synthetic catalogs and images. Its final GUI
+phase requires a live Windows desktop; use `--no-gui` for a headless check only.
 
 The gate checks direct, lazy, and package-relative local imports without executing providers. Run a separate extracted-package import smoke test with the supported dependencies available. Provider execution, GPU compatibility, and live Tk behavior remain Windows release-gate work rather than proof from a static import check.
 

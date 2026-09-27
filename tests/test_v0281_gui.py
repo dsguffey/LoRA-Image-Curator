@@ -12,9 +12,10 @@ from unittest.mock import patch
 from test_v0280_gui import run as run_v0280
 
 
-def run() -> None:
+def run(*, include_history: bool = True) -> None:
     """Replay the established GUI after explicit provider setup changes."""
-    run_v0280()
+    if include_history:
+        run_v0280()
     with tempfile.TemporaryDirectory(prefix="lora_v0281_gui_") as temporary:
         with patch.dict(os.environ, {"APPDATA": temporary}):
             from app import DatasetToolsApp
@@ -42,8 +43,9 @@ def run() -> None:
                 assert prompt.call_count == 1
                 assert "1.43 GiB" in prompt.call_args.args[1]
             application._finish_close()
+    mode = "cumulative" if include_history else "focused"
     print(
-        "v0.28.1 cumulative GUI smoke test passed: provider preflights, "
+        f"v0.28.1 {mode} GUI smoke test passed: provider preflights, "
         "explicit download consent, and shared setup actions preserve the "
         "established catalog workspace."
     )

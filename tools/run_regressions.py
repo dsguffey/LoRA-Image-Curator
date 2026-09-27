@@ -1,4 +1,4 @@
-"""Run the complete non-GUI historical and current regression chain safely.
+"""Run supported non-GUI historical contracts and current regressions safely.
 
 The four oldest milestone tests require an existing catalog. Each receives its
 own temporary copy so the caller's fixture is never migrated or edited in place.
@@ -70,27 +70,83 @@ SELF_CONTAINED_TESTS = (
     "tests/test_v0281_regression.py",
     "tests/test_v0283_regression.py",
     "tests/test_v0284_regression.py",
+    "tests/test_trigger_export_regression.py",
+    "tests/test_export_source_resolution.py",
     "tests/test_clean_install.py",
 )
+
+# These versioned files remain historical evidence and in the source archive.
+# Only assertions tied to retired UI, packaging, setup, or documentation
+# contracts are omitted from today's gate. Every other test_* function in
+# each listed module still runs; a renamed/deleted omission fails loudly.
+RETIRED_ASSERTIONS = {
+    "tests/test_v0250_regression.py": {
+        "test_public_identity": "InsightFace pack Browse was replaced by YuNet/SFace model-folder selection",
+    },
+    "tests/test_v02714_regression.py": {
+        "test_ui_contracts_explain_progress_and_scroll_ownership": "the Face progress label names retired InsightFace",
+    },
+    "tests/test_v02718_regression.py": {
+        "test_readme_serves_a_first_time_repository_visitor": "README now documents Install Manager installation, not source ZIP setup",
+        "test_dependency_free_repository_workflow_is_bounded": "CI now installs NumPy and Pillow for current contracts",
+    },
+    "tests/test_v02719_regression.py": {
+        "test_github_documentation_matches_dependency_tiers": "README now documents managed installation and YuNet/SFace, not manual InsightFace setup",
+    },
+    "tests/test_v02720_regression.py": {
+        "test_recycle_bin_is_standard_and_body_analysis_remains_optional": "MediaPipe is now exactly pinned by the managed dependency profile",
+        "test_tests_are_public_but_no_longer_clutter_the_repository_root": "README now directs users to Install Manager rather than developer gates",
+    },
+    "tests/test_v02721_regression.py": {
+        "test_native_input_and_setup_readiness_boundaries_are_explicit": "setup now reads the pinned Transformers version from a profile",
+    },
+    "tests/test_v0281_regression.py": {
+        "test_gui_preflights_name_every_download_before_network_authority": "LIC no longer downloads the retired InsightFace pack",
+    },
+}
+
+SELECTED_HISTORY_SCRIPT = """
+import importlib
+import inspect
+import sys
+
+module = importlib.import_module(sys.argv[1])
+retired = set(sys.argv[2:])
+tests = [
+    (name, function)
+    for name, function in vars(module).items()
+    if name.startswith('test_')
+    and inspect.isfunction(function)
+    and function.__module__ == module.__name__
+]
+missing = retired - {name for name, _function in tests}
+if missing:
+    raise AssertionError(f'Retired historical assertions disappeared: {sorted(missing)}')
+for name, function in tests:
+    if name not in retired:
+        function()
+print(f'{module.__name__}: {len(tests) - len(retired)} supported historical contracts passed')
+"""
 
 
 def run_test(test_name: str, *arguments: str) -> None:
     """Run one test under Python development mode and stop on failure."""
     module_name = Path(test_name).with_suffix("").as_posix().replace("/", ".")
-    command = [
-        sys.executable,
-        "-X",
-        "dev",
-        "-m",
-        module_name,
-        *arguments,
-    ]
+    retired = RETIRED_ASSERTIONS.get(test_name)
+    if retired:
+        command = [sys.executable, "-X", "dev", "-c", SELECTED_HISTORY_SCRIPT,
+                   module_name, *retired]
+    else:
+        command = [sys.executable, "-X", "dev", "-m", module_name, *arguments]
     print(f"\n=== {test_name} ===", flush=True)
+    if retired:
+        for name, reason in retired.items():
+            print(f"Historical only: {name} - {reason}", flush=True)
     subprocess.run(command, cwd=PROJECT_ROOT, check=True)
 
 
 def run(fixture: Path) -> None:
-    """Run every regression while protecting the supplied fixture database."""
+    """Run supported contracts while protecting the supplied fixture database."""
     fixture = fixture.expanduser().resolve()
     if not fixture.exists() or not fixture.is_file():
         raise FileNotFoundError(f"Fixture catalog not found: {fixture}")
@@ -109,7 +165,7 @@ def run(fixture: Path) -> None:
 
 
 def main() -> int:
-    """Parse the fixture path and execute the complete regression chain."""
+    """Parse the fixture path and execute the supported regression chain."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--fixture",
@@ -119,7 +175,7 @@ def main() -> int:
     )
     arguments = parser.parse_args()
     run(arguments.fixture)
-    print("\nAll non-GUI regressions passed.")
+    print("\nAll supported non-GUI regressions passed.")
     return 0
 
 

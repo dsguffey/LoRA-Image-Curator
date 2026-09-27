@@ -1,4 +1,4 @@
-"""Current cumulative Windows GUI smoke entry point for v0.28.3."""
+"""Focused detection-only completion GUI smoke for v0.28.3."""
 
 from __future__ import annotations
 
@@ -11,12 +11,12 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from catalog import Catalog
-from test_v0282_gui import run as run_v0282
+from test_v0281_gui import run as run_v0281
 
 
 def run() -> None:
-    """Replay the GUI and verify the detection-only completion warning."""
-    run_v0282()
+    """Verify the still-supported detection-only completion warning."""
+    run_v0281(include_history=False)
     with tempfile.TemporaryDirectory(prefix="lora_v0283_gui_") as temporary:
         root_path = Path(temporary)
         database = root_path / "dataset_tools.db"
@@ -68,7 +68,7 @@ def run() -> None:
             application._finish_close()
 
     print(
-        "v0.28.3 cumulative GUI smoke test passed: a missing identity profile "
+        "v0.28.3 GUI smoke test passed: a missing identity profile "
         "finishes as a visible detection-only warning instead of a provider "
         "failure."
     )

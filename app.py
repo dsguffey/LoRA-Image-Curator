@@ -39,6 +39,7 @@ from catalog_import_dialog import CatalogImportDialog, show_catalog_import_repor
 from catalog_lifecycle import (
     create_catalog_database,
     delete_catalog_database,
+    normalize_new_catalog_path,
     replace_catalog_database_with_empty,
     validate_catalog_database,
 )
@@ -448,7 +449,7 @@ class DatasetToolsApp:
         self.open_catalog_button.pack(side="left", padx=(3, 0))
         self.open_catalog_help = HelpIcon(
             catalog_actions,
-            "Open an existing dataset_tools.db catalog.",
+            "Open an existing LIC catalog, including a legacy file without an extension.",
         )
         self.open_catalog_help.pack(side="left", padx=(3, 4))
         self.import_catalog_folder_button = ttk.Button(
@@ -765,11 +766,13 @@ class DatasetToolsApp:
         )
         status_bar.grid(row=10, column=0, sticky="ew", pady=(8, 0))
 
-        initial_catalog = self._catalog_path_from_output_folder()
-        if initial_catalog is None and self.settings.browser_last_catalog:
+        initial_catalog = None
+        if self.settings.browser_last_catalog:
             remembered_catalog = Path(self.settings.browser_last_catalog)
             if remembered_catalog.exists():
                 initial_catalog = remembered_catalog
+        if initial_catalog is None:
+            initial_catalog = self._catalog_path_from_output_folder()
         self.catalog_browser = CatalogBrowserFrame(self.browser_tab)
         self.catalog_browser.pack(fill="both", expand=True)
         self.dataset_readiness = DatasetReadinessFrame(
@@ -2162,11 +2165,11 @@ class DatasetToolsApp:
             self._start_analysis()
 
     def _current_catalog_path(self) -> Path | None:
-        """Return the active, existing catalog shared by all application tabs."""
+        """Return the selected catalog without substituting a default if it is missing."""
         if hasattr(self, "catalog_browser") and self.catalog_browser.catalog_path is not None:
-            candidate = self.catalog_browser.catalog_path.resolve()
-            if candidate.exists():
-                return candidate
+            return self.catalog_browser.catalog_path.resolve()
+        if self.latest_catalog_database is not None:
+            return self.latest_catalog_database.resolve()
         implied = self._catalog_path_from_output_folder()
         if implied is not None and implied.exists():
             return implied.resolve()
@@ -2212,7 +2215,11 @@ class DatasetToolsApp:
         )
         if not selected:
             return
-        target = Path(selected).expanduser().resolve()
+        try:
+            target = normalize_new_catalog_path(Path(selected))
+        except (OSError, ValueError) as error:
+            messagebox.showerror("Invalid catalog filename", str(error), parent=self.root)
+            return
         if target.exists():
             should_overwrite = messagebox.askyesno(
                 "Overwrite existing catalog?",
@@ -2260,9 +2267,8 @@ class DatasetToolsApp:
             title="Open a LoRA Image Curator catalog",
             initialdir=str(current.parent) if current is not None else None,
             filetypes=(
-                ("LoRA Image Curator catalog", "dataset_tools.db"),
-                ("SQLite database", "*.db"),
-                ("All files", "*.*"),
+                ("SQLite catalog", ("*.db", "*.sqlite", "*.sqlite3")),
+                ("All files (including extensionless catalogs)", "*"),
             ),
         )
         if not selected:
@@ -2484,13 +2490,17 @@ class DatasetToolsApp:
         return Path(output_text) / CATALOG_FILENAME if output_text else None
 
     def _update_catalog_path_display(self) -> None:
-        catalog_path = self._catalog_path_from_output_folder()
+        catalog_path = self._current_catalog_path()
+        if catalog_path is None:
+            catalog_path = self._catalog_path_from_output_folder()
         self.catalog_path_var.set(
             str(catalog_path) if catalog_path is not None else "Choose an output folder"
         )
 
     def _sync_browser_to_output_folder(self, *, load: bool = False) -> None:
-        """Keep the browser pointed at the catalog used by the analysis tab."""
+        """Discover the default catalog only when none is selected."""
+        if hasattr(self, "catalog_browser") and self.catalog_browser.catalog_path is not None:
+            return
         catalog_path = self._catalog_path_from_output_folder()
         if catalog_path is None or not hasattr(self, "catalog_browser"):
             return
@@ -2888,8 +2898,8 @@ class DatasetToolsApp:
                 "1. Start from still images, or use Video Sources to extract "
                 "candidate frames with a user-installed FFmpeg.\n"
                 "2. Choose an input image folder.\n"
-                "3. Choose an output folder. Its dataset_tools.db is the "
-                "persistent catalog.\n"
+                "3. Choose or create a catalog. Choose an output folder for "
+                "provider reports; the catalog keeps its selected filename.\n"
                 "4. Florence creates captions and optional triage metadata.\n"
                 "5. The optional face provider stores local face embeddings "
                 "and identity suggestions.\n"
@@ -2922,8 +2932,8 @@ class DatasetToolsApp:
                 "Extract candidate stills from local videos before cataloging. "
                 "FFmpeg is user-installed and the original video is unchanged.\n\n"
                 "CATALOG FOLDERS\n\n"
-                "Input images are read in place. Catalog and reports chooses the "
-                "folder that owns dataset_tools.db and provider reports.\n\n"
+                "Input images are read in place. The active catalog keeps its "
+                "selected filename; the output folder holds provider reports.\n\n"
                 "FLORENCE-2\n\n"
                 "Creates captions. Optional triage also detects objects, reads "
                 "visible text, estimates person count, and flags screenshots. "
@@ -3587,15 +3597,12 @@ class DatasetToolsApp:
                 parent=self.root,
             )
             return
-        if catalog_path.resolve() != (output_folder / CATALOG_FILENAME).resolve():
+        try:
+            catalog_path = validate_catalog_database(catalog_path)
+        except (OSError, ValueError) as error:
             messagebox.showerror(
-                "Provider catalog filename mismatch",
-                (
-                    "Face analysis currently writes to the standard catalog in "
-                    "the selected report folder:\n\n"
-                    f"{output_folder / CATALOG_FILENAME}\n\n"
-                    f"The active catalog is:\n\n{catalog_path}"
-                ),
+                "Cannot use selected catalog",
+                str(error),
                 parent=self.root,
             )
             return
@@ -3655,6 +3662,7 @@ class DatasetToolsApp:
             args=(
                 input_folder,
                 output_folder,
+                catalog_path,
                 identity_name,
                 reference_folder,
                 options,
@@ -3673,6 +3681,7 @@ class DatasetToolsApp:
         self,
         input_folder: Path,
         output_folder: Path,
+        catalog_path: Path,
         identity_name: str,
         reference_folder: Path | None,
         options: FaceAnalysisOptions,
@@ -3686,6 +3695,7 @@ class DatasetToolsApp:
             summary = analyze_faces(
                 input_folder=input_folder,
                 output_folder=output_folder,
+                catalog_database=catalog_path,
                 identity_name=identity_name,
                 reference_folder=reference_folder,
                 options=options,
@@ -3698,6 +3708,8 @@ class DatasetToolsApp:
                 cancel_event=self.analysis_cancel_event,
                 pause_event=self.analysis_pause_event,
             )
+            if summary.catalog_database.resolve() != catalog_path.resolve():
+                raise ValueError("Provider catalog mismatch: Face analysis used another database.")
         except AnalysisCancelled as error:
             self.message_queue.put(("cancelled", error))
         except Exception as error:
@@ -3750,29 +3762,15 @@ class DatasetToolsApp:
             )
             return
 
-        # The provider pipeline currently derives its catalog filename from the
-        # output folder.  Refuse a mismatched custom-named active catalog rather
-        # than silently analyzing into a second dataset_tools.db beside it.
-        implied_catalog = (output_folder / CATALOG_FILENAME).resolve()
         active_catalog = self._current_catalog_path()
-        if (
-            active_catalog is not None
-            and active_catalog.resolve() != implied_catalog
-        ):
-            messagebox.showerror(
-                "Provider catalog filename mismatch",
-                (
-                    "The active catalog is:\n\n"
-                    f"{active_catalog}\n\n"
-                    "The provider pipeline writes to:\n\n"
-                    f"{implied_catalog}\n\n"
-                    f"To avoid splitting results between two catalogs, use "
-                    f"{CATALOG_FILENAME} in the selected output folder before "
-                    "starting providers."
-                ),
-                parent=self.root,
-            )
-            return
+        if active_catalog is not None:
+            try:
+                active_catalog = validate_catalog_database(active_catalog)
+            except (OSError, ValueError) as error:
+                messagebox.showerror(
+                    "Cannot use selected catalog", str(error), parent=self.root
+                )
+                return
 
         florence_download_choice = self._confirm_florence_download_if_needed()
         if florence_download_choice is None:
@@ -3839,7 +3837,6 @@ class DatasetToolsApp:
 
         self.latest_output_csv = None
         self.latest_face_csv = None
-        self.latest_catalog_database = None
 
         self.progress_bar["value"] = 0
         self.progress_text_var.set("Preparing catalog and analysis workflow…")
@@ -3885,7 +3882,7 @@ class DatasetToolsApp:
             )
         )
         self._append_log(f"Output folder: {output_folder}")
-        self._append_log(f"Catalog: {output_folder / CATALOG_FILENAME}")
+        self._append_log(f"Catalog: {active_catalog or output_folder / CATALOG_FILENAME}")
         self._append_log(
             "Florence triage: " + ("enabled" if include_triage else "disabled")
         )
@@ -3918,6 +3915,7 @@ class DatasetToolsApp:
             args=(
                 input_folder,
                 output_folder,
+                active_catalog,
                 include_triage,
                 reuse_analysis,
                 run_quality_analysis,
@@ -3940,6 +3938,7 @@ class DatasetToolsApp:
         self,
         input_folder: Path,
         output_folder: Path,
+        catalog_path: Path | None,
         include_triage: bool,
         reuse_analysis: bool,
         run_quality_analysis: bool,
@@ -3959,6 +3958,7 @@ class DatasetToolsApp:
             summary = run_pipeline(
                 input_folder=input_folder,
                 output_folder=output_folder,
+                catalog_database=catalog_path,
                 include_triage=include_triage,
                 reuse_stored_analysis=reuse_analysis,
                 run_quality_analysis=run_quality_analysis,
@@ -4606,10 +4606,10 @@ class DatasetToolsApp:
     def _open_report_folder(self) -> None:
         folder: Path | None = None
 
-        if self.latest_catalog_database is not None:
-            folder = self.latest_catalog_database.parent
-        elif self.output_folder_var.get().strip():
+        if self.output_folder_var.get().strip():
             folder = Path(self.output_folder_var.get().strip())
+        elif self.latest_catalog_database is not None:
+            folder = self.latest_catalog_database.parent
 
         if folder is None:
             return

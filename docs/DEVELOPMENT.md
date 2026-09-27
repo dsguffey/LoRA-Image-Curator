@@ -46,18 +46,19 @@ not need commentary.
 
 ```powershell
 python -m tools.compile_project
-python -X dev -m tests.test_v0250_regression
 python -X dev -m tests.test_v0252_regression
 python -X dev -m tests.test_v0260_regression
 python -X dev -m tests.test_v02722_regression
 python -X dev -m tests.test_v0280_regression
+python -X dev -m tests.test_v0284_regression
+python -X dev -m tests.test_trigger_export_regression
 python tools\audit_project.py
 ```
 
 ## Golden-build release gate
 
 The authoritative handoff command creates its own synthetic catalog and images,
-then runs the complete maintained regression chain, audit, deterministic
+then runs the supported regression chain, audit, deterministic
 release build, clean-extraction/overlay checks, and the current cumulative GUI
 chain:
 
@@ -78,7 +79,10 @@ python tools\run_regressions.py --fixture C:\path\to\fixture.db
 ```
 
 Later regressions create isolated temporary catalogs. The runner stops at the
-first failure and preserves each test's normal console output.
+first failure and preserves each test's normal console output. Its explicit
+retirement map identifies old assertions tied to replaced UI, setup, packaging,
+or README contracts; every other function in those modules still runs. The
+current GUI entry point checks focused v0.28.1, v0.28.3, and v0.28.4 behavior.
 
 All maintained smoke, regression, and GUI checkpoints live under `tests/`.
 Run an individual test as a module from the project root so application and

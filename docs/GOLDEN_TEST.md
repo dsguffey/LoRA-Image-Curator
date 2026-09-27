@@ -1,7 +1,7 @@
 # Golden-Build Verification
 
 `tests/test_golden_build.py` is the authoritative release and workspace-handoff
-command for LoRA Image Curator v0.28.2.
+command for LoRA Image Curator v0.28.4.
 
 ```powershell
 python -X dev -m tests.test_golden_build
@@ -13,14 +13,19 @@ datasets.
 
 ## What a passing run establishes
 
-- every maintained non-GUI regression from Milestone 6B through v0.28.2 passes;
+- every supported non-GUI contract from Milestone 6B through v0.28.4 passes;
+  `tools/run_regressions.py` names and explains nine retired assertions whose
+  old UI, setup, packaging, or README contracts were deliberately replaced;
+  the remaining functions in those historical modules still run;
 - every project-owned Python file named by the signed release manifest
   compiles, while the adjacent virtual environment and user-managed folders
   remain outside the release boundary;
 - schema migration, catalog edits, undo/redo, tags, search, image sets, import,
   export, quality/readiness, culling, video planning, provider orchestration,
   file-action services, settings, performance boundaries, and current UI
-  contracts retain their tested behavior;
+  contracts retain their tested behavior, including trigger-first preview and
+  written-sidecar parity for current export profiles and selection of an
+  available source from multiple cataloged file locations;
 - source/documentation audit rules pass;
 - user-managed catalogs, backups, and reports under the installed `output`
   folder remain outside source audit and release collection;
@@ -29,10 +34,10 @@ datasets.
 - every direct SQLite connection in maintained source has explicit close
   ownership, including failed catalog initialization on Python 3.14/Windows;
 - the deterministic full-source archive builds twice with identical bytes; archive CRC, member manifest, clean extraction, and a synthetic overwrite-in-place overlay pass without copying the installed workspace;
-- the current cumulative Windows/Tk GUI chain through v0.28.2 passes without
-  unraisable Tk finalizers, orphaned delayed callbacks, or background Tcl/Tk
-  diagnostics on stderr; the v0.27.10-and-earlier history runs in a strict
-  isolated process so its destroyed interpreters cannot affect newer checks;
+- the supported Windows/Tk GUI sequence checks the focused v0.28.1 Florence
+  preflight, v0.28.3 detection-only completion, and v0.28.4 catalog/workflow
+  controls without stderr diagnostics; older versioned GUI files remain in the
+  archive as historical evidence but are not replayed by this current gate;
 - the reported project-source folder owns the imported application identity,
   while the separately reported Python runtime may safely come from an external
   virtual environment.
@@ -40,7 +45,7 @@ datasets.
 The final line must read:
 
 ```text
-GOLDEN BUILD PASSED — LoRA Image Curator v0.28.2
+GOLDEN BUILD PASSED — LoRA Image Curator v0.28.4
 ```
 
 `--no-gui` runs the complete headless portion. It is useful during development,
@@ -51,13 +56,13 @@ but it cannot establish the final Windows golden-build result.
 The gate protects established application behavior; it is not proof against
 every possible image, catalog size, Windows configuration, or user action.
 Tests use synthetic provider evidence rather than downloading or running
-Florence, InsightFace, MediaPipe, or FFmpeg on the workstation. They verify
+Florence, YuNet/SFace, MediaPipe, or FFmpeg on the workstation. They verify
 provider/file-action orchestration and safety contracts, but not model accuracy,
 GPU-driver compatibility, third-party package behavior, or visual output
 quality. Large-catalog performance measurements and the real dataset/training
 trial remain active roadmap work.
 
-The user has separately confirmed the complete packaged v0.27.17 Windows
-golden-build gate. v0.28.2 retains the catalog/UI and Florence recovery runtime
-while adding explicit provider-download and shared setup paths to the v0.28.0
-provenance foundation. The v0.28.2 GUI, real CUDA tensor, Florence inference/resume, and optional ONNX Runtime endpoints still require a fresh live-Windows pass before the release may be called golden.
+The user separately confirmed the packaged v0.27.17 Windows gate. The current
+source gate validates v0.28.4 with synthetic data. Real CUDA tensor, Florence
+inference/resume, and optional model accuracy remain separate live-machine
+qualification work.

@@ -333,6 +333,32 @@ class DatasetExportRepository:
                     + ", ".join(str(value) for value in missing_ids[:10])
                 )
 
+            # Catalog status records the last scan, not the current filesystem.
+            # Prefer an existing location for the same image in the established
+            # status/time/ID order. Keep the preferred stored path as provenance
+            # when every location is gone, so planning can report a truthful skip.
+            present_sources: dict[int, Path] = {}
+            candidate_rows = connection.execute(
+                f"""
+                SELECT image_id, absolute_path
+                FROM files
+                WHERE image_id IN ({placeholders})
+                ORDER BY image_id,
+                    CASE status WHEN 'present' THEN 0 ELSE 1 END,
+                    last_seen_at DESC, id DESC
+                """,
+                ordered_ids,
+            ).fetchall()
+            for candidate in candidate_rows:
+                image_id = int(candidate["image_id"])
+                if image_id in present_sources:
+                    continue
+                raw_path = str(candidate["absolute_path"] or "").strip()
+                if raw_path:
+                    path = Path(raw_path)
+                    if path.is_file():
+                        present_sources[image_id] = path
+
             manual_keywords: dict[int, str] = {}
             manual_tags: dict[int, list[str]] = {image_id: [] for image_id in ordered_ids}
             active_ai_tags: dict[int, list[str]] = {image_id: [] for image_id in ordered_ids}
@@ -346,8 +372,14 @@ class DatasetExportRepository:
                 WHERE it.image_id IN ({placeholders})
                   AND LOWER(it.source) IN ('manual', 'user', 'user_manual')
                   AND it.review_status <> 'rejected'
-                  AND t.category IN ('manual_keyword', 'manual_tag')
-                ORDER BY it.image_id, t.normalized_name, it.id
+                  AND t.category IN ('set_keyword', 'manual_keyword', 'manual_tag')
+                ORDER BY it.image_id,
+                    CASE t.category
+                        WHEN 'set_keyword' THEN 0
+                        WHEN 'manual_keyword' THEN 1
+                        ELSE 2
+                    END,
+                    t.normalized_name, it.id
                 """,
                 ordered_ids,
             ).fetchall()
@@ -356,7 +388,7 @@ class DatasetExportRepository:
                 name = str(row["name"] or "").strip()
                 if not name:
                     continue
-                if str(row["category"]) == "manual_keyword":
+                if str(row["category"]) in {"set_keyword", "manual_keyword"}:
                     manual_keywords.setdefault(image_id, name)
                 else:
                     manual_tags[image_id].append(name)
@@ -407,7 +439,9 @@ class DatasetExportRepository:
             for image_id in ordered_ids:
                 row = base_by_id[image_id]
                 raw_path = str(row["absolute_path"] or "").strip()
-                source_path = Path(raw_path) if raw_path else None
+                source_path = present_sources.get(image_id)
+                if source_path is None:
+                    source_path = Path(raw_path) if raw_path else None
                 filename = source_path.name if source_path is not None else f"image_{image_id}"
                 records.append(
                     ExportImageRecord(
@@ -1055,9 +1089,9 @@ def _write_handoff_readme(
         "",
         "OUTPUTS",
         "-------",
-        f"Copied images: {'Yes' if options.copy_images else 'No'}",
-        f"Same-name TXT sidecars: {'Yes' if options.create_sidecars else 'No'}",
-        f"CSV manifest: {'Yes' if options.create_manifest else 'No'}",
+        f"Copy images requested: {'Yes' if options.copy_images else 'No'}",
+        f"Same-name TXT sidecars requested: {'Yes' if options.create_sidecars else 'No'}",
+        f"CSV manifest requested: {'Yes' if options.create_manifest else 'No'}",
         "",
         "PRE-EXPORT NOTES",
         "----------------",

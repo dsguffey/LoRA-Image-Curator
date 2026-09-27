@@ -3,6 +3,16 @@
 The roadmap contains intended work, not every interesting possibility. Exact
 version numbers and ordering may change after hands-on testing.
 
+## Current stabilization: catalog identity and training text
+
+The source fix now passes the selected SQLite path through standalone and
+combined provider orchestration, with a mismatch guard retained. New catalogs
+normalize extensionless names; existing extensionless catalogs remain openable.
+Focused synthetic regressions and Windows GUI smoke cover the path contract.
+The export projection now includes the current `set_keyword` Trigger Keyword
+category, with preview and sidecar parity checked by synthetic regressions.
+The supported golden gate and human UI/export QA remain checkpoint criteria.
+
 ## Current foundation
 
 Completed foundations include:
@@ -201,7 +211,8 @@ tab ownership, menu discoverability, and the analysis/export sequence.
   Catalog, and update combined-action wording accordingly
 - keep Finalize & Export as the final readiness/export gate: it should report
   whether Quality Analysis has run, warn when it has not, and avoid owning the
-  primary Quality Analysis launch action
+  primary Quality Analysis launch action; its status panel should not duplicate
+  the Analyze & Update run controls
 - add Prominent Overlay to Browser readiness filters with clear Florence OCR
   and Quality Analysis prerequisite wording
 - retain Florence OCR rectangles in additive schema 13, cache conservative

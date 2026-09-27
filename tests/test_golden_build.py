@@ -1,9 +1,9 @@
 """Run the complete LoRA Image Curator golden-build release gate.
 
 This is the authoritative handoff command. It creates only temporary synthetic
-images/catalogs, runs the repository audit and complete maintained non-GUI
-regression history, verifies deterministic flat release packaging, and then
-runs the current cumulative GUI chain on a live desktop. It never opens or
+images/catalogs, runs the repository audit and supported non-GUI regression
+contracts, verifies deterministic flat release packaging, and then runs the
+current GUI sequence on a live desktop. It never opens or
 modifies a user's catalog or dataset.
 
 Use ``--no-gui`` only in a headless development environment. A release cannot

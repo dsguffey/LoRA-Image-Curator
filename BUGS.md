@@ -3,6 +3,90 @@
 This file contains defects and unresolved technical problems. Planned features
 and speculative enhancements belong in `ROADMAP.md` or `WISHLIST.md`.
 
+## Unreleased source fix after v0.28.4 (release verification pending)
+
+### Export skipped a present image when a stale file location ranked first
+
+**Reproduced:** Human QA exported one eligible image from Image Set `Test` to
+`images/Output/exports`. The manifest and README reported one skipped image and
+no copied image or sidecar. The catalog still held the real source path, but a
+second, absent path under `Output/exports` had the same `present` status and
+timestamp with a higher file-row ID. A synthetic catalog with the same location
+ordering reproduced the incorrect source selection before the fix.
+
+**Root cause and fix:** Export chose a file location by stored status and recency
+without checking whether it still existed. It now checks all cataloged physical
+locations for that image in the existing deterministic order and chooses the
+first available file. If none exists, export retains the preferred stored path
+for a truthful skipped manifest row. Source selection is read-only; destination
+planning, copying, and export history do not update catalog file locations.
+Temporary real-image tests cover named-set export, nested output, Unicode paths,
+multiple locations, collisions, preview/sidecar parity, successful and skipped
+reports, and unchanged source bytes and file rows.
+
+**Status:** Automated verification passed; human UI/export QA is required
+before the checkpoint commit and push.
+
+### P1: Rich Florence captions are absent from catalog text search
+
+Florence captions are intended to support catalog search and review, but current
+search does not find their text. Search integration remains a separate follow-up.
+
+### Assigned Trigger Keyword was absent from preview and exported sidecars
+
+**Reproduced:** A synthetic catalog with a Trigger Keyword assigned through the
+current edit service resolved the Flux profile with `include_trigger=True`, yet
+preview, the canonical builder input, and the written `.txt` sidecar all omitted
+that keyword. The manual and AI tags remained present.
+
+**Root cause and fix:** Browser editing stores the current Trigger Keyword in the
+`set_keyword` tag category. The export repository queried the former
+`manual_keyword` category only, so it passed an empty trigger layer to the
+shared builder. Export now reads `set_keyword`, keeps legacy-category support,
+and prefers the current assignment if both exist. The builder and writer were
+already shared and did not need modification. Synthetic exact-string and
+preview/sidecar tests cover Flux, other supported profiles, Custom inclusion,
+deduplication, and different triggers across selected images.
+
+**Status:** Source fix and automated verification; human UI/export QA is required
+before the checkpoint commit and push.
+
+### Current golden gate drifted behind provider and packaging changes
+
+**Reproduced:** The signed source audit rejected a Windows account path in a
+qualification note; the cumulative regression runner stopped on an InsightFace
+Browse callback removed by the YuNet/SFace provider change; and the GUI runner
+imported a v0.28.2 Portable test removed with the Portable distribution.
+Additional older assertions expected the former README, setup, and CI layout.
+
+**Gate repair:** Replace the account path with a generic profile path; keep the
+historical files but explicitly identify the nine retired assertions while
+running every other contract in those modules; check the current provider and
+dependency contracts in v0.28.4; and run the focused v0.28.1, v0.28.3, and
+v0.28.4 Windows GUI checks from the current entry point. Product runtime code
+is unchanged by this gate repair.
+
+### Custom active catalog could diverge from provider database
+
+**Reproduced:** A custom catalog in the report folder was active while a separate
+`dataset_tools.db` existed. The provider orchestration boundary had no selected
+catalog argument, and Florence and Face derived `dataset_tools.db` from the
+report folder. The UI mismatch guard correctly blocked the run before the two
+catalogs could be mixed.
+
+**Root cause and fix:** The active catalog path was owned by the browser/UI but
+was not passed into the provider pipeline. The app now forwards the resolved
+selected path to direct Face and to the Florence/Quality/Face combined workflow.
+Provider callbacks and summaries are checked against that path; a mismatch still
+stops subsequent work. Body/Pose and direct Quality already used the selected
+path. New extensionless names receive `.db`, while validated legacy
+extensionless catalogs remain openable without renaming. Synthetic regression
+coverage includes custom names, an unrelated default catalog, Face writes and
+reuse, and a deliberately mismatched provider callback.
+
+**Status:** Source fix with focused and golden Windows GUI coverage; human QA is
+required before the checkpoint commit and push.
+
 ## Fixed in v0.28.4
 
 ### The first spatial-overlay source archive omitted an imported helper module

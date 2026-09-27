@@ -3,13 +3,18 @@
 from __future__ import annotations
 
 import json
+import os
+import queue
 import sqlite3
 import sys
 import tempfile
+import tomllib
 
 from contextlib import closing
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from PIL import Image, ImageDraw
 
@@ -20,10 +25,12 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 from advanced_search import record_matches_query
+from analysis_control import AnalysisCancelled
 from analysis_pipeline import run_pipeline
 from app_identity import APP_VERSION
 from browser_workflow import BrowserFilterState, READINESS_ISSUE_LABELS
 from catalog import Catalog, SCHEMA_VERSION
+from catalog_lifecycle import create_catalog_database, validate_catalog_database
 from catalog_browser import CatalogBrowserFrame, CatalogBrowserRepository
 from dataset_readiness import build_readiness_report, evaluate_prominent_overlay
 from quality_analysis import QualityAnalysisSummary, measure_image_quality
@@ -91,9 +98,9 @@ def test_combined_workflow_runs_quality_between_catalog_and_florence() -> None:
 
     def fake_florence(**kwargs):
         events.append("catalog")
-        kwargs["catalog_ready_callback"](Path("dataset_tools.db"))
+        kwargs["catalog_ready_callback"](kwargs["catalog_database"])
         events.append("florence")
-        return SimpleNamespace()
+        return SimpleNamespace(catalog_database=kwargs["catalog_database"])
 
     summary = run_pipeline(
         input_folder=Path("images"),
@@ -108,6 +115,247 @@ def test_combined_workflow_runs_quality_between_catalog_and_florence() -> None:
 
     assert events == ["catalog", "quality", "florence"]
     assert summary.quality is quality
+
+
+def test_custom_catalog_is_the_only_pipeline_database() -> None:
+    """A selected catalog must reach every provider despite a default beside it."""
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        custom = create_catalog_database(root / "Face Catalog.db")
+        default = create_catalog_database(root / "dataset_tools.db")
+        events: list[tuple[str, Path]] = []
+
+        def fake_quality(database: Path, **_kwargs) -> QualityAnalysisSummary:
+            events.append(("quality", database))
+            return QualityAnalysisSummary(0, 0, 0, 0, False, 0.0)
+
+        def fake_florence(**kwargs):
+            database = kwargs.get("catalog_database", kwargs["output_folder"] / "dataset_tools.db")
+            events.append(("florence", database))
+            kwargs["catalog_ready_callback"](database)
+            return SimpleNamespace(catalog_database=database)
+
+        def fake_face(**kwargs):
+            events.append(("face", kwargs["catalog_database"]))
+            return SimpleNamespace(catalog_database=kwargs["catalog_database"])
+
+        result = run_pipeline(
+            input_folder=root,
+            output_folder=root,
+            catalog_database=custom,
+            include_triage=False,
+            reuse_stored_analysis=True,
+            run_quality_analysis=True,
+            run_face_analysis=True,
+            florence_runner=fake_florence,
+            face_runner=fake_face,
+            quality_runner=fake_quality,
+        )
+        assert events == [("florence", custom), ("quality", custom), ("face", custom)]
+        assert result.catalog_database == custom
+        assert validate_catalog_database(default) == default
+
+
+def test_new_catalog_names_and_legacy_extensionless_recovery() -> None:
+    from catalog_lifecycle import normalize_new_catalog_path
+
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        for name in ("FaceCatalog", "Face Catalog", "肖像 catalog", "x" * 80):
+            target = normalize_new_catalog_path(root / name)
+            assert target.name == name + ".db"
+            assert validate_catalog_database(create_catalog_database(target)) == target
+        assert normalize_new_catalog_path(root / "other.sqlite").name == "other.sqlite"
+        legacy = create_catalog_database(root / "LegacyCatalog")
+        assert validate_catalog_database(legacy) == legacy
+        assert not (root / "LegacyCatalog.db").exists()
+        try:
+            normalize_new_catalog_path(legacy)
+        except FileExistsError:
+            pass
+        else:
+            raise AssertionError("Existing extensionless catalog was hidden by normalization")
+
+
+def test_real_face_provider_writes_and_reuses_only_custom_catalog() -> None:
+    """A deterministic provider exercises actual catalog writes and reuse."""
+    from catalog_import import CatalogImportOptions, import_catalog_folder
+    from face_analyzer import analyze_faces
+    from quality_analysis import analyze_catalog_quality
+    from tests.test_v0283_regression import _DeterministicFaceProvider
+
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        source = root / "images"
+        reports = root / "reports"
+        source.mkdir()
+        reports.mkdir()
+        Image.new("RGB", (64, 64), "navy").save(source / "one.png")
+        custom = reports / "肖像 Catalog.db"
+        default = reports / "dataset_tools.db"
+        import_catalog_folder(
+            CatalogImportOptions(
+                source_folder=source,
+                target_database=custom,
+                mode="create",
+                create_image_set=False,
+            )
+        )
+        quality = analyze_catalog_quality(custom)
+        assert quality.analyzed_images == 1
+        first = analyze_faces(
+            source, reports, catalog_database=custom,
+            provider=_DeterministicFaceProvider(),
+        )
+        assert not default.exists()
+        create_catalog_database(default)
+        second = analyze_faces(
+            source, reports, catalog_database=custom,
+            provider=_DeterministicFaceProvider(),
+        )
+        assert first.catalog_database == custom
+        assert first.generated_images == 1
+        assert second.catalog_database == custom
+        assert second.reused_images == 1
+        with closing(sqlite3.connect(custom)) as connection:
+            assert connection.execute("SELECT COUNT(*) FROM face_detections").fetchone()[0] == 1
+            assert connection.execute("SELECT COUNT(*) FROM image_quality_results").fetchone()[0] == 1
+        with closing(sqlite3.connect(default)) as connection:
+            assert connection.execute("SELECT COUNT(*) FROM face_detections").fetchone()[0] == 0
+
+        cancelled = Event()
+        cancelled.set()
+        try:
+            analyze_faces(
+                source, reports, catalog_database=custom,
+                provider=_DeterministicFaceProvider(), cancel_event=cancelled,
+            )
+        except AnalysisCancelled:
+            pass
+        else:
+            raise AssertionError("Pre-cancelled face analysis unexpectedly ran")
+
+
+def test_pipeline_stops_when_provider_reports_another_catalog() -> None:
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        selected = create_catalog_database(root / "selected.db")
+        other = create_catalog_database(root / "dataset_tools.db")
+
+        def wrong_florence(**kwargs):
+            kwargs["catalog_ready_callback"](other)
+            return SimpleNamespace(catalog_database=other)
+
+        try:
+            run_pipeline(
+                input_folder=root, output_folder=root, catalog_database=selected,
+                include_triage=False, reuse_stored_analysis=True,
+                run_quality_analysis=False, run_face_analysis=True,
+                florence_runner=wrong_florence,
+                face_runner=lambda **_kwargs: (_ for _ in ()).throw(
+                    AssertionError("Face provider should not run after catalog mismatch")
+                ),
+            )
+        except ValueError as error:
+            assert "catalog mismatch" in str(error).lower()
+        else:
+            raise AssertionError("Provider catalog mismatch was not stopped")
+
+
+def test_app_workers_forward_the_selected_catalog() -> None:
+    """Direct Face and combined/Florence launch share the app's selected path."""
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        selected = create_catalog_database(root / "FaceCatalog.db")
+        create_catalog_database(root / "dataset_tools.db")
+        with patch.dict(os.environ, {"APPDATA": str(root), "LORA_IMAGE_CURATOR_TEST_MODE": "1"}):
+            from app import DatasetToolsApp, shutdown_logging
+
+        application = object.__new__(DatasetToolsApp)
+        application.root = object()
+        application.catalog_browser = SimpleNamespace(catalog_path=selected)
+        application.latest_catalog_database = None
+        application.output_folder_var = SimpleNamespace(get=lambda: str(root))
+        application.message_queue = queue.Queue()
+        application.analysis_cancel_event = Event()
+        application.analysis_pause_event = Event()
+        application._queue_progress = lambda *_args: None
+        application._queue_status = lambda *_args: None
+        assert application._current_catalog_path() == selected
+        shown: list[str] = []
+        application.catalog_path_var = SimpleNamespace(set=shown.append)
+        application._update_catalog_path_display()
+        assert shown == [str(selected)]
+
+        legacy = create_catalog_database(root / "LegacyCatalog")
+        opened: list[Path] = []
+        with patch("app.filedialog.askopenfilename", return_value=str(legacy)) as chooser:
+            with patch.object(DatasetToolsApp, "_activate_catalog", lambda _self, path, **_kwargs: opened.append(path)):
+                application._open_catalog()
+        assert opened == [legacy]
+        assert any(pattern == "*" for _label, pattern in chooser.call_args.kwargs["filetypes"])
+
+        captured: list[tuple[str, Path]] = []
+
+        def fake_pipeline(**kwargs):
+            phase = "combined" if kwargs["run_face_analysis"] else "florence"
+            captured.append((phase, kwargs["catalog_database"]))
+            return SimpleNamespace(catalog_database=selected)
+
+        def fake_face(**kwargs):
+            captured.append(("face", kwargs["catalog_database"]))
+            return SimpleNamespace(catalog_database=selected)
+
+        with patch("analysis_pipeline.run_pipeline", fake_pipeline), patch("app.analyze_faces", fake_face):
+            application._analysis_worker(
+                root, root, selected, False, True, False, True, False,
+                "", None, None, False, True, True, True,
+            )
+            application._analysis_worker(
+                root, root, selected, False, True, False, False, False,
+                "", None, None, False, True, True, True,
+            )
+            application._face_analysis_worker(
+                root, root, selected, "", None, None, False, True, True, True,
+            )
+        assert captured == [
+            ("combined", selected), ("florence", selected), ("face", selected)
+        ]
+        assert [application.message_queue.get_nowait()[0] for _ in range(3)] == [
+            "complete", "complete", "face_complete"
+        ]
+        shutdown_logging()
+
+
+def test_body_dialog_worker_uses_the_selected_catalog() -> None:
+    """The optional Body boundary must receive the exact active database."""
+    from body_analysis_dialog import BodyAnalysisDialog
+
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        selected = create_catalog_database(root / "selected.sqlite3")
+        messages: queue.Queue = queue.Queue()
+        dialog = SimpleNamespace(
+            database_path=selected,
+            model_path=root / "synthetic.task",
+            options=object(),
+            image_ids=None,
+            _messages=messages,
+            _cancel=Event(),
+            _pause=Event(),
+        )
+        seen: list[Path] = []
+
+        def fake_analysis(database_path, *_args, **_kwargs):
+            seen.append(database_path)
+            return SimpleNamespace()
+
+        with patch("body_analysis_dialog.inspect_body_setup", return_value=SimpleNamespace(ready=True)):
+            with patch("body_analysis_dialog.analyze_catalog_bodies", fake_analysis):
+                BodyAnalysisDialog._run_worker(dialog)
+        assert seen == [selected]
+        assert messages.get_nowait()[0] == "complete"
+        assert not (root / "dataset_tools.db").exists()
 
 
 def test_prominent_overlay_and_ocr_search_are_review_evidence_only() -> None:
@@ -437,9 +685,39 @@ def test_logging_shutdown_detaches_closed_temporary_handlers() -> None:
     assert "root_logger.addHandler(logging.NullHandler())" in app_source
 
 
+def test_current_provider_setup_and_public_gate_contracts() -> None:
+    """Cover active contracts that superseded several historical source assertions."""
+    from lic_dependencies.profile import PROFILE
+    from setup_assistant import REQUIRED_EXACT_VERSIONS
+
+    app_source = (ROOT / "app.py").read_text(encoding="utf-8")
+    metadata = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    workflow = (ROOT / ".github" / "workflows" / "repository-checks.yml").read_text(
+        encoding="utf-8"
+    )
+    assert 'command=self._choose_face_model_root' in app_source
+    assert 'model_entry.insert(0, "OpenCV YuNet + SFace")' in app_source
+    assert "Current work: Face Scanning / OpenCV YuNet + SFace" in app_source
+    assert '"Download InsightFace buffalo_l?"' not in app_source
+    assert REQUIRED_EXACT_VERSIONS["transformers"] == PROFILE["transformers"] == "4.56.2"
+    assert "Send2Trash>=1.8,<3" in metadata["project"]["dependencies"]
+    assert "mediapipe==0.10.35" in metadata["project"]["optional-dependencies"]["body"]
+    assert f"v{APP_VERSION}" in readme
+    assert "LIC Install Manager has its own version number" in readme
+    assert "python -m pip install" in workflow
+    assert "tests.test_v0284_regression" in workflow
+
+
 if __name__ == "__main__":
     test_release_identity_and_default_quality_setting()
     test_combined_workflow_runs_quality_between_catalog_and_florence()
+    test_custom_catalog_is_the_only_pipeline_database()
+    test_new_catalog_names_and_legacy_extensionless_recovery()
+    test_real_face_provider_writes_and_reuses_only_custom_catalog()
+    test_pipeline_stops_when_provider_reports_another_catalog()
+    test_app_workers_forward_the_selected_catalog()
+    test_body_dialog_worker_uses_the_selected_catalog()
     test_prominent_overlay_and_ocr_search_are_review_evidence_only()
     test_overlay_spatial_modes_use_area_not_character_count()
     test_quality_analysis_detects_obvious_bar_without_flagging_clean_fixture()
@@ -449,8 +727,11 @@ if __name__ == "__main__":
     test_release_inventory_contains_florence_spatial_ocr_parser()
     test_standalone_gui_smoke_bootstraps_project_imports()
     test_logging_shutdown_detaches_closed_temporary_handlers()
+    test_current_provider_setup_and_public_gate_contracts()
     print(
         "v0.28.4 regression tests passed: catalog-quality-provider ordering, "
-        "global quality defaults, area-based text/bar overlays, schema 14 migration, "
+        "canonical custom catalog paths, extensionless recovery, Face write/reuse, "
+        "Body path forwarding, "
+        "global quality defaults, area-based overlays, schema 14 migration, "
         "OCR search, and standalone GUI smoke imports."
     )

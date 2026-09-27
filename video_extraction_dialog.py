@@ -22,6 +22,7 @@ from tkinter import filedialog, messagebox, ttk
 from typing import Callable, Literal
 
 from catalog import CATALOG_FILENAME
+from catalog_lifecycle import normalize_new_catalog_path
 from catalog_import import (
     CatalogImportCancelled,
     CatalogImportOptions,
@@ -836,7 +837,7 @@ class VideoExtractionDialog(tk.Toplevel):
         elif action == "create":
             if not self.catalog_target_var.get().strip():
                 raise ValueError("Choose a filename for the new catalog.")
-            target = Path(self.catalog_target_var.get()).expanduser().resolve()
+            target = normalize_new_catalog_path(Path(self.catalog_target_var.get()))
 
         if (
             action in {"merge", "create"}
@@ -844,18 +845,6 @@ class VideoExtractionDialog(tk.Toplevel):
             and not self.set_name_var.get().strip()
         ):
             raise ValueError("Enter a name for the extracted-frame image set.")
-        if (
-            action in {"merge", "create"}
-            and self.run_analysis_var.get()
-            and target is not None
-            and target.name.casefold() != CATALOG_FILENAME.casefold()
-        ):
-            raise ValueError(
-                "Automatic provider analysis requires the catalog filename "
-                f"{CATALOG_FILENAME!r}. Choose that filename or turn off the "
-                "provider-analysis option; the extracted frames and staged "
-                "catalog import work with other .db names."
-            )
 
         options = VideoExtractionOptions(
             ffmpeg_path=self.ffmpeg_status.executable,

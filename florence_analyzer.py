@@ -1111,6 +1111,7 @@ def analyze_folder(
     input_folder: Path,
     output_folder: Path,
     *,
+    catalog_database: Path | None = None,
     include_triage: bool = True,
     reuse_stored_analysis: bool = True,
     recursive: bool = True,
@@ -1144,7 +1145,16 @@ def analyze_folder(
     partial_csv, final_csv = create_report_paths(
         output_folder
     )
-    catalog_database = output_folder / CATALOG_FILENAME
+    if catalog_database is None:
+        catalog_database = (output_folder / CATALOG_FILENAME).resolve()
+    else:
+        from catalog_lifecycle import validate_catalog_database
+
+        catalog_database = catalog_database.expanduser().resolve()
+        if catalog_database.exists():
+            validate_catalog_database(catalog_database)
+        elif catalog_database != (output_folder / CATALOG_FILENAME).resolve():
+            raise FileNotFoundError(f"Selected catalog not found: {catalog_database}")
     transformers_version = get_transformers_version()
 
     counts = ImportRunCounts(

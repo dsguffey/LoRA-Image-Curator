@@ -1,5 +1,35 @@
 # LoRA Image Curator Changelog
 
+## Unreleased — catalog identity and training-text correction
+
+- Resolve export source paths from currently existing catalog file locations,
+  so a stale location no longer skips an image when another physical copy is
+  available. Keep source and collision-safe destination separate, and label
+  README output choices as requests so skipped exports are reported accurately.
+- Cover named Image Set export with a real temporary image, nested destination,
+  Unicode source path, multiple locations, collisions, and source preservation.
+- Include current editor-assigned Trigger Keywords in export projection for
+  Flux, SDXL, SD 1.5, General, and enabled Custom profiles. Preserve legacy
+  catalog tags and the canonical trigger-first, deduplicated text builder.
+- Verify that live preview, planned training text, and temporary written TXT
+  sidecars agree, including when Custom disables the trigger.
+
+- Restore the current regression/golden gate after the YuNet/SFace provider,
+  managed installation, and Portable retirement changed historical contracts.
+  Retain historical test files, report each retired assertion explicitly, and
+  run the supported current Windows GUI sequence.
+- Remove an account-specific path from a signed qualification note and clarify
+  LIC source versus Install Manager versioning in the repository README.
+
+- Keep one selected SQLite catalog path across direct and combined Florence,
+  Face, Quality, and Body/Pose analysis. Provider mismatch checks still stop a
+  run if a phase reports a different database.
+- Add `.db` when creating a catalog from a name without an extension. Preserve
+  explicit `.sqlite` and `.sqlite3` names, and allow existing valid extensionless
+  catalogs to be opened without renaming them.
+- Keep the report output folder separate from the selected catalog filename,
+  including when providers start after video-frame import.
+
 ## v0.28.4 — Pre-Feedback Workflow UI Pass
 
 ### v0.28.4.8 — Analysis progress clarity

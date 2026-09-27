@@ -24,6 +24,10 @@ The SQLite catalog separates image content from file location:
 
 - `images` identifies unique bytes by SHA-256.
 - `files` records every known path for that content.
+- Export selects an existing physical file from those paths in stable catalog
+  preference order; the stored `present` status alone can be stale. The chosen
+  source remains separate from collision-safe destination paths and export
+  history never changes catalog file locations.
 - analysis tables retain versioned provider output.
 - face detections, embeddings, profiles, and matches remain normalized.
 - manual tags and AI exclusions remain user-owned layers.
@@ -33,6 +37,15 @@ The SQLite catalog separates image content from file location:
 `PRAGMA user_version` is the schema contract. Migrations are sequential,
 transactional, and forward-only. A newer unsupported schema is rejected rather
 than opened optimistically.
+
+The selected catalog's resolved SQLite path is the application-level identity
+for catalog-aware work. The report output folder is an independent destination.
+The app passes the selected path through Florence, Quality, Face, and Body/Pose
+launches; provider callbacks and summaries are checked before another phase
+can run. `dataset_tools.db` is a new-catalog default only. Creation appends
+`.db` to an extensionless name, while validation opens a compatible existing
+extensionless catalog by SQLite tables, application marker, and schema version
+without renaming it.
 
 The v0.25.0 public rename introduces a new catalog application marker while
 accepting the historical `Dataset Tools` marker. Schema version 11 adds only
@@ -55,6 +68,12 @@ browser does not duplicate Blur, resolution, training-text, identity, or
 similarity rules. Filter compositions and selection remain session-only.
 Updating an image set is a separate explicit transaction that replaces only
 membership.
+
+Export reads assigned Trigger Keywords from the current `set_keyword` category
+and older `manual_keyword` records, preferring the current assignment. The
+repository projects that value alongside manual tags, active AI tags, and raw
+caption. `training_text.py` assembles the resolved profile's selected layers in
+canonical order; preview, validation, and sidecar planning use that same builder.
 
 ## Provider pipeline
 

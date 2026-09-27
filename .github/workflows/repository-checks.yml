@@ -43,3 +43,9 @@ jobs:
 
       - name: Verify current repository contracts
         run: python -X dev -m tests.test_v0284_regression
+
+      - name: Verify trigger keyword export contracts
+        run: python -X dev -m tests.test_trigger_export_regression
+
+      - name: Verify export source resolution
+        run: python -X dev -m tests.test_export_source_resolution

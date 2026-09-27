@@ -10,6 +10,7 @@ import tkinter as tk
 
 from pathlib import Path
 from tkinter import ttk
+from unittest.mock import patch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +19,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 from browser_workflow import BrowserFilterState
+from catalog_lifecycle import create_catalog_database
 from browser_workflow_dialogs import BrowserFiltersDialog
 from settings_dialog import SettingsDialog
 from settings_manager import AppSettings
@@ -78,6 +80,25 @@ def run(*, include_history: bool = True) -> None:
                 assert application.body_analysis_progress.cget("maximum") == 100
                 assert application.dataset_readiness.run_button.winfo_manager() == ""
                 assert application.dataset_readiness.cancel_button.winfo_manager() == ""
+                named_catalog = Path(temporary) / "FaceCatalog.db"
+                with patch("app.filedialog.asksaveasfilename", return_value=str(named_catalog.with_suffix(""))):
+                    application._create_empty_catalog()
+                assert named_catalog.exists()
+                assert application._current_catalog_path() == named_catalog
+                assert not (Path(temporary) / "dataset_tools.db").exists()
+
+                legacy_catalog = create_catalog_database(Path(temporary) / "LegacyCatalog")
+                with patch("app.filedialog.askopenfilename", return_value=str(legacy_catalog)):
+                    application._open_catalog()
+                assert application._current_catalog_path() == legacy_catalog
+                assert not (Path(temporary) / "LegacyCatalog.db").exists()
+
+                reports = Path(temporary) / "reports"
+                reports.mkdir()
+                with patch("app.filedialog.askdirectory", return_value=str(reports)):
+                    application._choose_output_folder()
+                assert application.output_folder_var.get() == str(reports)
+                assert application._current_catalog_path() == legacy_catalog
                 profile_combo = application.dataset_readiness.profile_combo
                 assert isinstance(profile_combo, ttk.Combobox)
                 assert str(profile_combo.cget("state")) in {
@@ -121,6 +142,14 @@ def run(*, include_history: bool = True) -> None:
                 settings_dialog._save()
                 assert saved_settings
                 assert saved_settings[0].overlay_spatial_mode == "body"
+
+                application._finish_close()
+                application = None
+                root = tk.Tk()
+                root.withdraw()
+                application = DatasetToolsApp(root)
+                assert application._current_catalog_path() == legacy_catalog
+                assert application.output_folder_var.get() == str(reports)
             finally:
                 if application is not None:
                     application._finish_close()
@@ -130,7 +159,8 @@ def run(*, include_history: bool = True) -> None:
     mode = "cumulative" if include_history else "focused"
     print(
         f"v0.28.4 {mode} GUI smoke test passed: File menu catalog/export "
-        "commands, primary Analyze quality controls, status-only Finalize, "
+        "commands, named and extensionless catalog handling, independent report "
+        "folder, primary Analyze quality controls, status-only Finalize, "
         "editable Filters, Finalize target, and Prominent Overlay are visible."
     )
 

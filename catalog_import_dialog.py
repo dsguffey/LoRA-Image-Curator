@@ -266,7 +266,7 @@ class CatalogImportDialog(tk.Toplevel):
             initialdir=initial_directory,
             initialfile="dataset_tools.db",
             defaultextension=".db",
-            filetypes=(("LoRA Image Curator catalog", "*.db"), ("All files", "*.*")),
+            filetypes=(("SQLite catalog", ("*.db", "*.sqlite", "*.sqlite3")), ("All files", "*.*")),
             confirmoverwrite=False,
         )
         if selected:
@@ -281,6 +281,10 @@ class CatalogImportDialog(tk.Toplevel):
         try:
             source = Path(self.source_var.get().strip()).expanduser().resolve()
             target = Path(self.target_var.get().strip()).expanduser().resolve()
+            if self.mode == "create" and self.target_var.get().strip():
+                from catalog_lifecycle import normalize_new_catalog_path
+
+                target = normalize_new_catalog_path(target)
         except (OSError, ValueError) as error:
             messagebox.showerror("Invalid path", str(error), parent=self)
             return
@@ -295,7 +299,7 @@ class CatalogImportDialog(tk.Toplevel):
         if not self.target_var.get().strip():
             messagebox.showerror(
                 "Choose a catalog file",
-                "Choose where the new dataset_tools.db catalog should be saved.",
+                "Choose where the new catalog should be saved.",
                 parent=self,
             )
             return

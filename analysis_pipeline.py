@@ -20,6 +20,8 @@ from threading import Event
 from typing import Any, Callable
 
 from analysis_control import AnalysisCancelled
+from catalog import CATALOG_FILENAME
+from catalog_lifecycle import validate_catalog_database
 from quality_analysis import QualityAnalysisSummary, analyze_catalog_quality
 
 
@@ -99,6 +101,7 @@ def run_pipeline(
     *,
     input_folder: Path,
     output_folder: Path,
+    catalog_database: Path | None = None,
     include_triage: bool,
     reuse_stored_analysis: bool,
     run_face_analysis: bool,
@@ -122,6 +125,11 @@ def run_pipeline(
 ) -> PipelineSummary:
     """Update the catalog, run quality, then run the selected providers."""
     pipeline_start = time.perf_counter()
+    selected_catalog = (
+        validate_catalog_database(catalog_database)
+        if catalog_database is not None
+        else (output_folder / CATALOG_FILENAME).expanduser().resolve()
+    )
     quality_summary: QualityAnalysisSummary | None = None
     if florence_runner is None:
         from florence_analyzer import analyze_folder
@@ -132,6 +140,11 @@ def run_pipeline(
 
     def run_quality(catalog_database: Path) -> None:
         nonlocal quality_summary
+        if catalog_database.expanduser().resolve() != selected_catalog:
+            raise ValueError(
+                "Provider catalog mismatch: the catalog stage selected a different "
+                "database from the active catalog. Analysis was stopped."
+            )
         if not run_quality_analysis:
             return
         if status_callback is not None:
@@ -163,6 +176,7 @@ def run_pipeline(
     florence_summary = florence_runner(
         input_folder=input_folder,
         output_folder=output_folder,
+        catalog_database=selected_catalog,
         include_triage=include_triage,
         reuse_stored_analysis=reuse_stored_analysis,
         recursive=recursive,
@@ -173,6 +187,12 @@ def run_pipeline(
         cancel_event=cancel_event,
         pause_event=pause_event,
     )
+    reported_catalog = getattr(florence_summary, "catalog_database", None)
+    if reported_catalog is not None and Path(reported_catalog).resolve() != selected_catalog:
+        raise ValueError(
+            "Provider catalog mismatch: Florence reported a different database "
+            "from the active catalog. Face analysis was stopped."
+        )
 
     face_summary: Any | None = None
 
@@ -189,6 +209,7 @@ def run_pipeline(
         face_summary = face_runner(
             input_folder=input_folder,
             output_folder=output_folder,
+            catalog_database=selected_catalog,
             identity_name=face_identity_name,
             reference_folder=face_reference_folder,
             options=face_options,
@@ -202,6 +223,15 @@ def run_pipeline(
             cancel_event=cancel_event,
             pause_event=pause_event,
         )
+        reported_face_catalog = getattr(face_summary, "catalog_database", None)
+        if (
+            reported_face_catalog is not None
+            and Path(reported_face_catalog).resolve() != selected_catalog
+        ):
+            raise ValueError(
+                "Provider catalog mismatch: Face analysis reported a different "
+                "database from the active catalog."
+            )
 
     return PipelineSummary(
         florence=florence_summary,

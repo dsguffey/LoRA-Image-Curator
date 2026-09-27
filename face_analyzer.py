@@ -1048,6 +1048,7 @@ def analyze_faces(
     input_folder: Path,
     output_folder: Path,
     *,
+    catalog_database: Path | None = None,
     identity_name: str = "",
     reference_folder: Path | None = None,
     options: FaceAnalysisOptions | None = None,
@@ -1127,14 +1128,20 @@ def analyze_faces(
     )
 
     partial_csv, final_csv = create_report_paths(output_folder)
-    catalog_database = output_folder / CATALOG_FILENAME
+    catalog_database = (
+        catalog_database.expanduser().resolve()
+        if catalog_database is not None
+        else (output_folder / CATALOG_FILENAME).resolve()
+    )
 
     if not catalog_database.exists():
         raise FileNotFoundError(
-            "The face provider expected the catalog created by the Florence "
-            "stage, but it was not found:\n"
+            "The selected catalog for Face Analysis was not found:\n"
             f"{catalog_database}"
         )
+    from catalog_lifecycle import validate_catalog_database
+
+    validate_catalog_database(catalog_database)
 
     if provider is None:
         wait_if_paused(pause_event, cancel_event)
