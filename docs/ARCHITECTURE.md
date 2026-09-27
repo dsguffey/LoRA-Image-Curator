@@ -63,6 +63,13 @@ and readiness model:
 5. Selection commands apply across every result page unless explicitly labeled
    Current Page.
 
+`CatalogBrowserRepository` projects the newest successful Florence caption into
+`CatalogImageRecord.caption`. Ordinary text search combines that field with
+curated tags, Trigger Keywords, and OCR evidence through `search_blob`; filenames
+and paths remain excluded. Captions stay provider-owned review metadata and are
+not copied into tags. Image-set and readiness filters still run before text
+search, and the existing in-memory result-count and pagination behavior applies.
+
 Readiness issue membership comes directly from `dataset_readiness.py`; the
 browser does not duplicate Blur, resolution, training-text, identity, or
 similarity rules. Filter compositions and selection remain session-only.

@@ -8,6 +8,7 @@ import sys
 import tempfile
 import tkinter as tk
 
+from dataclasses import replace
 from pathlib import Path
 from tkinter import ttk
 from unittest.mock import patch
@@ -23,6 +24,7 @@ from catalog_lifecycle import create_catalog_database
 from browser_workflow_dialogs import BrowserFiltersDialog
 from settings_dialog import SettingsDialog
 from settings_manager import AppSettings
+from tests.test_florence_caption_search import create_caption_search_catalog
 from test_v0283_gui import run as run_v0283
 
 
@@ -150,6 +152,34 @@ def run(*, include_history: bool = True) -> None:
                 application = DatasetToolsApp(root)
                 assert application._current_catalog_path() == legacy_catalog
                 assert application.output_folder_var.get() == str(reports)
+
+                caption_root = Path(temporary) / "caption-search"
+                caption_root.mkdir()
+                caption_catalog, caption_set_id = create_caption_search_catalog(caption_root)
+                browser = application.catalog_browser
+                browser.set_catalog_path(caption_catalog, load=True, quiet=True)
+                browser.images_per_page = 1
+                browser.search_var.set("beard")
+                browser._apply_search()
+                assert {record.image_id for record in browser.visible_records} == {1, 2}
+                assert browser.results_var.get() == "2 of 3 images"
+                assert browser._page_count() == 2
+
+                browser.search_var.set("BLACK JACKET")
+                browser._apply_search()
+                assert [record.image_id for record in browser.visible_records] == [1]
+                assert browser.results_var.get() == "1 of 3 images"
+
+                browser.browser_filter_state = replace(
+                    browser.browser_filter_state,
+                    image_set_id=caption_set_id,
+                    image_set_name="Caption scope",
+                )
+                browser._reload_filter_image_set_scope()
+                browser.search_var.set("beard")
+                browser._apply_search()
+                assert [record.image_id for record in browser.visible_records] == [1]
+                assert browser.results_var.get() == "1 of 3 images"
             finally:
                 if application is not None:
                     application._finish_close()
@@ -160,7 +190,8 @@ def run(*, include_history: bool = True) -> None:
     print(
         f"v0.28.4 {mode} GUI smoke test passed: File menu catalog/export "
         "commands, named and extensionless catalog handling, independent report "
-        "folder, primary Analyze quality controls, status-only Finalize, "
+        "folder, Florence caption search and scoped result counts, primary "
+        "Analyze quality controls, status-only Finalize, "
         "editable Filters, Finalize target, and Prominent Overlay are visible."
     )
 

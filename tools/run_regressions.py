@@ -72,6 +72,7 @@ SELF_CONTAINED_TESTS = (
     "tests/test_v0284_regression.py",
     "tests/test_trigger_export_regression.py",
     "tests/test_export_source_resolution.py",
+    "tests/test_florence_caption_search.py",
     "tests/test_clean_install.py",
 )
 

@@ -277,12 +277,13 @@ class CatalogImageRecord:
 
     @property
     def search_blob(self) -> str:
-        """Combine curated vocabulary and OCR evidence for ordinary search.
+        """Combine curated vocabulary, Florence captions, and OCR for search.
 
         Filenames and paths are deliberately absent. Video-extracted frames
         commonly share a long subject name, so including file identity made a
         subject search match every frame regardless of its actual tags. OCR is
-        searchable evidence only; it is never promoted into tags or training text.
+        and Florence captions are searchable evidence only; neither is promoted
+        into tags or training text.
         """
         blob = "\n".join(
             (
@@ -291,6 +292,7 @@ class CatalogImageRecord:
                 self.manual_keyword,
                 self.ai_tags_active,
                 self.ai_tags_excluded,
+                self.caption,
                 self.ocr_text,
             )
         ).casefold()

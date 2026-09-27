@@ -25,7 +25,8 @@ datasets.
   file-action services, settings, performance boundaries, and current UI
   contracts retain their tested behavior, including trigger-first preview and
   written-sidecar parity for current export profiles and selection of an
-  available source from multiple cataloged file locations;
+  available source from multiple cataloged file locations, plus Florence
+  caption search without tag promotion or changes to catalog metadata;
 - source/documentation audit rules pass;
 - user-managed catalogs, backups, and reports under the installed `output`
   folder remain outside source audit and release collection;

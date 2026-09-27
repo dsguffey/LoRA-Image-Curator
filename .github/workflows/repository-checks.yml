@@ -49,3 +49,6 @@ jobs:
 
       - name: Verify export source resolution
         run: python -X dev -m tests.test_export_source_resolution
+
+      - name: Verify Florence caption search
+        run: python -X dev -m tests.test_florence_caption_search

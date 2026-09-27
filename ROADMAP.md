@@ -11,6 +11,8 @@ normalize extensionless names; existing extensionless catalogs remain openable.
 Focused synthetic regressions and Windows GUI smoke cover the path contract.
 The export projection now includes the current `set_keyword` Trigger Keyword
 category, with preview and sidecar parity checked by synthetic regressions.
+Ordinary Catalog Browser search also includes stored Florence captions while
+keeping captions separate from curated tags.
 The supported golden gate and human UI/export QA remain checkpoint criteria.
 
 ## Current foundation

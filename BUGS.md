@@ -27,10 +27,19 @@ reports, and unchanged source bytes and file rows.
 **Status:** Automated verification passed; human UI/export QA is required
 before the checkpoint commit and push.
 
-### P1: Rich Florence captions are absent from catalog text search
+### Florence captions were missing from ordinary Catalog Browser search — resolved
 
-Florence captions are intended to support catalog search and review, but current
-search does not find their text. Search integration remains a separate follow-up.
+**Root cause and fix:** The browser already loaded the newest successful
+Florence caption into each record, but `CatalogImageRecord.search_blob` combined
+tags and OCR evidence without the caption. Ordinary unqualified search uses that
+existing projection. The projection now includes the stored caption; filename
+and path exclusion remain intact. No query, schema, or catalog-write change was
+needed, and captions remain separate from curated tags.
+
+**Verification:** Synthetic catalog coverage checks caption-only and tag-only
+matches, phrase and case-insensitive search, filename exclusion, image-set
+scoping, unchanged pagination counts, and unchanged catalog metadata. The
+Windows GUI smoke exercises ordinary browser search and scoped result counts.
 
 ### Assigned Trigger Keyword was absent from preview and exported sidecars
 
@@ -537,6 +546,12 @@ regression coverage verifies settings-file round-trip plus delete-workflow
 wiring.
 
 ## Open bugs
+
+### Enlarged-image Right Arrow navigation occasionally shows “image not found”
+
+**Status:** Open; deferred, low priority.
+**Observed:** In enlarged-image mode, scrolling forward with Right Arrow
+occasionally shows “image not found” for some images. The cause is unknown.
 
 ### Florence triage may print a 1,024-token generation warning
 

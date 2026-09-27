@@ -2,6 +2,11 @@
 
 ## Unreleased — catalog identity and training-text correction
 
+- Include stored Florence captions in ordinary Catalog Browser text search,
+  using the existing record search projection. Captions remain searchable
+  review metadata and are not promoted into tags; filenames remain excluded.
+- Verify caption terms and phrases, case folding, image-set scope, pagination
+  counts, and unchanged catalog metadata with synthetic catalog and GUI checks.
 - Resolve export source paths from currently existing catalog file locations,
   so a stale location no longer skips an image when another physical copy is
   available. Keep source and collision-safe destination separate, and label
