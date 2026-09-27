@@ -52,3 +52,6 @@ jobs:
 
       - name: Verify Florence caption search
         run: python -X dev -m tests.test_florence_caption_search
+
+      - name: Verify Caption Tagging Mode
+        run: python -X dev -m tests.test_caption_tagging_mode

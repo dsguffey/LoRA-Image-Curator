@@ -40,6 +40,9 @@ The guiding rule is:
 
 ## Tag and vocabulary refinements
 
+- Optional rectangular marquee selection across rendered caption words in
+  Tagging Mode. This needs reliable per-word geometry for wrapped and scrolled
+  text plus a separate gesture, so ordinary text drag remains available.
 - synonym and canonical-alias groups, such as `car` and `automobile`
 - optional tag renaming across the user layer without rewriting provider output
 - tag ordering rules beyond the current deterministic provenance order

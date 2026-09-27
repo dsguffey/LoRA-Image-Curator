@@ -547,6 +547,26 @@ wiring.
 
 ## Open bugs
 
+### Catalog Browser search matches substrings within words
+
+**Status:** Open; deferred follow-up.
+**Observed:** Searching for `man` also matches `woman`. Search should support
+whole-word and whole-phrase matching generally, rather than a special case for
+these two words.
+
+### Florence caption can disappear after right-sidebar scrolling
+
+**Status:** Open; deferred browser UI refresh/layout investigation.
+**Observed:** Scrolling the Browser right sidebar down and back up can make the
+Florence caption disappear. Switching images and returning shows it again.
+
+### Unavailable face provider reports an analyzed no-person result
+
+**Status:** Open; deferred provider-state messaging correction.
+**Observed:** When face detection is not installed, the UI can say
+`No person detected`. An unavailable provider should be distinguished from a
+completed analysis that found no person, for example `Face detection not installed`.
+
 ### Enlarged-image Right Arrow navigation occasionally shows “image not found”
 
 **Status:** Open; deferred, low priority.

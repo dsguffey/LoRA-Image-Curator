@@ -71,6 +71,7 @@ from browser_workflow_dialogs import (
     KeywordSelectionDialog,
 )
 from bulk_action_dialog import BulkActionDialog
+from caption_tagging import CaptionTaggingDialog
 from catalog_edits import (
     BatchEditRequest,
     BatchEditResult,
@@ -1693,6 +1694,7 @@ class CatalogBrowserFrame(ttk.Frame):
         self.duplicate_review_clusters: tuple[tuple[int, ...], ...] = ()
         self.duplicate_group_frames: list[tuple[tk.Frame, tk.Frame, tuple[int, ...]]] = []
         self.selected_image_ids: set[int] = set()
+        self._tagging_target_ids: tuple[int, ...] | None = None
         self.anchor_image_id: int | None = None
         self.focused_image_id: int | None = None
 
@@ -4084,6 +4086,12 @@ class CatalogBrowserFrame(ttk.Frame):
         description: str,
     ) -> None:
         """Add a selection action to the shared chronological browser history."""
+        if self._tagging_target_ids is not None:
+            self.selected_image_ids = set(self._tagging_target_ids)
+            self.edit_status_var.set(
+                "Finish or cancel Tagging Mode before changing the image selection."
+            )
+            return
         after = set(self.selected_image_ids)
         if before == after:
             return
@@ -4132,6 +4140,8 @@ class CatalogBrowserFrame(ttk.Frame):
 
     def _selection_changed(self, preferred_focus: int | None = None) -> None:
         """Normalize focus, repaint cards, and rebuild the selection inspector."""
+        if self._tagging_target_ids is not None:
+            self.selected_image_ids = set(self._tagging_target_ids)
         if len(self.selected_image_ids) == 1:
             self.focused_image_id = next(iter(self.selected_image_ids))
         elif preferred_focus in self.selected_image_ids:
@@ -5213,22 +5223,45 @@ class CatalogBrowserFrame(ttk.Frame):
         self.tag_text.configure(state="disabled")
 
     def _add_manual_tags(self) -> None:
-        """Collect one or many tags and apply them idempotently to the selection."""
+        """Stage caption choices for a fixed target, then add ordinary manual tags."""
         if self.edit_service is None or not self.selected_image_ids:
             return
-        dialog = AddTagsDialog(self, len(self.selected_image_ids))
-        self.wait_window(dialog)
-        if not dialog.result:
+        target_ids = tuple(sorted(self.selected_image_ids))
+        captions = tuple(
+            (record.image_id, record.filename, record.caption)
+            for record in self._selected_records()
+        )
+        if not captions:
             return
-
-        tags = list(dialog.result)
+        original_anchor = self.anchor_image_id
+        original_focus = self.focused_image_id
+        self._tagging_target_ids = target_ids
+        try:
+            dialog = CaptionTaggingDialog(
+                self, target_ids, captions, parse_manual_tag_input
+            )
+            self.wait_window(dialog)
+            tags = dialog.result
+        finally:
+            # The dialog's grab blocks mouse changes. This also restores the
+            # exact snapshot if a menu or programmatic shortcut tried to edit it.
+            self._tagging_target_ids = None
+            self.selected_image_ids = set(target_ids)
+            self.anchor_image_id = original_anchor
+            self._selection_changed(original_focus)
+        if tags is None:
+            self.edit_status_var.set("Tagging Mode canceled; no tags were changed.")
+            return
+        if not tags:
+            self.edit_status_var.set("Tagging Mode finished with no pending tags.")
+            return
         description = (
             f"Add {len(tags):,} manual tag{'s' if len(tags) != 1 else ''}"
         )
         self._apply_tag_operation(
             description,
             lambda: self.edit_service.add_manual_tags(
-                sorted(self.selected_image_ids), tags
+                target_ids, tags
             ),
         )
 

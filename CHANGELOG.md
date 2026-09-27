@@ -1,5 +1,18 @@
 # LoRA Image Curator Changelog
 
+## Unreleased — Caption Tagging Mode
+
+- Add a visible, cancelable Tagging Mode from the Catalog Browser Add Tags
+  action. The explicit image selection is locked while users select complete
+  caption words or phrases, then Finished adds the pending choices as ordinary
+  manual tags through the existing transactional edit and undo path.
+- Keep Florence captions as provider metadata. Caption choices remain temporary
+  until Finished; Cancel and Esc discard them. Existing shared-tag intersection,
+  caption search, and manual tag entry remain available.
+- Keep Ctrl-click and Ctrl-drag additions in the active tag in selection order;
+  Ctrl-click on a selected word removes only that word. Ordinary drag and
+  Shift-click still select contiguous complete-word phrases.
+
 ## Unreleased — catalog identity and training-text correction
 
 - Include stored Florence captions in ordinary Catalog Browser text search,

@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import argparse
 import os
+import sqlite3
 import sys
 import tempfile
 import tkinter as tk
 
+from contextlib import closing
 from dataclasses import replace
 from pathlib import Path
 from tkinter import ttk
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -22,9 +25,13 @@ if str(PROJECT_ROOT) not in sys.path:
 from browser_workflow import BrowserFilterState
 from catalog_lifecycle import create_catalog_database
 from browser_workflow_dialogs import BrowserFiltersDialog
+from caption_tagging import CaptionTaggingDialog
 from settings_dialog import SettingsDialog
 from settings_manager import AppSettings
-from tests.test_florence_caption_search import create_caption_search_catalog
+from tests.test_florence_caption_search import (
+    _catalog_snapshot,
+    create_caption_search_catalog,
+)
 from test_v0283_gui import run as run_v0283
 
 
@@ -180,6 +187,189 @@ def run(*, include_history: bool = True) -> None:
                 browser._apply_search()
                 assert [record.image_id for record in browser.visible_records] == [1]
                 assert browser.results_var.get() == "1 of 3 images"
+
+                # The modal Add Tags workflow must keep explicit image targets,
+                # stage caption words, and write only on Finished.
+                browser.browser_filter_state = BrowserFilterState()
+                browser._reload_filter_image_set_scope()
+                browser._apply_search()
+                browser.selected_image_ids = {1}
+                browser._selection_changed()
+                root.deiconify()
+                root.update_idletasks()
+
+                def run_tagging(action):
+                    errors = []
+                    expected_ids = tuple(sorted(browser.selected_image_ids))
+
+                    def interact():
+                        dialog = next(
+                            child for child in browser.winfo_children()
+                            if isinstance(child, CaptionTaggingDialog)
+                        )
+                        try:
+                            assert dialog.target_ids == expected_ids
+                            assert f"{len(expected_ids)} images selected" in dialog.title() or f"{len(expected_ids)} image" in str(
+                                [child.cget("text") for child in _descendants(dialog)
+                                 if isinstance(child, ttk.Label)]
+                            )
+                            assert browser._tagging_target_ids == expected_ids
+                            action(dialog)
+                        except BaseException as error:
+                            errors.append(error)
+                            dialog._cancel()
+
+                    root.after(30, interact)
+                    browser._add_manual_tags()
+                    if errors:
+                        raise errors[0]
+                    assert browser._tagging_target_ids is None
+                    assert browser.selected_image_ids == set(expected_ids)
+
+                def one_image_action(dialog):
+                    wall = dialog.model.word_at(dialog.model.caption.index("wall"))
+                    dialog.model.click(wall)
+                    dialog._finished()
+
+                run_tagging(one_image_action)
+                browser.selected_image_ids = {1, 2}
+                browser._selection_changed()
+                before_tagging = _catalog_snapshot(caption_catalog)
+
+                def cancel_action(dialog):
+                    dialog.update_idletasks()
+                    offset = dialog.model.caption.index("beard") + 2
+                    box = dialog.caption_text.bbox(f"1.0+{offset}c")
+                    assert box is not None
+                    event = SimpleNamespace(x=box[0] + 2, y=box[1] + 2, state=0)
+                    dialog._on_press(event)
+                    dialog._on_release(event)
+                    assert dialog.model.pending_tags() == ["beard"]
+                    dialog._on_press(event)
+                    dialog._on_release(event)
+                    assert dialog.model.pending_tags() == []
+                    dialog._on_press(event)
+                    dialog._on_release(event)
+                    browser.clear_selection()
+                    assert browser.selected_image_ids == {1, 2}
+                    assert "Finish or cancel Tagging Mode" in browser.edit_status_var.get()
+                    dialog._cancel()
+
+                run_tagging(cancel_action)
+                assert _catalog_snapshot(caption_catalog) == before_tagging
+
+                def escape_action(dialog):
+                    dialog.model.click(dialog.model.word_at(dialog.model.caption.index("beard")))
+                    dialog.manual_entry.focus_set()
+                    dialog.manual_entry.event_generate("<Escape>")
+                    assert not dialog.winfo_exists()
+
+                run_tagging(escape_action)
+                assert _catalog_snapshot(caption_catalog) == before_tagging
+
+                def finished_action(dialog):
+                    caption = dialog.model.caption
+                    beard = dialog.model.word_at(caption.index("beard") + 2)
+                    black = dialog.model.word_at(caption.index("black") + 2)
+                    jacket = dialog.model.word_at(caption.index("jacket") + 2)
+                    assert None not in (beard, black, jacket)
+                    dialog.model.click(beard)
+                    dialog.update_idletasks()
+                    start = dialog.caption_text.bbox(f"1.0+{caption.index('black') + 2}c")
+                    end = dialog.caption_text.bbox(f"1.0+{caption.index('jacket') + 2}c")
+                    assert start is not None and end is not None
+                    start_event = SimpleNamespace(x=start[0] + 2, y=start[1] + 2, state=0)
+                    end_event = SimpleNamespace(x=end[0] + 2, y=end[1] + 2, state=0)
+                    dialog._on_press(start_event)
+                    dialog._on_motion(end_event)
+                    dialog._on_release(end_event)
+                    assert dialog.model.pending_tags() == ["beard", "black jacket"]
+                    assert "Pending tags (2) for 2 images" in dialog.pending_var.get()
+                    dialog._finished()
+
+                run_tagging(finished_action)
+                assert {tag.normalized_name for tag in browser._displayed_selection_tags
+                        if tag.kind == "manual"} >= {"beard", "black jacket"}
+                assert "wall" not in {tag.normalized_name for tag in browser._displayed_selection_tags}
+                with closing(sqlite3.connect(caption_catalog)) as connection:
+                    added = connection.execute(
+                        "SELECT it.image_id, t.normalized_name FROM image_tags it "
+                        "JOIN tags t ON t.id = it.tag_id "
+                        "WHERE t.category = 'manual_tag' "
+                        "AND t.normalized_name IN ('beard', 'black jacket') "
+                        "ORDER BY it.image_id, t.normalized_name"
+                    ).fetchall()
+                    assert added == [
+                        (1, "beard"), (1, "black jacket"),
+                        (2, "beard"), (2, "black jacket"),
+                    ]
+                    assert connection.execute(
+                        "SELECT it.image_id FROM image_tags it JOIN tags t ON t.id=it.tag_id "
+                        "WHERE t.category='manual_tag' AND t.normalized_name='wall'"
+                    ).fetchall() == [(1,)]
+
+                def control_finished_action(dialog):
+                    caption = dialog.model.caption
+                    dialog.update_idletasks()
+
+                    def point(word):
+                        box = dialog.caption_text.bbox(
+                            f"1.0+{caption.index(word) + 1}c"
+                        )
+                        assert box is not None
+                        return box[0] + 2, box[1] + 2
+
+                    def click(word, *, control=False):
+                        x, y = point(word)
+                        state = 0x0004 if control else 0
+                        dialog.caption_text.event_generate(
+                            "<ButtonPress-1>", x=x, y=y, state=state
+                        )
+                        assert dialog._press_control is control
+                        dialog.caption_text.event_generate(
+                            "<ButtonRelease-1>", x=x, y=y, state=state
+                        )
+
+                    assert "Text" in dialog.caption_text.bindtags()
+                    click("black")
+                    assert dialog.model.pending_tags() == ["black"]
+                    click("jacket", control=True)
+                    assert dialog.model.pending_tags() == ["black jacket"]
+                    click("wall", control=True)
+                    assert dialog.model.pending_tags() == ["black jacket wall"]
+                    click("jacket", control=True)
+                    assert dialog.model.pending_tags() == ["black wall"]
+                    assert len(dialog.model.candidates) == 1
+
+                    start_x, start_y = point("brick")
+                    end_x, end_y = point("wall")
+                    dialog.caption_text.event_generate(
+                        "<ButtonPress-1>", x=start_x, y=start_y, state=0x0004
+                    )
+                    assert dialog._press_control
+                    dialog.caption_text.event_generate(
+                        "<B1-Motion>", x=end_x, y=end_y, state=0x0104
+                    )
+                    dialog.caption_text.event_generate(
+                        "<ButtonRelease-1>", x=end_x, y=end_y, state=0x0004
+                    )
+                    assert dialog.model.pending_tags() == ["black wall brick"]
+                    click("beard")
+                    assert dialog.model.pending_tags() == ["black wall brick", "beard"]
+                    dialog._finished()
+
+                run_tagging(control_finished_action)
+                with closing(sqlite3.connect(caption_catalog)) as connection:
+                    assert connection.execute(
+                        "SELECT it.image_id, t.normalized_name FROM image_tags it "
+                        "JOIN tags t ON t.id=it.tag_id "
+                        "WHERE t.category='manual_tag' "
+                        "AND t.normalized_name='black wall brick' "
+                        "ORDER BY it.image_id"
+                    ).fetchall() == [(1, "black wall brick"), (2, "black wall brick")]
+                browser.search_var.set("black jacket")
+                browser._apply_search()
+                assert {record.image_id for record in browser.visible_records} == {1, 2}
             finally:
                 if application is not None:
                     application._finish_close()
@@ -190,7 +380,7 @@ def run(*, include_history: bool = True) -> None:
     print(
         f"v0.28.4 {mode} GUI smoke test passed: File menu catalog/export "
         "commands, named and extensionless catalog handling, independent report "
-        "folder, Florence caption search and scoped result counts, primary "
+        "folder, Florence caption search and Tagging Mode batch controls, primary "
         "Analyze quality controls, status-only Finalize, "
         "editable Filters, Finalize target, and Prominent Overlay are visible."
     )

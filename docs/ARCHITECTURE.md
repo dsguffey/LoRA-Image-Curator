@@ -70,6 +70,20 @@ and paths remain excluded. Captions stay provider-owned review metadata and are
 not copied into tags. Image-set and readiness filters still run before text
 search, and the existing in-memory result-count and pagination behavior applies.
 
+`caption_tagging.py` owns temporary ordered complete-word choices and explicit
+candidate boundaries. The Catalog Browser Add Tags action snapshots selected image IDs and
+opens a modal Tagging Mode; its grab and browser selection guard keep that batch
+target fixed. A normal click starts or toggles one candidate, Shift-click
+extends the active phrase, and Ctrl-click/drag appends words to the same active
+candidate in selection order. Ctrl-click on an active word removes just that
+word. An independent normal selection starts the next candidate.
+Clicking any word in an existing multi-word candidate removes that whole
+candidate. The visible pending list distinguishes separate tags from phrases.
+Finished sends deduplicated choices to `CatalogEditService.add_manual_tags`,
+which already owns one transaction, backup/undo history, and the normal
+shared-tag intersection refresh. Cancel and Esc never call the edit service.
+Florence captions remain provider metadata; promotion is always explicit.
+
 Readiness issue membership comes directly from `dataset_readiness.py`; the
 browser does not duplicate Blur, resolution, training-text, identity, or
 similarity rules. Filter compositions and selection remain session-only.

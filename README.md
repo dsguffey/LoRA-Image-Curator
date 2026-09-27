@@ -48,6 +48,11 @@ Provider results are evidence for a person to review; they do not replace human 
 4. Check dataset-readiness evidence for the intended LoRA target.
 5. Export the prepared selection and its captions/provenance for training in a separate training tool.
 
+In Catalog Browser, you can search stored Florence captions, select only the
+images that fit a concept, and choose **Add Tags…**. Tagging Mode lets you pick
+complete caption words or phrases as pending manual tags. **Finished** adds
+them to the selected images; **Cancel** or **Esc** discards the pending choices.
+
 ## Installation and downloads
 
 LIC Core is the only required capability. Download the package above from the official GitHub Release; it includes LIC Install Manager and LIC Core. Optional dependencies are downloaded through **LIC Install Manager** (shown as **Manager** below) only when you explicitly choose a capability that needs them. Shared dependencies download once and are reused by every capability that needs them.

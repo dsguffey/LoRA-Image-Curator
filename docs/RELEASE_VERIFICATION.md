@@ -17,6 +17,7 @@ python -B -m tests.test_v0284_regression
 python -B -m tests.test_trigger_export_regression
 python -B -m tests.test_export_source_resolution
 python -B -m tests.test_florence_caption_search
+python -B -m tests.test_caption_tagging_mode
 python -B tools/audit_project.py
 python -X dev -m tests.test_golden_build
 ```
