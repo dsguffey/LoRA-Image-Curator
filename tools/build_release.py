@@ -143,6 +143,7 @@ REQUIRED_MEMBERS = {
     "tests/test_export_source_resolution.py",
     "tests/test_florence_caption_search.py",
     "tests/test_caption_tagging_mode.py",
+    "tests/test_browser_polish.py",
     "caption_tagging.py",
     "tests/test_v0284_gui.py",
     "tests/test_clean_install.py",

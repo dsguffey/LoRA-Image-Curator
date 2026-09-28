@@ -52,12 +52,49 @@ class _MousewheelDispatcher:
         post_scroll: PostScrollCallback | None = None,
     ) -> None:
         self.regions[owner] = _ScrollRegion(target, post_scroll)
+        if isinstance(owner, tk.Text) and target is not owner:
+            # Text's class-level wheel binding runs before bind_all and consumes
+            # the event. Intercept it on this widget so the enclosing inspector
+            # scrolls without changing the read-only Text's own view.
+            owner.bind(
+                "<MouseWheel>",
+                lambda event: self._scroll_registered(
+                    owner, self._windows_units(int(event.delta))
+                ),
+                add="+",
+            )
+            owner.bind(
+                "<Button-4>",
+                lambda _event: self._scroll_registered(owner, -1),
+                add="+",
+            )
+            owner.bind(
+                "<Button-5>",
+                lambda _event: self._scroll_registered(owner, 1),
+                add="+",
+            )
+
+    def _scroll_registered(self, owner: tk.Misc, units: int) -> str | None:
+        region = self.regions.get(owner)
+        if region is None or units == 0:
+            return None
+        try:
+            region.target.yview_scroll(units, "units")  # type: ignore[attr-defined]
+            if region.post_scroll is not None:
+                region.post_scroll()
+        except tk.TclError:
+            return None
+        return "break"
 
     def _region_for_event(self, event: tk.Event) -> _ScrollRegion | None:
         """Return the closest registered ancestor beneath the mouse pointer."""
         try:
             widget = self.toplevel.winfo_containing(event.x_root, event.y_root)
         except (AttributeError, tk.TclError):
+            widget = None
+        if widget is None:
+            # Tk can report no containing widget for a delivered wheel event
+            # on Windows; the event target still identifies its scroll region.
             widget = getattr(event, "widget", None)
 
         # Native scrollable/choice controls already own wheel semantics through

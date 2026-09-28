@@ -188,15 +188,122 @@ def run(*, include_history: bool = True) -> None:
                 assert [record.image_id for record in browser.visible_records] == [1]
                 assert browser.results_var.get() == "1 of 3 images"
 
+                browser.search_var.set("man")
+                browser._apply_search()
+                assert [record.image_id for record in browser.visible_records] == [1]
+                assert browser.results_var.get() == "1 of 3 images"
+                browser.search_var.set("woman")
+                browser._apply_search()
+                assert browser.visible_records == []
+                assert browser.results_var.get() == "0 of 3 images"
+
                 # The modal Add Tags workflow must keep explicit image targets,
                 # stage caption words, and write only on Finished.
                 browser.browser_filter_state = BrowserFilterState()
                 browser._reload_filter_image_set_scope()
+                browser.search_var.set("beard")
                 browser._apply_search()
                 browser.selected_image_ids = {1}
                 browser._selection_changed()
+                application.notebook.select(application.browser_tab)
                 root.deiconify()
+                root.update()
+
+                # The Canvas owns the entire inspector, including every line
+                # inside the read-only Text and the bottom-most actions.
+                before_scroll = _catalog_snapshot(caption_catalog)
+                before_filter = browser.browser_filter_state
+                detail = browser.detail_text
+                details_canvas = next(
+                    child for child in browser.details_frame.winfo_children()
+                    if isinstance(child, tk.Canvas)
+                )
+                caption = browser.records_by_id[1].caption
+                detail.yview_moveto(0.0)
+                details_canvas.yview_moveto(0.0)
                 root.update_idletasks()
+                assert details_canvas.winfo_height() > 100
+                assert detail.yview() == (0.0, 1.0)
+                assert browser.tag_text.yview() == (0.0, 1.0)
+                assert detail.bbox("end-1c") is not None
+                start_index = detail.index("@0,0")
+                assert caption in detail.get("1.0", "end")
+                for wheel_owner in (detail, details_canvas):
+                    details_canvas.yview_moveto(0.0)
+                    root.update_idletasks()
+                    for _ in range(80):
+                        wheel_owner.event_generate(
+                            "<MouseWheel>", delta=-1200, x=5, y=5,
+                            rootx=wheel_owner.winfo_rootx() + 5,
+                            rooty=wheel_owner.winfo_rooty() + 5,
+                        )
+                        if details_canvas.yview()[1] == 1.0:
+                            break
+                    root.update_idletasks()
+                    assert details_canvas.yview()[1] == 1.0, (
+                        wheel_owner, details_canvas.yview()
+                    )
+                    assert (
+                        browser.restore_quarantine_button.winfo_rooty()
+                        + browser.restore_quarantine_button.winfo_height()
+                        <= details_canvas.winfo_rooty() + details_canvas.winfo_height()
+                    )
+                    assert detail.yview() == (0.0, 1.0)
+                    for _ in range(80):
+                        wheel_owner.event_generate(
+                            "<MouseWheel>", delta=1200, x=5, y=5,
+                            rootx=wheel_owner.winfo_rootx() + 5,
+                            rooty=wheel_owner.winfo_rooty() + 5,
+                        )
+                        if details_canvas.yview()[0] == 0.0:
+                            break
+                    root.update_idletasks()
+                    assert details_canvas.yview()[0] == 0.0
+                    assert caption in detail.get("1.0", "end")
+                    assert detail.index("@0,0") == start_index
+                assert browser.selected_image_ids == {1}
+                assert browser.browser_filter_state == before_filter
+                assert _catalog_snapshot(caption_catalog) == before_scroll
+
+                # Display the provider's setup state separately from stored
+                # Face results and Florence's own object-detection evidence.
+                current = browser.records_by_id[1]
+                no_person_reason = "no person detected; object detection can miss people"
+
+                def face_display(record, *, ready):
+                    browser._face_setup_cache = None
+                    with patch(
+                        "catalog_browser.inspect_face_setup",
+                        return_value=SimpleNamespace(
+                            opencv_installed=ready,
+                            model_installed=ready,
+                            available_execution_providers=("OpenCV DNN CPU",) if ready else (),
+                        ),
+                    ):
+                        browser._set_detail_text(record)
+                    return detail.get("1.0", "end")
+
+                unavailable = replace(
+                    current, face_analysis_available=False,
+                    recommendation_reason=no_person_reason,
+                )
+                displayed = face_display(unavailable, ready=False)
+                assert "Face detection\nFace detection not installed\n" in displayed
+                assert "Florence object detection found no person" in displayed
+                assert "no person detected" not in displayed.casefold()
+                assert "Face detection\nNot analyzed\n" in face_display(
+                    unavailable, ready=True
+                )
+                assert "Face detection\nNo person detected\n" in face_display(
+                    replace(current, face_analysis_available=True, face_count=0),
+                    ready=True,
+                )
+                assert "Face detection\n2 faces detected\n" in face_display(
+                    replace(current, face_analysis_available=True, face_count=2),
+                    ready=True,
+                )
+                browser._face_setup_cache = None
+                browser._show_selection_details()
 
                 def run_tagging(action):
                     errors = []
@@ -214,6 +321,10 @@ def run(*, include_history: bool = True) -> None:
                                  if isinstance(child, ttk.Label)]
                             )
                             assert browser._tagging_target_ids == expected_ids
+                            # A mapped Text widget owns character geometry.
+                            # The callback can otherwise beat Tk's first layout
+                            # pass when the cumulative GUI sequence is busy.
+                            dialog.update()
                             action(dialog)
                         except BaseException as error:
                             errors.append(error)
@@ -261,7 +372,9 @@ def run(*, include_history: bool = True) -> None:
                 def escape_action(dialog):
                     dialog.model.click(dialog.model.word_at(dialog.model.caption.index("beard")))
                     dialog.manual_entry.focus_set()
-                    dialog.manual_entry.event_generate("<Escape>")
+                    dialog.update()
+                    dialog.manual_entry.event_generate("<Escape>", when="now")
+                    dialog.update()
                     assert not dialog.winfo_exists()
 
                 run_tagging(escape_action)

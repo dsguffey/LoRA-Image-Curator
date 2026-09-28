@@ -52,6 +52,10 @@ In Catalog Browser, you can search stored Florence captions, select only the
 images that fit a concept, and choose **Add Tags…**. Tagging Mode lets you pick
 complete caption words or phrases as pending manual tags. **Finished** adds
 them to the selected images; **Cancel** or **Esc** discards the pending choices.
+Ordinary search matches complete words and contiguous phrases across tags,
+Trigger Keywords, captions, and other searchable review text. Use commas or
+explicit `AND` when searching for separate terms; filenames remain outside
+ordinary search.
 
 ## Installation and downloads
 

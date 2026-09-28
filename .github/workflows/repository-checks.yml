@@ -55,3 +55,6 @@ jobs:
 
       - name: Verify Caption Tagging Mode
         run: python -X dev -m tests.test_caption_tagging_mode
+
+      - name: Verify Browser Polish contracts
+        run: python -X dev -m tests.test_browser_polish

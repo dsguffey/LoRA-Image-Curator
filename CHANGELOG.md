@@ -1,5 +1,19 @@
 # LoRA Image Curator Changelog
 
+## Unreleased — Browser Polish Pass
+
+- Match whole words and contiguous phrases in ordinary Catalog Browser search
+  across its existing searchable metadata. Keep filenames excluded and retain
+  comma-separated terms, explicit Boolean/field queries for separate terms.
+- Size read-only sidebar Text to show every wrapped line through the enclosing
+  Canvas, so bottom controls remain reachable and a Florence caption remains
+  visible on return without changing images.
+- Verify Face analysis uses the same physical custom catalog even if Windows
+  canonicalizes its path spelling differently in the result.
+- Distinguish unavailable Face Analysis, not-analyzed images, successful
+  no-detection results, and positive results in Browser details. Label Florence
+  object-detection reasoning separately from Face Analysis status.
+
 ## Unreleased — Caption Tagging Mode
 
 - Add a visible, cancelable Tagging Mode from the Catalog Browser Add Tags

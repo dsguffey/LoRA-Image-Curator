@@ -27,7 +27,9 @@ datasets.
   written-sidecar parity for current export profiles and selection of an
   available source from multiple cataloged file locations, plus Florence
   caption search without automatic tag promotion, plus explicit, transactional
-  Caption Tagging Mode selection and batch manual-tag contracts;
+  Caption Tagging Mode selection and batch manual-tag contracts, plus Browser
+  Polish word/phrase and comma-term search, full sidebar scrolling with caption
+  persistence, and Face status messaging contracts;
 - source/documentation audit rules pass;
 - user-managed catalogs, backups, and reports under the installed `output`
   folder remain outside source audit and release collection;

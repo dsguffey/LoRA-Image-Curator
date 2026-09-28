@@ -774,6 +774,9 @@ class DatasetToolsApp:
         if initial_catalog is None:
             initial_catalog = self._catalog_path_from_output_folder()
         self.catalog_browser = CatalogBrowserFrame(self.browser_tab)
+        self.catalog_browser.face_model_root_provider = (
+            lambda: self.face_model_root_var.get().strip()
+        )
         self.catalog_browser.pack(fill="both", expand=True)
         self.dataset_readiness = DatasetReadinessFrame(
             self.readiness_tab,

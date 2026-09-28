@@ -85,6 +85,7 @@ from dataset_readiness import (
 )
 from cull_report_dialog import CullReportDialog
 from export_dialog import DatasetExportDialog
+from face_analyzer import DEFAULT_MODEL_NAME, inspect_face_setup
 from file_actions import (
     CatalogRemovalSummary,
     FileActionService,
@@ -177,6 +178,25 @@ IDENTITY_STATUS_LABELS = {
     "confirmed": "Confirmed by you",
     "rejected": "Rejected by you",
 }
+
+
+def face_detection_status(record: CatalogImageRecord, *, provider_available: bool) -> str:
+    """Separate current provider readiness from a successful stored face result."""
+    if not provider_available:
+        return "Face detection not installed"
+    if not record.face_analysis_available:
+        return "Not analyzed"
+    if record.face_count == 0:
+        return "No person detected"
+    return f"{record.face_count} face{'s' if record.face_count != 1 else ''} detected"
+
+
+def florence_recommendation_display(reason: str) -> str:
+    """Identify Florence's no-person evidence without implying a Face run."""
+    prefix = "no person detected; object detection can miss people"
+    if reason.casefold().startswith(prefix):
+        return "Florence object detection found no person" + reason[len("no person detected"):]
+    return reason
 
 
 @dataclass(slots=True, frozen=True)
@@ -1735,6 +1755,8 @@ class CatalogBrowserFrame(ttk.Frame):
             Callable[[str, float, int, int, str], None] | None
         ) = None
         self.on_command_state_changed: Callable[[], None] | None = None
+        self.face_model_root_provider: Callable[[], str] | None = None
+        self._face_setup_cache: tuple[str, bool] | None = None
         self._session_backup_path: Path | None = None
         self._history_undo_stack: list[BrowserHistoryEntry] = []
         self._history_redo_stack: list[BrowserHistoryEntry] = []
@@ -2453,6 +2475,11 @@ class CatalogBrowserFrame(ttk.Frame):
         # not independently scrollable editors. Route their wheel input to the
         # inspector so scrolling does not appear to stick over tags/details.
         register_mousewheel_region(self.tag_text, details_canvas)
+        self.tag_text.bind(
+            "<Configure>",
+            lambda _event: self._fit_details_text(self.tag_text),
+            add="+",
+        )
 
         self.add_tags_button = ttk.Button(
             self.tag_frame,
@@ -2492,6 +2519,11 @@ class CatalogBrowserFrame(ttk.Frame):
         self.detail_text.tag_configure("manual", font=get_ui_font(self, size=9, weight="bold"))
         self.detail_text.configure(state="disabled")
         register_mousewheel_region(self.detail_text, details_canvas)
+        self.detail_text.bind(
+            "<Configure>",
+            lambda _event: self._fit_details_text(self.detail_text),
+            add="+",
+        )
 
         detail_actions = ttk.Frame(self.details_content)
         detail_actions.grid(row=5, column=0, sticky="ew", pady=(9, 0))
@@ -2554,7 +2586,6 @@ class CatalogBrowserFrame(ttk.Frame):
                 selectbackground=self.colors["selection_color"],
                 selectforeground=self.colors["selection_text"],
             )
-
         if hasattr(self, "tag_text"):
             self.tag_text.tag_configure(
                 "tag_message",
@@ -2571,6 +2602,21 @@ class CatalogBrowserFrame(ttk.Frame):
                 foreground=self.colors["manual"],
                 font=get_ui_font(self, size=9, weight="bold"),
             )
+        for text_widget in (self.tag_text, self.detail_text):
+            self._fit_details_text(text_widget)
+
+    @staticmethod
+    def _fit_details_text(text: tk.Text) -> None:
+        """Expose every wrapped Text line to the enclosing sidebar Canvas."""
+        try:
+            pixels = int(text.tk.call(text._w, "count", "-update", "-ypixels", "1.0", "end"))
+            line_pixels = int(text.tk.call("font", "metrics", text.cget("font"), "-linespace"))
+            rows = max(1, (pixels + line_pixels - 1) // line_pixels)
+            if int(text.cget("height")) != rows:
+                text.configure(height=rows)
+            text.yview_moveto(0.0)
+        except tk.TclError:
+            return
 
     def _resolve_colors(self) -> dict[str, str]:
         """Resolve theme colors with safe native selection fallbacks."""
@@ -2726,6 +2772,7 @@ class CatalogBrowserFrame(ttk.Frame):
 
     def refresh(self, *, quiet: bool = False) -> None:
         """Reload catalog metadata and rebuild the visible cards."""
+        self._face_setup_cache = None
         refresh_started = time.perf_counter()
         if self.catalog_path is None:
             if not quiet:
@@ -4862,6 +4909,7 @@ class CatalogBrowserFrame(ttk.Frame):
                 ),
             )
         field("Caption", record.caption)
+        field("Face detection", self._face_detection_status(record))
         field("Suggested identity", self._identity_detail(record))
         field(
             "Identity review",
@@ -4886,12 +4934,35 @@ class CatalogBrowserFrame(ttk.Frame):
         field("OCR text", record.ocr_text)
         field("Detected objects", record.object_labels)
         field("Candidate recommendation", record.recommendation)
-        field("Recommendation reason", record.recommendation_reason)
+        field(
+            "Florence recommendation reason",
+            florence_recommendation_display(record.recommendation_reason),
+        )
         field("Review status", record.review_status)
         field("Review notes", record.review_notes)
         field("SHA-256", record.content_sha256, tag="muted")
         field("Catalog image ID", str(record.image_id), tag="muted")
         text.configure(state="disabled")
+        self._fit_details_text(text)
+
+    def _face_detection_status(self, record: CatalogImageRecord) -> str:
+        model_root = (
+            self.face_model_root_provider()
+            if self.face_model_root_provider is not None
+            else self.settings.face_model_root
+        )
+        if self._face_setup_cache is None or self._face_setup_cache[0] != model_root:
+            try:
+                setup = inspect_face_setup(DEFAULT_MODEL_NAME, model_root)
+                available = bool(
+                    setup.opencv_installed
+                    and setup.model_installed
+                    and setup.available_execution_providers
+                )
+            except (OSError, ValueError):
+                available = False
+            self._face_setup_cache = (model_root, available)
+        return face_detection_status(record, provider_available=self._face_setup_cache[1])
 
     def _last_extraction_origin(
         self,
@@ -4968,6 +5039,7 @@ class CatalogBrowserFrame(ttk.Frame):
             tag="muted",
         )
         text.configure(state="disabled")
+        self._fit_details_text(text)
 
     @staticmethod
     def _identity_detail(record: CatalogImageRecord) -> str:
@@ -5163,6 +5235,7 @@ class CatalogBrowserFrame(ttk.Frame):
             )
             text.insert("end", message, "tag_message")
             text.configure(state="disabled")
+            self._fit_details_text(text)
             return
 
         style_by_kind = {
@@ -5212,6 +5285,7 @@ class CatalogBrowserFrame(ttk.Frame):
                 lambda _event: text.configure(cursor="arrow"),
             )
         text.configure(state="disabled")
+        self._fit_details_text(text)
 
     def _clear_tag_panel(self) -> None:
         """Reset tag controls when no images are selected."""
@@ -5221,6 +5295,7 @@ class CatalogBrowserFrame(ttk.Frame):
         self.tag_text.delete("1.0", "end")
         self.tag_text.insert("end", "Select an image to curate tags.", "tag_message")
         self.tag_text.configure(state="disabled")
+        self._fit_details_text(self.tag_text)
 
     def _add_manual_tags(self) -> None:
         """Stage caption choices for a fixed target, then add ordinary manual tags."""
@@ -6287,7 +6362,7 @@ class CatalogBrowserFrame(ttk.Frame):
             else "No compatible perceptual-hash neighbor is available."
         )
         face_value = (
-            "Not analyzed"
+            self._face_detection_status(record)
             if not record.face_analysis_available
             else "\n".join(
                 (

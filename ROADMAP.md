@@ -15,6 +15,9 @@ Ordinary Catalog Browser search also includes stored Florence captions while
 keeping captions separate from curated tags.
 Caption Tagging Mode now stages user-selected caption words and phrases for a
 fixed browser image selection; Finished adds them through the manual-tag path.
+Browser Polish Pass now makes ordinary search word/phrase aware, keeps Florence
+captions visible after sidebar scrolling, and labels Face Analysis state
+separately from Florence triage evidence.
 The supported golden gate and human UI/export QA remain checkpoint criteria.
 
 ## Current foundation

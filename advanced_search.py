@@ -9,8 +9,11 @@ therefore straightforward to test independently of the desktop interface.
 from __future__ import annotations
 
 import shlex
+import re
 
+from collections import deque
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any, Iterable
 
 from quality_analysis import (
@@ -67,6 +70,9 @@ KNOWN_FIELDS = {
     "id",
 }
 
+SEARCH_WORD = re.compile(r"[^\W_]+(?:['’\-][^\W_]+)*", re.UNICODE)
+PLAIN_TEXT = re.compile(r'[^():"\s]+(?:\s+[^():"\s]+)*', re.UNICODE)
+
 
 @dataclass(slots=True, frozen=True)
 class SearchClause:
@@ -108,13 +114,20 @@ def record_matches_query(record: Any, query: str) -> bool:
     """Evaluate one browser record against the documented search language.
 
     Operators use conventional precedence: ``NOT`` before ``AND`` before
-    ``OR``. Adjacent terms imply ``AND`` for compatibility with the original
-    compact search box. Parentheses may be used for explicit grouping.
-    Unqualified terms search tags and the Trigger Keyword through
-    ``record.search_blob``; named fields handle other review metadata.
+    ``OR``. A plain multi-word query is one contiguous phrase; commas or
+    explicit AND combine separate terms. Adjacent field predicates still imply AND.
+    Parentheses may be used for explicit grouping. Unqualified text searches
+    the established tag, Trigger Keyword, caption, and OCR projection.
     """
     if not query.strip():
         return True
+    if PLAIN_TEXT.fullmatch(query.strip()) and not query.strip().startswith("-") and not any(
+        word.upper() in {"AND", "OR", "NOT"} for word in query.split()
+    ):
+        # Historically, comma-separated search terms behaved as an implicit
+        # AND. Keep that contract while space-separated words form a phrase.
+        terms = [part.strip() for part in query.split(",") if part.strip()]
+        return bool(terms) and all(_matches_predicate(record, term) for term in terms)
     rpn = _to_reverse_polish(_tokenize(query))
     stack: list[bool] = []
     for token in rpn:
@@ -399,9 +412,24 @@ def _matches_predicate(record: Any, token: str) -> bool:
         except (TypeError, ValueError):
             return False
 
+    ordinary_texts = (
+        tuple(
+            str(getattr(record, name, "") or "")
+            for name in (
+                "tags", "manual_tags", "manual_keyword", "ai_tags_active",
+                "ai_tags_excluded", "caption", "ocr_text",
+            )
+        )
+        if hasattr(record, "tags")
+        else (str(record.search_blob),)
+    )
     text_by_field = {
-        "all": str(record.search_blob),
-        "tag": "\n".join((record.manual_tags, record.ai_tags_active, record.ai_tags_excluded)),
+        "all": ordinary_texts,
+        "tag": (
+            str(record.manual_tags),
+            str(record.ai_tags_active),
+            str(record.ai_tags_excluded),
+        ),
         "manual": str(record.manual_tags),
         "ai": str(record.ai_tags_active),
         "excluded": str(record.ai_tags_excluded),
@@ -411,18 +439,37 @@ def _matches_predicate(record: Any, token: str) -> bool:
         "filename": "\n".join((record.filename, record.relative_path, record.absolute_path)),
         "set": str(getattr(record, "image_set_names", "") or "").replace("\x1f", "\n"),
     }
-    haystack = text_by_field[field]
+    value_to_search = text_by_field[field]
+    haystacks = value_to_search if isinstance(value_to_search, tuple) else (value_to_search,)
+    haystack = "\n".join(haystacks)
     if needle in {"missing", "none", "blank"} and field != "all":
         return not haystack.strip()
     if needle in {"any", "present"} and field != "all":
         return bool(haystack.strip())
-    return _contains(haystack, needle)
+    return any(_contains(value, needle) for value in haystacks)
 
 
 def _contains(haystack: str, normalized_needle: str) -> bool:
-    normalized_haystack = haystack.casefold()
-    normalized_haystack += "\n" + normalized_haystack.replace(" ", "_")
-    return normalized_needle in normalized_haystack
+    """Find consecutive complete words; underscores and punctuation separate them.
+
+    Apostrophes and hyphens inside words stay part of the word, matching the
+    caption tag picker's whole-word convention. Query tokens are cached, never
+    catalog text, so search cost and memory stay bounded per inspected record.
+    """
+    wanted = _search_words(normalized_needle)
+    if not wanted:
+        return False
+    window: deque[str] = deque(maxlen=len(wanted))
+    for match in SEARCH_WORD.finditer(haystack):
+        window.append(match.group().casefold())
+        if len(window) == len(wanted) and tuple(window) == wanted:
+            return True
+    return False
+
+
+@lru_cache(maxsize=256)
+def _search_words(value: str) -> tuple[str, ...]:
+    return tuple(match.group().casefold() for match in SEARCH_WORD.finditer(value))
 
 
 def _normalize_field(field: str) -> str:

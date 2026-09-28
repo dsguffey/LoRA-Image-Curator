@@ -64,11 +64,25 @@ and readiness model:
    Current Page.
 
 `CatalogBrowserRepository` projects the newest successful Florence caption into
-`CatalogImageRecord.caption`. Ordinary text search combines that field with
-curated tags, Trigger Keywords, and OCR evidence through `search_blob`; filenames
+`CatalogImageRecord.caption`. Ordinary text search uses that field alongside
+the curated tags, Trigger Keywords, and OCR evidence represented by
+`search_blob`; filenames
 and paths remain excluded. Captions stay provider-owned review metadata and are
-not copied into tags. Image-set and readiness filters still run before text
-search, and the existing in-memory result-count and pagination behavior applies.
+not copied into tags. Ordinary text predicates match complete words and
+contiguous phrases within each existing searchable field; commas retain their
+previous implicit-AND behavior, and explicit Boolean operators still combine
+separate conditions. Apostrophes and hyphens within a
+word are preserved, while punctuation and underscores separate words. The
+existing in-memory record projection and filter-before-search ordering remain;
+no schema or catalog-wide search fetch was added. Result counts and pagination
+continue to derive from the filtered records.
+
+The right inspector's Canvas owns scrolling, including wheel input over its
+read-only Text children. Both Text widgets size to their wrapped content so
+the Canvas can reach every line and the bottom actions. Face status uses the configured provider setup check
+for availability and successful stored Face results for per-image state.
+Florence recommendation reasons are labeled as Florence evidence rather than
+as Face Analysis results.
 
 `caption_tagging.py` owns temporary ordered complete-word choices and explicit
 candidate boundaries. The Catalog Browser Add Tags action snapshots selected image IDs and

@@ -545,27 +545,46 @@ merge now retains the setting, the Browser receives the updated object, and
 regression coverage verifies settings-file round-trip plus delete-workflow
 wiring.
 
-## Open bugs
+## Resolved in Browser Polish Pass
 
 ### Catalog Browser search matches substrings within words
 
-**Status:** Open; deferred follow-up.
-**Observed:** Searching for `man` also matches `woman`. Search should support
-whole-word and whole-phrase matching generally, rather than a special case for
-these two words.
+**Status:** Resolved in Browser Polish Pass.
+**Reproduced:** Searching for `man` also matched a caption containing only
+`woman` because the shared predicate used substring containment.
+**Resolution:** Ordinary searchable metadata now matches complete words and
+contiguous phrases. Punctuation and underscores separate words; internal
+apostrophes and hyphens stay in the word. Explicit `AND` still joins separate
+terms. Filename search remains opt-in through its named field.
 
 ### Florence caption can disappear after right-sidebar scrolling
 
-**Status:** Open; deferred browser UI refresh/layout investigation.
-**Observed:** Scrolling the Browser right sidebar down and back up can make the
-Florence caption disappear. Switching images and returning shows it again.
+**Status:** Resolved in Browser Polish Pass.
+**Reproduced:** A wheel event over the read-only details Text scrolled that
+Text internally instead of the containing sidebar Canvas. Moving the outer
+sidebar back to the top left the caption scrolled out of the Text viewport;
+switching images rebuilt the Text and reset its internal view.
+**Additional QA finding:** Routing all wheel events to the Canvas alone left
+content below the details Text's fixed 24-line viewport unreachable.
+**Resolution:** Read-only tag/details Text widgets now grow to their full
+wrapped content height, including tag spacing, so the enclosing Canvas owns
+the complete vertical scroll range. Wheel events over Text reach that Canvas
+before the native Text class binding; surrounding-Canvas events also route
+when Windows cannot resolve the pointer widget. Scrolling does not clear
+caption bytes, change selection, or write to the catalog.
 
 ### Unavailable face provider reports an analyzed no-person result
 
-**Status:** Open; deferred provider-state messaging correction.
-**Observed:** When face detection is not installed, the UI can say
-`No person detected`. An unavailable provider should be distinguished from a
-completed analysis that found no person, for example `Face detection not installed`.
+**Status:** Resolved in Browser Polish Pass.
+**Reproduced:** The Browser displayed Florence's stored `no person detected`
+recommendation reason without a separate Face Analysis availability/result
+field. That made a Florence object-detection statement look like a Face result.
+**Resolution:** The Browser checks the configured YuNet/SFace setup and shows
+`Face detection not installed`, `Not analyzed`, `No person detected`, or the
+stored positive face count as distinct states. Florence's no-person reason is
+displayed with explicit Florence wording; catalog evidence is unchanged.
+
+## Open bugs
 
 ### Enlarged-image Right Arrow navigation occasionally shows “image not found”
 

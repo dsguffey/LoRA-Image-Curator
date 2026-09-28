@@ -213,9 +213,25 @@ def test_real_face_provider_writes_and_reuses_only_custom_catalog() -> None:
             source, reports, catalog_database=custom,
             provider=_DeterministicFaceProvider(),
         )
-        assert first.catalog_database == custom
+        if first.catalog_database != custom:
+            print(
+                "Face catalog path spellings: "
+                f"returned={ascii(str(first.catalog_database))}, "
+                f"requested={ascii(str(custom))}"
+            )
+        assert first.catalog_database.samefile(custom), (
+            f"Face result used {first.catalog_database!a} instead of {custom!a}"
+        )
         assert first.generated_images == 1
-        assert second.catalog_database == custom
+        if second.catalog_database != custom:
+            print(
+                "Reused Face catalog path spellings: "
+                f"returned={ascii(str(second.catalog_database))}, "
+                f"requested={ascii(str(custom))}"
+            )
+        assert second.catalog_database.samefile(custom), (
+            f"Face reuse used {second.catalog_database!a} instead of {custom!a}"
+        )
         assert second.reused_images == 1
         with closing(sqlite3.connect(custom)) as connection:
             assert connection.execute("SELECT COUNT(*) FROM face_detections").fetchone()[0] == 1
